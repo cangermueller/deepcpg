@@ -35,14 +35,18 @@ auc_score <- function(y, yp) {
 ```
 
 ```{r cache=opts$cache}
-read <- function(x) {
-  fn <- sprintf('../eval_%s.csv', x)
-  d <- read.csv(fn) %>% tbl_df
+h5_read <- function(filename, group, ...) {
+  d <- suppressWarnings(h5read(filename, group, ...)$table)
+  for (i in 1:ncol(d)) {
+    d[,i] <- as.vector(d[,i])
+  }
+  d <- d %>% tbl_df %>% select(-index)
   return (d)
 }
+
 h <- c('X', 'Y', 'Z', 'S')
 dat <- list()
-dat$raw <- lapply(h, function(x) read(x))
+dat$raw <- lapply(h, function(x) h5_read('../eval.h5', x))
 names(dat$raw) <- h
 ```
 
