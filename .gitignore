@@ -36,9 +36,10 @@ docs/build/*
 /venv*/
 MANIFEST
 
-/tmp/
-/annos/
-/txt/
+/1*/
+/data/
+/predict_old/
+/configs.sh
 *_cache/
 *_files/
 *.h5
