@@ -8,8 +8,9 @@ import pytest
 import ipdb
 
 __dir = pt.dirname(pt.realpath(__file__))
-sys.path.insert(0, pt.join(__dir, '../biseq'))
+sys.path.insert(0, pt.join(__dir, '../predict'))
 import hdf
+
 
 @pytest.fixture
 def data_frame():

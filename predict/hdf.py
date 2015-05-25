@@ -3,6 +3,7 @@ import h5py as h5
 
 PATH_SEP = '/'
 
+
 def split_path(path, sep=':', first=False):
     t = path.split(sep)
     filename = t[0]
@@ -16,16 +17,18 @@ def split_path(path, sep=':', first=False):
         hpath = PATH_SEP + item
     return (filename, hpath)
 
-def ls(filename, path=None):
-    f = h5.File(filename)
-    if path is None or len(path) == 0:
-        path = PATH_SEP
-    items = list(f[path].keys())
+
+def ls(path, group=None):
+    f = h5.File(path)
+    if group is None or len(group) == 0:
+        group = PATH_SEP
+    items = list(f[group].keys())
     f.close()
     return items
 
-def first_item(filename, path=None):
-    items = ls(filename, path)
+
+def first_item(path, group=None):
+    items = ls(path, group)
     if len(items) > 0:
         return items[0]
     else:

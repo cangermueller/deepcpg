@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 
+
 def group_apply(d, by, fun, level=False, set_index=False, *args, **kwargs):
     if level:
         g = d.groupby(level=by)

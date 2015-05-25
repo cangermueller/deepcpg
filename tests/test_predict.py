@@ -2,7 +2,7 @@ import sys
 import os.path as pt
 import numpy as np
 import numpy.testing as npt
-import pandas as pd
+import pandas as pd # asd
 from sklearn.linear_model import LogisticRegression
 import ipdb
 import pytest
@@ -11,7 +11,6 @@ __dir = pt.dirname(pt.realpath(__file__))
 sys.path.insert(0, pt.join(__dir, '../predict'))
 
 import predict as pred
-
 
 
 class TestMultiClassClassifier(object):

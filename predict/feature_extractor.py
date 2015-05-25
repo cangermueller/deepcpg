@@ -1,7 +1,5 @@
 import numpy as np
-import pandas as pd
-import os.path as pt
-import re
+
 
 class KnnCpgFeatureExtractor(object):
     """Extracts k CpG sites next to target sites. Excludes CpG sites at the

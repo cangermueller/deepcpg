@@ -76,8 +76,23 @@ def min_dist(x, fun=np.mean):
     return h
 
 
+def cor(x, axis=0, fun=np.mean):
+    if axis == 1:
+        x = x.T
+    xm = np.ma.masked_array(x, np.isnan(x))
+    c = np.ma.corrcoef(xm).data
+    c[c > 1.0] = 1.0
+    c[c < -1.0] = -1.0
+    if fun is not None:
+        c = fun(c)
+    return c
+
+
+
+
 def stats(x, delta=1500):
-    """Returns statistic of window of size 2*delta+1 centered on each CpG."""
+    """Returns statistic of window of size 2*delta+1 centered on each CpG.
+       x is CpG matrix sites x samples"""
 
     s = []
     s.append(cpg_cov(x))

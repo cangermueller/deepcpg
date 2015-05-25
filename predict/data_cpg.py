@@ -3,45 +3,15 @@
 import argparse
 import sys
 import logging
-import os
 import os.path as pt
-import subprocess as sp
-import pandas as pd
 import numpy as np
-import ipdb
+import warnings
 
 __dir = pt.dirname(pt.realpath(__file__))
 # sys.path.insert(0, pt.join(__dir, '../module'))
+
 import hdf
-
-def chromo_to_int(chromo):
-    if type(chromo) is int:
-        return chromo
-    chromo = chromo.lower()
-    if chromo == 'x':
-        return 100
-    elif chromo == 'y':
-        return 101
-    elif chromo == 'mt':
-        return 102
-    else:
-        return int(chromo)
-
-
-def read_bed(path, chromo=None, nrows=None):
-    if chromo is not None:
-        cmd = "grep '^\s*%s' %s" % (chromo, path)
-        f = sp.Popen(cmd, shell=True, cwd=os.getcwd(), stdout=sp.PIPE).stdout
-    else:
-        f = path
-    d = pd.read_table(f, header=None, usecols=[0, 1, 2], nrows=nrows,
-                      dtype={0: np.str, 1: np.int32, 2: np.float32})
-    d.columns = ['chromo', 'pos', 'value']
-    d['chromo'] = [chromo_to_int(x) for x in d.chromo]
-    d['value'] = np.round(d.value)
-    assert np.all((d.value == 0) | (d.value == 1)), 'Invalid methylation states'
-    d = pd.DataFrame(d, dtype=np.int32)
-    return d
+import data
 
 
 class Processor(object):
@@ -60,8 +30,9 @@ class Processor(object):
     def write(self, d, name, sample):
         for chromo in d.chromo.unique():
             dc = d.loc[d.chromo == chromo]
-            group = pt.join(self.out_group, name, 'cpg', 'c' + str(chromo), sample)
-            dc.to_hdf(self.out_path, group)
+            dc = dc.loc[:, ~dc.columns.isin(['chromo'])]
+            group = pt.join(self.out_group, name, 'cpg', str(chromo), sample)
+            dc.to_hdf(self.out_path, group, format='t', data_columns=True)
 
     def split(self, d, size_b=0.5):
         """Splits rows of DataFrame d randomly into a and b"""
@@ -75,7 +46,7 @@ class Processor(object):
 
     def process(self, path):
         sample = pt.splitext(pt.basename(path))[0]
-        d = read_bed(path, self.chromo, self.nrows)
+        d = data.read_cpg(path, self.chromo, self.nrows)
         if self.pos_min is not None:
             d = d.loc[d.pos >= self.pos_min]
         if self.pos_max is not None:
@@ -128,12 +99,12 @@ class App(object):
             help='Only read that many rows from each file',
             type=int)
         p.add_argument(
-            '--pos_min',
-            help='Minimum position',
+            '--start',
+            help='Start position on chromomse',
             type=int)
         p.add_argument(
-            '--pos_max',
-            help='Maximum position',
+            '--stop',
+            help='Stop position on chromosome',
             type=int)
         p.add_argument(
             '--seed',
@@ -160,14 +131,16 @@ class App(object):
         p = Processor(hdf_path, hdf_group, opts.test_size, opts.val_size)
         p.chromo = opts.chromo
         p.nrows = opts.nrows
-        p.pos_min = opts.pos_min
-        p.pos_max = opts.pos_max
+        p.pos_min = opts.start
+        p.pos_max = opts.stop
         p.rng = np.random.RandomState(opts.seed)
 
         log.info('Process files ...')
         for in_file in opts.in_files:
             log.info('\t%s', in_file)
-            p.process(in_file)
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                p.process(in_file)
 
         log.info('Done!')
         return 0

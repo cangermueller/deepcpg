@@ -111,6 +111,13 @@ class MultitaskClassifier(object):
         Y = np.vstack(Y).T
         return Y
 
+    def get_params(self):
+        return self.model.get_params()
+
+    def set_params(self, **kwargs):
+        return self.model.set_params(**kwargs)
+
+
 
 class SampleSpecificClassifier(object):
 
