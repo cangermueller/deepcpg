@@ -6,46 +6,79 @@ import logging
 import os.path as pt
 import numpy as np
 import pandas as pd
-
+import warnings
 
 __dir = pt.dirname(pt.realpath(__file__))
 # sys.path.insert(0, pt.join(__dir, '../module'))
 
-import data as dat
 import utils as ut
 import hdf
 
 
-def cpg_cov(x, mean=False):
-    """Returns CpG coverage at position f(x) = # covererd / # samples"""
-
+def __cpg_cov(x, mean=False):
+    """Return CpG coverage of matrix x."""
     h = np.mean(~np.isnan(x), axis=1)
     if mean:
         h = h.mean()
     return h
 
 
-def cpg_density(x, c=1):
-    """Returns CpG densitity f(x) = # CpGs in in window of width c / c"""
-
-    return x.shape[0] / c
-
-
-def var(x):
-    """Returns variance \
-        f(x) = variance(mean methylation in window of each sample)"""
-
-    x = np.ma.masked_array(x, np.isnan(x))
-    return x.mean(axis=0).var()
+def cpg_cov(x):
+    """Return CpG coverage of single CpGs"""
+    return __cpg_cov(x)
 
 
-def min_dist_sample(x):
+def cpg_cov_win(x, delta):
+    """Return mean CpG coverage in window."""
+    return ut.rolling_apply(x, delta, __cpg_cov, mean=True).iloc[:, 0]
+
+
+def __var(x, axis=0):
+    """Return mean over axis and than variance."""
+    x.mean(axis=axis).var()
+    return x.mean(axis=axis).var()
+
+
+def __var_win(x, delta, axis=0):
+    """Return variance in window."""
+    return ut.rolling_apply(x, delta, __var, axis=axis).iloc[:, 0]
+
+
+def var_samples_win(x, delta):
+    """Return variance between samples in window."""
+    return __var_win(x, delta, axis=0)
+
+
+def var_sites_win(x, delta):
+    """Return variance between sites in window."""
+    return __var_win(x, delta, axis=1)
+
+
+def __cpg_content(x, delta):
+    return x.shape[0] / delta
+
+
+def cpg_content_win(x, delta):
+    """Return CpG content (% CpG) in window."""
+    return ut.rolling_apply(x, delta, __cpg_content, delta).iloc[:, 0]
+
+
+def __cpg_density(x, delta):
+    c = delta * x.shape[1]
+    return x.notnull().sum().sum() / c
+
+
+def cpg_density_win(x, delta):
+    """Return density of CpG matrix in window."""
+    return ut.rolling_apply(x, delta, __cpg_density, delta).iloc[:, 0]
+
+
+def __min_dist_sample(x):
     """Returns minimal distance to nearest CpG for one sample.
     x is vector with location of covered CpGs.
     """
-
-    rv = np.empty(len(x))
-    rv.fill(np.nan)
+    rv = np.empty(len(x), dtype='int32')
+    rv.fill(0)
     for i in range(len(x)):
         h = []
         if i > 0:
@@ -58,25 +91,24 @@ def min_dist_sample(x):
 
 
 def min_dist(x, fun=np.mean):
-    """Computes minimal distance of nearest covered CpG for all samples and than
+    """Return minimal distance of nearest covered CpG for all samples and than
     applies fun to these distances. Returns mean minimal distance to nearest
     neighbor by default."""
-
     h = []
     for i in range(x.shape[1]):
         xi = x.iloc[:, i].dropna()
-        h.append(pd.DataFrame(min_dist_sample(xi.index), index=xi.index))
+        h.append(pd.DataFrame(__min_dist_sample(xi.index), index=xi.index))
     h = pd.concat(h, axis=1)
     h.columns = x.columns
     assert np.all(h.shape == x.shape)
     if fun is not None:
-        h = np.ma.masked_array(h, np.isnan(h))
-        h = fun(h, axis=1).data
-        h[h == 0] = np.nan
+        h = fun(h, axis=1)
+        assert h.notnull().all()
     return h
 
 
-def cor(x, axis=0, fun=np.mean):
+def __cor(x, axis=0, fun=np.mean):
+    """Return mean correlation coefficient. Not used now."""
     if axis == 1:
         x = x.T
     xm = np.ma.masked_array(x, np.isnan(x))
@@ -88,32 +120,32 @@ def cor(x, axis=0, fun=np.mean):
     return c
 
 
+class Processor(object):
 
+    def __init__(self, out_file):
+        self.out_file = out_file
+        self.chromos = None
 
-def stats(x, delta=1500):
-    """Returns statistic of window of size 2*delta+1 centered on each CpG.
-       x is CpG matrix sites x samples"""
+    def process_chromo(self, in_file, stats, chromo):
+        in_path, in_group = hdf.split_path(in_file)
+        Y = pd.read_hdf(in_path, pt.join(in_group, 'Y', chromo))
+        out_path, out_group = hdf.split_path(self.out_file)
+        for stat_name, stat_fun in stats.items():
+            print(stat_name)
+            s = stat_fun(Y)
+            assert type(s) is pd.Series
+            assert np.all(s.index == Y.index)
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                s.to_hdf(out_path, pt.join(out_group, stat_name, chromo))
 
-    s = []
-    s.append(cpg_cov(x))
-    s.append(min_dist(x))
-    s.append(ut.rolling_apply(x, delta, cpg_cov, mean=True))
-    s.append(ut.rolling_apply(x, delta, cpg_density, c=(2 * delta + 1)))
-    s.append(ut.rolling_apply(x, delta, var))
-    s = [pd.DataFrame(s_, index=x.index) for s_ in s]
-    s = pd.concat(s, axis=1)
-    s.columns = ['cpg_cov', 'min_dist', 'win_cpg_cov',
-                 'win_cpg_density', 'win_var']
-    assert s.shape[0] == x.shape[0]
-    return s
-
-
-def stats_all(d, *args, **kwargs):
-    def set_index(d):
-        d.index = d.index.get_level_values(1)
-        return d
-    return ut.group_apply(d, 'chromo', lambda x: stats(set_index(x), *args, **kwargs),
-                          level=True, set_index=True)
+    def process(self, in_file, stats):
+        in_path, in_group = hdf.split_path(in_file)
+        chromos = self.chromos
+        if chromos is None:
+            chromos = hdf.ls(in_path, pt.join(in_group, 'Y'))
+        for chromo in chromos:
+            self.process_chromo(in_file, stats, str(chromo))
 
 
 class EvalStats(object):
@@ -133,10 +165,17 @@ class EvalStats(object):
             'in_file',
             help='HDF path of data set')
         p.add_argument('-o', '--out_file',
-                       help='HDF path of output statistics',
-                       default='eval_stats.h5')
-        p.add_argument('--out_csv',
-                       help='Write output statistics to CSV file')
+                       help='HDF path of output statistics')
+        p.add_argument('--stats',
+                       help='Name of evaluation functions',
+                       nargs='+')
+        p.add_argument('--wlen',
+                       help='Window length for windowing functions',
+                       default=3000,
+                       type=int)
+        p.add_argument('--chromos',
+                       help='Only consider these chromosomes',
+                       nargs='+')
         p.add_argument(
             '--verbose',
             help='More detailed log messages',
@@ -157,29 +196,20 @@ class EvalStats(object):
             log.setLevel(logging.INFO)
         log.debug(opts)
 
-        log.info('Read input ...')
-        hdf_file, hdf_path = hdf.split_path(opts.in_file)
-        d = pd.read_hdf(hdf_file, hdf_path)
-        d = d.query('feature == "cpg" | sample == "global"')
+        stats = dict()
+        for stat_name in opts.stats:
+            if stat_name.find('win') >= 0:
+                def tfun(x, name=stat_name):
+                    return globals()[name](x, delta=opts.wlen / 2)
+                fun = tfun
+            else:
+                fun = globals()[stat_name]
+            stats[stat_name] = fun
 
-        log.info('Compute statistics ...')
-        Y = d.loc[d.feature == 'cpg']
-        Y = dat.feature_matrix(d)
-        Y.columns = Y.columns.get_level_values(0)
-        S = stats_all(Y).reset_index()
-        S = pd.melt(S, id_vars=['chromo', 'pos'],
-                     var_name='feature', value_name='value')
-        S['sample'] = 'stats'
-
-        log.info('Write output ...')
-        d = pd.concat([d, S])
-        hdf_file, hdf_path = hdf.split_path(opts.out_file)
-        hdf_path = pt.join(hdf_path, 'stats')
-        log.info('\t%s' % (hdf_file))
-        d.to_hdf(hdf_file, hdf_path)
-        if opts.out_csv:
-            log.info('\t%s' % (opts.out_csv))
-            d.to_csv(opts.out_csv, index=False)
+        log.info('Process ...')
+        p = Processor(opts.out_file)
+        p.chromos = opts.chromos
+        p.process(opts.in_file, stats)
 
         log.info('Done!')
         return 0

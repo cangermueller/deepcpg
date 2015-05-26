@@ -141,6 +141,7 @@ class Selector(object):
             self.samples = hdf.ls(path, pt.join(dataset, 'cpg', '1'))
         d = []
         for chromo in self.chromos:
+            chromo = str(chromo)
             dc = self.select_chromo(path, dataset, chromo)
             dc['chromo'] = chromo
             d.append(dc)
