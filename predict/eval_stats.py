@@ -148,6 +148,36 @@ class Processor(object):
             self.process_chromo(in_file, stats, str(chromo))
 
 
+class Selector(object):
+
+    def __init__(self, chromos=None, stats=None):
+        self.chromos = chromos
+        self.stats = None
+
+    def select_chromo(self, path, group, chromo, stats):
+        d = []
+        for stat in stats:
+            g = pt.join(group, stat, chromo)
+            ds = pd.read_hdf(path, g)
+            d.append(ds)
+        d = pd.concat(d, axis=1, keys=stats)
+        return d
+
+    def select(self, path, group):
+        stats = self.stats
+        if stats is None:
+            stats = hdf.ls(path, group)
+        chromos = self.chromos
+        if chromos is None:
+            chromos = hdf.ls(path, pt.join(group, stats[0]))
+        d = []
+        for chromo in chromos:
+            dc = self.select_chromo(path, group, chromo, stats)
+            d.append(dc)
+        d = pd.concat(d, keys=chromos, names=['chromo', 'pos'])
+        return d
+
+
 class EvalStats(object):
 
     def run(self, args):

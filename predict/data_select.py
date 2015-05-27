@@ -16,10 +16,11 @@ import data
 
 class FeatureSelection(object):
 
-    def __init__(self, knn=5, knn_dist=False, annos=True):
-        self.knn = knn  # k tor True
-        self.knn_dist = knn_dist  # k or True
-        self.annos = annos  # non-empty list or True
+    def __init__(self, cpg=True, knn=5, knn_dist=False, annos=True):
+        self.cpg = cpg  # True, False, None
+        self.knn = knn  # k, True, False, None
+        self.knn_dist = knn_dist  # k, True, False, None
+        self.annos = annos  # non-empty list, True, False, None
 
 
 class RangeSelection(object):
@@ -112,22 +113,28 @@ class Selector(object):
     def select_chromo(self, path, dataset, chromo):
         range_sel = RangeSelection(chromo, self.start, self.end)
 
-        df = select_cpg(path, dataset, range_sel, self.samples)
-        pos = df.pos.unique()
-        d = {'cpg': df}
+        d = dict()
+        pos = None  # prefilter to reduce memory usage
+        if self.features.cpg:
+            df = select_cpg(path, dataset, range_sel, self.samples)
+            pos = df.pos.unique()
+            d = {'cpg': df}
         if self.features.knn:
             df = select_knn(path, dataset, range_sel, self.samples,
                             self.features.knn, False)
-            df = df.loc[df.pos.isin(pos)]
+            if pos is not None:
+                df = df.loc[df.pos.isin(pos)]
             d['knn'] = df
         if self.features.knn_dist:
             df = select_knn(path, dataset, range_sel, self.samples,
                             self.features.knn, True)
-            df = df.loc[df.pos.isin(pos)]
+            if pos is not None:
+                df = df.loc[df.pos.isin(pos)]
             d['knn_dist'] = df
         if self.features.annos:
             df = select_annos(path, dataset, range_sel, self.features.annos)
-            df = df.loc[df.pos.isin(pos)]
+            if pos is not None:
+                df = df.loc[df.pos.isin(pos)]
             d['annos'] = df
         for k, v, in d.items():
             d[k]['cat'] = k
