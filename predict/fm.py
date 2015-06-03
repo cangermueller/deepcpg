@@ -75,7 +75,7 @@ class App(object):
         log.debug(opts)
 
         fs = dsel.FeatureSelection()
-        fs.knn = 2
+        fs.knn = True
         fs.knn_dist = False
         fs.annos = True
 

@@ -36,11 +36,4 @@ docs/build/*
 /venv*/
 MANIFEST
 
-/1*/
-/data/
-/predict_old/
-/configs.sh
-*_cache/
-*_files/
-*.h5
-*.html
+/tests/data/

@@ -10,7 +10,7 @@ import warnings
 __dir = pt.dirname(pt.realpath(__file__))
 # sys.path.insert(0, pt.join(__dir, '../module'))
 
-import . hdf
+import hdf
 import data
 
 

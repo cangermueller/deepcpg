@@ -75,19 +75,26 @@ class MultitaskClassifier(object):
     def __init__(self, m):
         self.model = m
 
+    def X_(self, X, task):
+        return X[:, self.task_features[task]]
+
     def Xy_(self, X, Y, task):
         y = Y[:, task]
         h = ~np.isnan(y)
-        X = X[h]
         y = y[h]
+        X = self.X_(X, task)
+        X = X[h]
         return (X, y)
 
-    def fit(self, X, Y):
+    def fit(self, X, Y, task_features=None):
         X = np.asarray(X)
         Y = np.asarray(Y)
-        self.num_tasks = Y.shape[1]
+        self.ntasks = Y.shape[1]
+        if task_features is None:
+            task_features = [range(X.shape[1])] * self.ntasks
+        self.task_features = task_features
         self.models = []
-        for task in range(self.num_tasks):
+        for task in range(self.ntasks):
             Xt, yt = self.Xy_(X, Y, task)
             m = skb.clone(self.model)
             m.fit(Xt, yt)
@@ -96,18 +103,20 @@ class MultitaskClassifier(object):
     def predict(self, X):
         X = np.asarray(X)
         Y = []
-        for task in range(self.num_tasks):
+        for task in range(self.ntasks):
             m = self.models[task]
-            Y.append(m.predict(X))
+            Xt = self.X_(X, task)
+            Y.append(m.predict(Xt))
         Y = np.vstack(Y).T
         return Y
 
     def predict_proba(self, X):
         X = np.asarray(X)
         Y = []
-        for task in range(self.num_tasks):
+        for task in range(self.ntasks):
             m = self.models[task]
-            Y.append(m.predict_proba(X)[:, 1])
+            Xt = self.X_(X, task)
+            Y.append(m.predict_proba(Xt)[:, 1])
         Y = np.vstack(Y).T
         return Y
 
@@ -117,98 +126,63 @@ class MultitaskClassifier(object):
     def set_params(self, **kwargs):
         return self.model.set_params(**kwargs)
 
-
-
-class SampleSpecificClassifier(object):
-
-    def __init__(self, m):
-        self.model = m
-
-    def X_(self, X, sample):
-        X = X.loc[:, [sample] + self.shared]
-        return X
-
-    def Xy_(self, X, y, sample):
-        X = self.X_(X, sample)
-        y = y[sample].values
-        return (X, y)
-
-    def drop_na_(self, X, y):
-        h = ~np.isnan(y)
-        X = X.loc[h]
-        y = y[h]
-        return (X, y)
-
-    def fit(self, X, Y):
-        self.samples = Y.columns
-        self.shared = [x not in self.samples for x in X.columns.get_level_values(0).unique()]
-        self.models = []
-        for sample in self.samples:
-            Xs, ys = self.Xy_(X, Y, sample)
-            Xs, ys = self.drop_na_(Xs, ys)
-            ms = skb.clone(self.model)
-            ms.fit(Xs, ys)
-            self.models.append(ms)
-
-    def predict(self, X):
-        Y = []
-        for i, sample in enumerate(self.samples):
-            Xs = self.X_(X, sample)
-            ms = self.models[i]
-            Y.append(ms.predict(Xs))
-        Y = np.vstack(Y).T
-        return Y
-
-    def predict_proba(self, X):
-        Y = []
-        for i, sample in enumerate(self.samples):
-            Xs = self.X_(X, sample)
-            ms = self.models[i]
-            Y.append(ms.predict_proba(Xs)[:, 1])
-        Y = np.vstack(Y).T
-        return Y
-
-
-class Predict(object):
-
-    def run(self, args):
-        name = pt.basename(args[0])
-        parser = self.create_parser(name)
-        opts = parser.parse_args(args[1:])
-        return self.main(name, opts)
-
-    def create_parser(self, name):
-        p = argparse.ArgumentParser(
-            prog=name,
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Description')
-        p.add_argument(
-            'in_file',
-            help='HDF path where chromosome seqs can be found')
-        p.add_argument('-o', '--out_file',
-                       help='Output file')
-        p.add_argument(
-            '--verbose',
-            help='More detailed log messages',
-            action='store_true')
-        p.add_argument(
-            '--log_file',
-            help='Write log messages to file')
-        return p
-
-    def main(self, name, opts):
-        logging.basicConfig(filename=opts.log_file,
-                            format='%(levelname)s (%(asctime)s): %(message)s')
-        log = logging.getLogger(name)
-        if opts.verbose:
-            log.setLevel(logging.DEBUG)
+    def coef_(self, order=False, abs_=True):
+        fi = np.vstack([x.coef_ for x in self.models])
+        if abs_:
+            fi = np.abs(fi)
+        if order:
+            o = np.mean(fi, axis=0).argsort()
+            return (fi, o)
         else:
-            log.setLevel(logging.INFO)
-        log.debug(opts)
+            return fi
 
-        return 0
+    def feature_importances_(self, order=False):
+        fi = np.vstack([x.feature_importances_ for x in self.models])
+        if order:
+            o = np.mean(fi, axis=0).argsort()
+            return (fi, o)
+        else:
+            return fi
+
+    def feature_importances(self, *args, **kwargs):
+        attr = None
+        for a in ['feature_importances_', 'coef_']:
+            if hasattr(self.models[0], a):
+                attr = a
+                break
+        f = getattr(self, attr)
+        return f(*args, **kwargs)
 
 
-if __name__ == '__main__':
-    app = Predict()
-    app.run(sys.argv)
+def flatten_index(index, sep='_'):
+    if index.nlevels > 1:
+        rv = [sep.join(x) for x in index.values]
+    else:
+        rv = index.values
+    return rv
+
+
+def sample_features(samples, features):
+    ffeatures = flatten_index(features)
+    shared = []
+    specific = []
+    for i, f in enumerate(ffeatures):
+        is_shared = True
+        for s in samples:
+            if f.find(s) >= 0:
+                is_shared = False
+                break
+        if is_shared:
+            shared.append(i)
+        else:
+            specific.append(i)
+    rv = []
+    for s in samples:
+        sf = []
+        for i in specific:
+            if ffeatures[i].find(s) >= 0:
+                sf.append(i)
+        sf.extend(shared)
+        rv.append(sf)
+    return rv
+
