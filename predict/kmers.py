@@ -160,7 +160,8 @@ class Processor(object):
             p = pos.loc[pos.chromo == chromo].pos.values
             seq = seq_group[str(chromo)].value
             kmers = self.process_chromo(seq, p)
-            kmers.to_hdf(out_path, pt.join(out_group, str(chromo)))
+            t = data.format_chromo(chromo)
+            kmers.to_hdf(out_path, pt.join(out_group, str(t)))
         seq_file.close()
 
 
@@ -235,7 +236,6 @@ class App(object):
             pos = pos.loc[pos.pos >= opts.start]
         if opts.stop is not None:
             pos = pos.loc[pos.pos <= opts.stop]
-        pos['chromo'] = data.format_chromos(pos['chromo'])
         pos.sort(['chromo', 'pos'], inplace=True)
 
         kext = KmersExtractor(opts.kmers)

@@ -15,6 +15,7 @@ import data_select as dsel
 
 
 class Selector(object):
+    """Selects data (X or Y matrix) from feature matrix."""
 
     def __init__(self, chromos=None):
         self.chromos = chromos
@@ -56,6 +57,9 @@ class App(object):
             '-o', '--out_file',
             help='Output HDF path')
         p.add_argument(
+            '--kmers',
+            help='HDF path to kmers')
+        p.add_argument(
             '--verbose',
             help='More detailed log messages',
             action='store_true')
@@ -91,6 +95,15 @@ class App(object):
             sel.chromos = [chromo]
             D = sel.select(in_path, in_group)
             D.index = D.index.droplevel(0)
+
+            if opts.kmers is not None:
+                path, group = hdf.split_path(opts.kmers)
+                kmers = pd.read_hdf(path, pt.join(group, str(chromo)))
+                t = pd.MultiIndex.from_product([['kmers'], kmers.columns])
+                kmers.columns = t
+                t = D.shape[0]
+                D = pd.concat([D, kmers], axis=1, join='inner')
+                assert D.shape[0] == t
 
             log.info('Format ...')
             Y = D.loc[:, 'cpg']

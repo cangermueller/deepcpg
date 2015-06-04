@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 
-import argparse
-import sys
-import logging
 import os.path as pt
 import numpy as np
 import pandas as pd
-import sklearn.metrics as met
+import sklearn.metrics as skm
 import sklearn.base as skb
-import ipdb
+from sklearn.grid_search import ParameterGrid
+import copy
 
 __dir = pt.dirname(pt.realpath(__file__))
 # sys.path.insert(0, pt.join(__dir, '../module'))
@@ -33,41 +31,77 @@ def complete_cases(x, y=None):
     return xc
 
 
-def score(Y, Yp, fun=met.roc_auc_score):
+def score(Y, Yp, fun=skm.roc_auc_score):
     y = np.asarray(Y).ravel()
     yp = np.asarray(Yp).ravel()
     y, yp = complete_cases(y, yp)
     return fun(y, yp)
 
 
-def scores(Y, Z, fun=met.roc_auc_score):
+def scores(Y, Z, fun=skm.roc_auc_score):
     Y = np.asarray(Y)
     Z = np.asarray(Z)
     assert Y.shape == Z.shape
     num_tasks = Y.shape[1]
-    scores = []
+    s = []
     for task in range(num_tasks):
         y = Y[:, task]
         z = Z[:, task]
         y, z = complete_cases(y, z)
-        scores.append(fun(y, z))
-    return scores
+        s.append(fun(y, z))
+    return s
 
 
-def format_write(Y, Z):
-    assert Y.shape == Z.shape
-    Z = pd.DataFrame(Z)
-    Z.columns = Y.columns
-    Z.index = Y.index
-    Z = Z.reset_index()
-    Z = pd.melt(Z, var_name='sample', value_name='value', id_vars=['chromo', 'pos'])
-    Z['feature'] = 'z'
-    return Z
+def scores_frame(Y, Z):
+    funs = {'auc': skm.roc_auc_score, 'acc': skm.accuracy_score, 'tpr': skm.recall_score}
+    order = ['auc', 'acc', 'tpr']
+    s = dict()
+    ZZ = np.round(Z)
+    for k, v in funs.items():
+        z = Z
+        if k != 'auc':
+            z = ZZ
+        s[k] = scores(Y, z, v)
+    s = pd.DataFrame(s, index=Y.columns)
+    s = s.loc[:, order]
+    return s
 
 
-def write_prediction(Y, Z, filename, group='z'):
-    Z = format_write(Y, Z)
-    Z.to_hdf(filename, group, format='t', data_columns=True)
+def flatten_index(index, sep='_'):
+    if index.nlevels > 1:
+        rv = [sep.join(x) for x in index.values]
+    else:
+        rv = index.values
+    return rv
+
+
+
+def holdout_opt(model, param_grid, train_X, train_Y, val_X, val_Y, fun=skm.roc_auc_score):
+    param_names = list(param_grid.keys())
+    param_grid = ParameterGrid(param_grid)
+    opt_model = None
+    max_score = None
+    scores = dict()
+    for x in param_names + ['train', 'val']:
+        scores[x] = []
+    for params in param_grid:
+        model.set_params(**params)
+        model.fit(train_X, train_Y)
+        def score_fun(X, Y):
+            return score(Y, model.predict_proba(X), fun)
+        s = []
+        s.append(score_fun(train_X, train_Y))
+        s.append(score_fun(val_X, val_Y))
+        if max_score is None or s[1] > max_score:
+            opt_model = copy.deepcopy(model)
+            max_score = s[1]
+        for k, v in params.items():
+            scores[k].append(v)
+        scores['train'].append(s[0])
+        scores['val'].append(s[1])
+    scores = pd.DataFrame(scores)
+    return (opt_model, scores)
+
 
 
 class MultitaskClassifier(object):
@@ -154,15 +188,9 @@ class MultitaskClassifier(object):
         return f(*args, **kwargs)
 
 
-def flatten_index(index, sep='_'):
-    if index.nlevels > 1:
-        rv = [sep.join(x) for x in index.values]
-    else:
-        rv = index.values
-    return rv
-
-
 def sample_features(samples, features):
+    """Return feature indices for different samples. Useful to create a
+       sample specific classifier with MutlitaskClassifier."""
     ffeatures = flatten_index(features)
     shared = []
     specific = []
@@ -185,4 +213,3 @@ def sample_features(samples, features):
         sf.extend(shared)
         rv.append(sf)
     return rv
-
