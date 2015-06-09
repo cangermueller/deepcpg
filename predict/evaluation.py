@@ -9,6 +9,7 @@ class Loader(object):
 
     def __init__(self, group='test', chromos=None):
         self.chromos = chromos
+        self.group = group
 
     def Y(self, data_path):
         sel = fm.Selector(self.chromos)
