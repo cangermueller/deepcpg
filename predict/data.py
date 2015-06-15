@@ -52,13 +52,19 @@ def read_cpg(path, chromo=None, nrows=None):
     return d
 
 
-def read_annos(filename, sort=True):
-    d = pd.read_table(filename, header=None)
-    d = d.iloc[:, :3]
+def read_annos(filename, *args, **kwargs):
+    d = pd.read_table(filename, header=None, usecols=[0, 1, 2])
     d.columns = ['chromo', 'start', 'end']
+    d = format_bed(d, *args, **kwargs)
+    return d
+
+
+def format_bed(d, rm_unknown=True, sort=True):
     d['chromo'] = format_chromos(d['chromo'])
+    if rm_unknown:
+        d = d.loc[d.chromo != 0]
     if sort:
-        d.sort(['chromo', 'start'], inplace=True)
+        d = d.sort(['chromo', 'start'])
     return d
 
 
@@ -72,8 +78,10 @@ def chromo_to_int(chromo):
         return 101
     elif chromo in ['mt', 'm']:
         return 102
-    else:
+    elif chromo.isdigit():
         return int(chromo)
+    else:
+        return 0 # unknown
 
 
 def format_chromo(chromo, to_int=True):

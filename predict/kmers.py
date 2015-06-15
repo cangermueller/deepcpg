@@ -100,9 +100,9 @@ class Processor(object):
         self.progbar = None
         self.seq_index = 1
 
-    def log(self, message):
+    def log(self, msg):
         if self.logger is not None:
-            self.logger.info(message)
+            self.logger(msg)
 
     def process_chromo(self, seq, pos):
         n = pos.shape[0]
@@ -147,7 +147,6 @@ class Processor(object):
 
         freq = pd.DataFrame(freq, index=pos, columns=self.kext.labels())
         return freq
-
 
 
     def process(self, seq_path, pos, out_path):
@@ -241,7 +240,7 @@ class App(object):
         kext = KmersExtractor(opts.kmers)
         proc = Processor(kext, int(opts.wlen / 2))
         proc.progbar = progressbar.ProgressBar(term_width=80)
-        proc.logger = log
+        proc.logger = lambda x: log.info(x)
         log.info('Process ...')
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')

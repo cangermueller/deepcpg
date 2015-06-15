@@ -182,3 +182,4 @@ class IntervalFeatureExtractor(object):
 
     def extract(self, x, ys, ye):
         return self.index_intervals(x, ys, ye) >= 0
+

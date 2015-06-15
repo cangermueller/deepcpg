@@ -31,11 +31,11 @@ def complete_cases(x, y=None):
     return xc
 
 
-def score(Y, Yp, fun=skm.roc_auc_score):
+def score(Y, Z, fun=skm.roc_auc_score):
     y = np.asarray(Y).ravel()
-    yp = np.asarray(Yp).ravel()
-    y, yp = complete_cases(y, yp)
-    return fun(y, yp)
+    z = np.asarray(Z).ravel()
+    y, z = complete_cases(y, z)
+    return fun(y, z)
 
 
 def scores(Y, Z, fun=skm.roc_auc_score):

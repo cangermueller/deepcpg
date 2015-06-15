@@ -5,6 +5,7 @@ import sys
 import logging
 import os.path as pt
 import pandas as pd
+import numpy as np
 import warnings
 
 __dir = pt.dirname(pt.realpath(__file__))
@@ -18,10 +19,9 @@ import annos as A
 
 class Processor(object):
 
-    def __init__(self, path, dataset, distance=False):
+    def __init__(self, path, dataset):
         self.path = path
         self.dataset = dataset
-        self.distance = distance
 
     def annotate(self, chromo, annos):
         pos = data.get_pos(self.path, self.dataset, chromo)
@@ -29,22 +29,20 @@ class Processor(object):
         annos = annos.loc[annos.chromo == chromo]
         start, end = A.join_overlapping(annos['start'].values,
                                             annos['end'].values)
-        if self.distance:
-            f = A.distance(pos, start, end)
-        else:
-            f = A.is_in(pos, start, end)
+        f = np.empty(len(pos))
+        f.fill(np.nan) # score is nan if not in any interval
+        m = A.in_which(pos, start, end)
+        f[m >= 0] = annos.iloc[m[m >= 0]].score
         f = pd.DataFrame(dict(pos=pos, value=f))
         return f
 
     def process_chromo(self, chromo, annos, anno_name):
         f = self.annotate(chromo, annos)
-        group = 'annos'
-        if self.distance:
-            group += '_dist'
-        out_group = pt.join(self.dataset, group, anno_name, chromo)
+        out_group = pt.join(self.dataset, 'scores', anno_name, chromo)
         f.to_hdf(self.path, out_group, format='t', data_columns=True)
 
     def process(self, annos, anno_name):
+        annos = annos.sort(['chromo', 'start', 'end'])
         chromos = data.list_chromos(self.path, self.dataset)
         for chromo in chromos:
             self.process_chromo(chromo, annos, anno_name)
@@ -62,23 +60,19 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Adds annotation')
+            description='Add score annotations')
         p.add_argument(
             'in_file',
             help='Input HDF path to dataset (test, train, val)')
         p.add_argument(
             '-a', '--anno_files',
-            help='Annotation files in BED format',
+            help='Annotation files in BED format with score column',
             nargs='+')
         p.add_argument(
-            '--prefix',
-            help='Prefix annotation names',
-            default='')
-        p.add_argument(
-            '--distance',
-            help='Compute distance to annotations',
-            action='store_true'
-        )
+            '--score_col',
+            help='Index of scores column (starting at 1)',
+            default=4,
+            type=int)
         p.add_argument(
             '--verbose', help='More detailed log messages', action='store_true')
         p.add_argument(
@@ -95,13 +89,16 @@ class App(object):
             log.setLevel(logging.INFO)
         log.debug(opts)
 
-        log.info('Add annotations ...')
+        log.info('Add score annotations ...')
         in_path, in_group = hdf.split_path(opts.in_file)
-        p = Processor(in_path, in_group, opts.distance)
+        p = Processor(in_path, in_group)
         for anno_file in opts.anno_files:
-            anno_name = opts.prefix + pt.splitext(pt.basename(anno_file))[0]
+            anno_name = pt.splitext(pt.basename(anno_file))[0]
             log.info('\t%s...', anno_name)
-            annos = data.read_annos(anno_file)
+            annos = pd.read_table(anno_file, header=None,
+                              usecols=[0, 1, 2, opts.score_col - 1])
+            annos.columns = ['chromo', 'start', 'end', 'score']
+            annos = data.format_bed(annos)
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 p.process(annos, anno_name)

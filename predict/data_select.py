@@ -16,11 +16,13 @@ import data
 
 class FeatureSelection(object):
 
-    def __init__(self, cpg=True, knn=5, knn_dist=False, annos=True):
-        self.cpg = cpg  # True, False, None
-        self.knn = knn  # k, True, False, None
-        self.knn_dist = knn_dist  # k, True, False, None
-        self.annos = annos  # non-empty list, True, False, None
+    def __init__(self):
+        self.cpg = False  # True, False, None
+        self.knn = False  # k, True, False, None
+        self.knn_dist = False  # k, True, False, None
+        self.annos = False  # non-empty list, True, False, None
+        self.annos_dist = False  # non-empty list, True, False, None
+        self.scores = False  # non-empty list, True, False, None
 
 
 class RangeSelection(object):
@@ -87,12 +89,28 @@ def select_knn(path, dataset, range_sel, samples=None, k=None, dist=False):
     return d
 
 
-def select_annos(path, dataset, range_sel, annos=None):
+def select_annos(path, dataset, range_sel, annos=None, dist=False):
+    group = 'annos'
+    if dist:
+        group += '_dist'
     if annos is None or type(annos) is bool:
-        annos = hdf.ls(path, pt.join(dataset, 'annos'))
+        annos = hdf.ls(path, pt.join(dataset, group))
     d = []
     for anno in annos:
-        gs = pt.join(dataset, 'annos', anno, range_sel.chromo)
+        gs = pt.join(dataset, group, anno, range_sel.chromo)
+        f = pd.read_hdf(path, gs, where=range_sel.query())
+        f['feature'] = anno
+        d.append(f)
+    d = pd.concat(d)
+    return d
+
+
+def select_scores(path, dataset, range_sel, annos=None):
+    if annos is None or type(annos) is bool:
+        annos = hdf.ls(path, pt.join(dataset, 'scores'))
+    d = []
+    for anno in annos:
+        gs = pt.join(dataset, 'scores', anno, range_sel.chromo)
         f = pd.read_hdf(path, gs, where=range_sel.query())
         f['feature'] = anno
         d.append(f)
@@ -136,6 +154,16 @@ class Selector(object):
             if pos is not None:
                 df = df.loc[df.pos.isin(pos)]
             d['annos'] = df
+        if self.features.annos_dist:
+            df = select_annos(path, dataset, range_sel, self.features.annos_dist, dist=True)
+            if pos is not None:
+                df = df.loc[df.pos.isin(pos)]
+            d['annos_dist'] = df
+        if self.features.scores:
+            df = select_scores(path, dataset, range_sel, self.features.scores)
+            if pos is not None:
+                df = df.loc[df.pos.isin(pos)]
+            d['scores'] = df
         for k, v, in d.items():
             d[k]['cat'] = k
         d = pd.concat(d)

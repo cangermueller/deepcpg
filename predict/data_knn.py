@@ -23,16 +23,11 @@ class Processor(object):
         self.chromos = None
         self.samples = None
         self.nrows = None
+        self.logger = None
 
-    def process_sample(self, d, sample):
-        pos = d.index
-        cpg = d[sample].dropna()
-        f = self.knn_ext.extract(pos, cpg.index, cpg.values)
-        f = pd.DataFrame(f, columns=self.knn_ext.labels)
-        f['pos'] = pos
-        f = pd.melt(f, id_vars='pos', var_name='feature',
-                    value_name='value')
-        return f
+    def log(self, msg):
+        if self.logger is not None:
+            self.logger(msg)
 
     def write(self, f, path, dataset, chromo, sample):
         if self.out_path:
@@ -50,7 +45,19 @@ class Processor(object):
         out_group = pt.join(dataset, 'knn%d_dist' % (k), chromo, sample)
         to_hdf(f[t], out_group)
 
+    def process_sample(self, d, sample):
+        self.log('Sample %s ...' % (sample))
+        pos = d.index
+        cpg = d[sample].dropna()
+        f = self.knn_ext.extract(pos, cpg.index, cpg.values)
+        f = pd.DataFrame(f, columns=self.knn_ext.labels)
+        f['pos'] = pos
+        f = pd.melt(f, id_vars='pos', var_name='feature',
+                    value_name='value')
+        return f
+
     def process_chromo(self, path, dataset, chromo):
+        self.log('Chromosome %s ...' % (str(chromo)))
         d = data.read_cpg_list(path, dataset, chromo, nrows=self.nrows)
         d = pd.pivot_table(d, index='pos', columns='sample', values='value')
         d = d.sort_index()
@@ -136,6 +143,7 @@ class App(object):
         p.chromos = opts.chromos
         p.samples = opts.samples
         p.nrows = opts.nrows
+        p.logger = lambda x: log.info(x)
 
         log.info('Process ...')
         with warnings.catch_warnings():

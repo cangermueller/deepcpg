@@ -87,7 +87,11 @@ class Loader(object):
 
         def group_cut(d):
             e = d.copy()
-            cuts, bins = pd.cut(e.value, nbins, retbins=True)
+            if d.iloc[0].stat == 'cpg_cov':
+                f = pd.cut
+            else:
+                f = pd.qcut
+            cuts, bins = f(e.value, nbins, retbins=True)
             e['cut'] = [str(x) for x in cuts]
             e.index = range(e.shape[0])
             return e
