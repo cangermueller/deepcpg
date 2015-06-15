@@ -1,12 +1,10 @@
 import numpy as np
 import numpy.testing as npt
 import sys
-import pdb
 import pytest
 import os.path as pt
 
-sys.path.insert(0, pt.join(pt.dirname(pt.realpath(__file__)), '../predict'))
-import feature_extractor as fe
+from predict import feature_extractor as fe
 
 
 class TestKnnCpgFeatureExtractor(object):

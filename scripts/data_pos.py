@@ -5,8 +5,11 @@ import sys
 import logging
 import os.path as pt
 import pandas as pd
+import warnings
 
-from predict import annos
+from predict import hdf
+from predict import data
+from predict import data_pos
 
 
 class App(object):
@@ -21,21 +24,14 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Combines multiple bed files and joins overlapping annotations ')
+            description='Adds position vector')
         p.add_argument(
-            'in_files',
-            help='Annotation tracks in bed format',
-            nargs='+')
+            'in_file',
+            help='Input HDF path to dataset (test, train, val)')
         p.add_argument(
-            '-o', '--out_file',
-            help='Output file')
+            '--verbose', help='More detailed log messages', action='store_true')
         p.add_argument(
-            '--verbose',
-            help='More detailed log messages',
-            action='store_true')
-        p.add_argument(
-            '--log_file',
-            help='Write log messages to file')
+            '--log_file', help='Write log messages to file')
         return p
 
     def main(self, name, opts):
@@ -48,20 +44,12 @@ class App(object):
             log.setLevel(logging.INFO)
         log.debug(opts)
 
-        log.info('Read annotations ...')
-        d = []
-        for in_file in opts.in_files:
-            d.append(annos.read_bed(in_file), usecols=[0, 1, 2])
-        d = pd.concat(d)
-
-        log.info('Join annotations ...')
-        d = annos.join_overlapping_frame(d)
-
-        log.info('Write annotations ...')
-        s = d.to_csv(opts.out_file, sep='\t', header=None, index=False)
-        if s is not None:
-            print(s, end='')
-
+        log.info('Add position vectors ...')
+        hdf_path, hdf_group = hdf.split_path(opts.in_file)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            data_pos.add_pos(hdf_path, hdf_group)
+        log.info('Done!')
         return 0
 
 

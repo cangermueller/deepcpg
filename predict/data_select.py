@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import argparse
 import sys
 import logging
@@ -7,11 +5,7 @@ import os.path as pt
 import pandas as pd
 import re
 
-__dir = pt.dirname(pt.realpath(__file__))
-# sys.path.insert(0, pt.join(__dir, '../module'))
-
-import hdf
-import data
+from predict import data, hdf
 
 
 class FeatureSelection(object):
@@ -185,101 +179,3 @@ class Selector(object):
             d = pd.pivot_table(d, index=['chromo', 'pos'],
                                columns=['cat', 'feature'], values='value')
         return d
-
-
-class App(object):
-
-    def run(self, args):
-        name = pt.basename(args[0])
-        parser = self.create_parser(name)
-        opts = parser.parse_args(args[1:])
-        return self.main(name, opts)
-
-    def create_parser(self, name):
-        p = argparse.ArgumentParser(
-            prog=name,
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Extract feature matrix from database')
-        p.add_argument(
-            'in_file',
-            help='HDF path to dataset')
-        p.add_argument(
-            '-o', '--out_file',
-            help='Output HDF path')
-        p.add_argument(
-            '-k', '--knn',
-            help='Include knn CpG (int)',
-            type=int)
-        p.add_argument(
-            '--knn_dist',
-            help='Include distance to knn CpG (int)',
-            type=int)
-        p.add_argument(
-            '--annos',
-            help='Include annotations (True or list)',
-            nargs='*')
-        p.add_argument(
-            '--chromos',
-            help='Only use these chromosomes',
-            nargs='+'),
-        p.add_argument(
-            '--samples',
-            help='Only use these samples',
-            nargs='+'),
-        p.add_argument(
-            '--start',
-            help='Start position chromosome',
-            type=int),
-        p.add_argument(
-            '--stop',
-            help='Stop position chromosome',
-            type=int),
-        p.add_argument(
-            '--verbose',
-            help='More detailed log messages',
-            action='store_true')
-        p.add_argument(
-            '--log_file',
-            help='Write log messages to file')
-        return p
-
-    def main(self, name, opts):
-        logging.basicConfig(filename=opts.log_file,
-                            format='%(levelname)s (%(asctime)s): %(message)s')
-        log = logging.getLogger(name)
-        if opts.verbose:
-            log.setLevel(logging.DEBUG)
-        else:
-            log.setLevel(logging.INFO)
-        log.debug(opts)
-
-        if opts.annos is not None and len(opts.annos) == 0:
-            opts.annos = True
-
-        fs = FeatureSelection()
-        fs.knn = opts.knn
-        fs.knn_dist = opts.knn_dist
-        fs.annos = opts.annos
-
-        sel = Selector(fs)
-        sel.chromos = opts.chromos
-        sel.samples = opts.samples
-        sel.start = opts.start
-        sel.end = opts.stop
-
-        path, group = hdf.split_path(opts.in_file)
-        log.info('Select ...')
-        d = sel.select(path, group)
-        print(d.columns.values)
-
-        log.info('Write output ...')
-        path, group = hdf.split_path(opts.out_file)
-        d.to_hdf(path, group)
-
-        log.info('Done!')
-        return 0
-
-
-if __name__ == '__main__':
-    app = App()
-    app.run(sys.argv)

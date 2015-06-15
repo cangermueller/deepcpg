@@ -4,8 +4,8 @@ import os
 import os.path as pt
 import pandas as pd
 
-sys.path.insert(0, pt.join(pt.dirname(pt.realpath(__file__)), '../predict'))
-import cpgs as cp
+from predict import cpgs as cp
+
 
 class TestCpgs(object):
 

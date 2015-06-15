@@ -2,13 +2,11 @@ import sys
 import os.path as pt
 import os
 import pickle
-import pdb
 import h5py
 
-sys.path.insert(0, pt.join(pt.dirname(pt.realpath(__file__)), '../predict'))
-import cpgs as cp
-import fasta
-from fasta import FastaSeq
+from predict import cpgs as cp
+from predict import fasta
+from predict.fasta import FastaSeq
 
 
 class TestFasta(object):
@@ -72,7 +70,7 @@ class TestFasta(object):
         assert seq[1].head == '>seq2'
 
     def __call(self, args):
-        cmd = '../predict/fasta.py ' + args
+        cmd = '../scripts/fasta.py ' + args
         print(cmd)
         return os.system(cmd)
 

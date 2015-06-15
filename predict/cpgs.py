@@ -10,7 +10,7 @@ import re
 import sys
 import pandas as pd
 
-import hdf
+from predict import hdf
 
 def find_cpgs(seq, cpg='CG'):
     rv = [m.start() for m in re.finditer(cpg, seq)]

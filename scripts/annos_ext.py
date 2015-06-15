@@ -6,10 +6,7 @@ import logging
 import os.path as pt
 import pandas as pd
 
-__dir = pt.dirname(pt.realpath(__file__))
-sys.path.insert(0, pt.join(__dir, '../predict'))
-
-import annos
+from predict import annos
 
 
 class App(object):

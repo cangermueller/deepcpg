@@ -5,11 +5,8 @@ import pandas as pd
 import numpy as np
 import tempfile as tmp
 import pytest
-import ipdb
 
-__dir = pt.dirname(pt.realpath(__file__))
-sys.path.insert(0, pt.join(__dir, '../predict'))
-import hdf
+from predict import hdf
 
 
 @pytest.fixture

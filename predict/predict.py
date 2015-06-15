@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 import os.path as pt
 import numpy as np
 import pandas as pd

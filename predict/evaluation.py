@@ -1,8 +1,8 @@
 import pandas as pd
 
-import data_select
-import eval_stats
-import fm
+from predict import data_select
+from predict import eval_stats
+from predict import fm
 
 
 class Loader(object):

@@ -4,8 +4,7 @@ import sys
 import os.path as pt
 import pandas as pd
 
-sys.path.insert(0, pt.join(pt.dirname(pt.realpath(__file__)), '../predict'))
-import annos
+from predict import annos
 
 
 def test_join_overlapping():

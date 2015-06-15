@@ -7,8 +7,7 @@ import re
 import subprocess as sp
 import numpy as np
 
-__dir = pt.dirname(pt.realpath(__file__))
-import hdf
+from predict import hdf
 
 
 def get_pos(path, dataset, chromo):
