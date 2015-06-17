@@ -121,6 +121,11 @@ class Selector(object):
         self.end = None
         self.samples = None
         self.spread = True
+        self.logger = None
+
+    def log(self, msg):
+        if self.logger is not None:
+            self.logger(msg)
 
     def select_chromo(self, path, dataset, chromo):
         range_sel = RangeSelection(chromo, self.start, self.end)
@@ -128,36 +133,44 @@ class Selector(object):
         d = dict()
         pos = None  # prefilter to reduce memory usage
         if self.features.cpg:
+            self.log('cpg ...')
             df = select_cpg(path, dataset, range_sel, self.samples)
+            import ipdb; ipdb.set_trace()
             pos = df.pos.unique()
             d = {'cpg': df}
         if self.features.knn:
+            self.log('knn ...')
             df = select_knn(path, dataset, range_sel, self.samples,
                             self.features.knn, False)
             if pos is not None:
                 df = df.loc[df.pos.isin(pos)]
             d['knn'] = df
         if self.features.knn_dist:
+            self.log('knn_dist ...')
             df = select_knn(path, dataset, range_sel, self.samples,
                             self.features.knn, True)
             if pos is not None:
                 df = df.loc[df.pos.isin(pos)]
             d['knn_dist'] = df
         if self.features.annos:
+            self.log('annos ...')
             df = select_annos(path, dataset, range_sel, self.features.annos)
             if pos is not None:
                 df = df.loc[df.pos.isin(pos)]
             d['annos'] = df
         if self.features.annos_dist:
+            self.log('annos_dist ...')
             df = select_annos(path, dataset, range_sel, self.features.annos_dist, dist=True)
             if pos is not None:
                 df = df.loc[df.pos.isin(pos)]
             d['annos_dist'] = df
         if self.features.scores:
+            self.log('scores ...')
             df = select_scores(path, dataset, range_sel, self.features.scores)
             if pos is not None:
                 df = df.loc[df.pos.isin(pos)]
             d['scores'] = df
+        self.log('Join features ...')
         for k, v, in d.items():
             d[k]['cat'] = k
         d = pd.concat(d)
@@ -171,11 +184,13 @@ class Selector(object):
         d = []
         for chromo in self.chromos:
             chromo = str(chromo)
+            self.log('Chromosome %s ...' % (chromo))
             dc = self.select_chromo(path, dataset, chromo)
             dc['chromo'] = chromo
             d.append(dc)
         d = pd.concat(d)
         if self.spread:
+            self.log('Reshape matrix ...')
             d = pd.pivot_table(d, index=['chromo', 'pos'],
                                columns=['cat', 'feature'], values='value')
         return d

@@ -46,7 +46,7 @@ class Processor(object):
             d = d.loc[d.pos >= self.pos_min]
         if self.pos_max is not None:
             d = d.loc[d.pos <= self.pos_max]
-        test, t = self.split(d, self.test_size)
+        test, t = self.split(d, 1 - self.test_size)
         train, val = self.split(t, self.val_size)
         sets = {'train': train, 'test': test, 'val': val}
         for k, v in sets.items():

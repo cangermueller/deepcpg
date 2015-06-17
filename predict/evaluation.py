@@ -41,7 +41,7 @@ class Loader(object):
         fsel.cpg = False
         fsel.knn = False
         fsel.knn_dist = False
-        fsel.annos = True
+        fsel.annos = annos
 
         sel = data_select.Selector(fsel)
         sel.chromos = self.chromos

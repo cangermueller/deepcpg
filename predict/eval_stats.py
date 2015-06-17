@@ -120,13 +120,18 @@ class Processor(object):
     def __init__(self, out_file):
         self.out_file = out_file
         self.chromos = None
+        self.logger = None
+
+    def log(self, msg):
+        if self.logger is not None:
+            self.logger(msg)
 
     def process_chromo(self, in_file, stats, chromo):
         in_path, in_group = hdf.split_path(in_file)
         Y = pd.read_hdf(in_path, pt.join(in_group, 'Y', chromo))
         out_path, out_group = hdf.split_path(self.out_file)
         for stat_name, stat_fun in stats.items():
-            print(stat_name)
+            self.log(stat_name + ' ...')
             s = stat_fun(Y)
             assert type(s) is pd.Series
             assert np.all(s.index == Y.index)
@@ -140,6 +145,7 @@ class Processor(object):
         if chromos is None:
             chromos = hdf.ls(in_path, pt.join(in_group, 'Y'))
         for chromo in chromos:
+            self.log('Chromosome %s ...' % (str(chromo)))
             self.process_chromo(in_file, stats, str(chromo))
 
 

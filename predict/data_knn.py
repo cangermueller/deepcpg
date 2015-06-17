@@ -31,7 +31,7 @@ class Processor(object):
             out_path = path
 
         def to_hdf(d, out_group):
-            d.to_hdf(out_path, out_group, format='t', data_columns=True)
+            d.to_hdf(out_path, out_group)
 
         t = f.feature.str.contains('dist_')
         k = self.knn_ext.k
@@ -44,7 +44,7 @@ class Processor(object):
         self.log('Sample %s ...' % (sample))
         pos = d.index
         cpg = d[sample].dropna()
-        f = self.knn_ext.extract(pos, cpg.index, cpg.values)
+        f = self.knn_ext.extract(pos.values, cpg.index.values, cpg.values)
         f = pd.DataFrame(f, columns=self.knn_ext.labels)
         f['pos'] = pos
         f = pd.melt(f, id_vars='pos', var_name='feature',

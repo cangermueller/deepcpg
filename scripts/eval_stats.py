@@ -13,6 +13,9 @@ from predict import hdf
 from predict import eval_stats
 
 
+def get_fun(name):
+    return eval_stats.__dict__[name]
+
 class EvalStats(object):
 
     def run(self, args):
@@ -65,15 +68,16 @@ class EvalStats(object):
         for stat_name in opts.stats:
             if stat_name.find('win') >= 0:
                 def tfun(x, name=stat_name):
-                    return globals()[name](x, delta=opts.wlen / 2)
+                    return get_fun(name)(x, delta=opts.wlen / 2)
                 fun = tfun
             else:
-                fun = globals()[stat_name]
+                fun = get_fun(stat_name)
             stats[stat_name] = fun
 
         log.info('Process ...')
         p = eval_stats.Processor(opts.out_file)
         p.chromos = opts.chromos
+        p.logger = lambda x: log.info(x)
         p.process(opts.in_file, stats)
 
         log.info('Done!')
