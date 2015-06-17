@@ -1,8 +1,6 @@
-import argparse
-import sys
-import logging
 import os.path as pt
 import pandas as pd
+import numpy as np
 import re
 
 from predict import data, hdf
@@ -96,6 +94,7 @@ def select_annos(path, dataset, range_sel, annos=None, dist=False):
         f['feature'] = anno
         d.append(f)
     d = pd.concat(d)
+
     return d
 
 
@@ -122,6 +121,7 @@ class Selector(object):
         self.samples = None
         self.spread = True
         self.logger = None
+        self.dtype = 'float16'
 
     def log(self, msg):
         if self.logger is not None:
@@ -130,67 +130,81 @@ class Selector(object):
     def select_chromo(self, path, dataset, chromo):
         range_sel = RangeSelection(chromo, self.start, self.end)
 
-        d = dict()
-        pos = None  # prefilter to reduce memory usage
+        self.__tc = None
+        def add_to_store(d, name):
+            self.log('Store ...')
+            store = self.__tc
+            d['cat'] = name
+            d = pd.pivot_table(d, index='pos', columns=['cat', 'feature'], values='value')
+            if store is None:
+                store = d
+            else:
+                store = pd.concat([store, d], axis=1)
+            store = store.astype(self.dtype)
+            self.__tc = store
+
         if self.features.cpg:
             self.log('cpg ...')
             df = select_cpg(path, dataset, range_sel, self.samples)
-            import ipdb; ipdb.set_trace()
-            pos = df.pos.unique()
-            d = {'cpg': df}
+            add_to_store(df, 'cpg')
+
         if self.features.knn:
             self.log('knn ...')
             df = select_knn(path, dataset, range_sel, self.samples,
                             self.features.knn, False)
-            if pos is not None:
-                df = df.loc[df.pos.isin(pos)]
-            d['knn'] = df
+            add_to_store(df, 'knn')
+
         if self.features.knn_dist:
             self.log('knn_dist ...')
             df = select_knn(path, dataset, range_sel, self.samples,
                             self.features.knn, True)
-            if pos is not None:
-                df = df.loc[df.pos.isin(pos)]
-            d['knn_dist'] = df
+            add_to_store(df, 'knn_dist')
+
         if self.features.annos:
             self.log('annos ...')
             df = select_annos(path, dataset, range_sel, self.features.annos)
-            if pos is not None:
-                df = df.loc[df.pos.isin(pos)]
-            d['annos'] = df
+            add_to_store(df, 'annos')
+
         if self.features.annos_dist:
             self.log('annos_dist ...')
             df = select_annos(path, dataset, range_sel, self.features.annos_dist, dist=True)
-            if pos is not None:
-                df = df.loc[df.pos.isin(pos)]
-            d['annos_dist'] = df
+            # log distance to avoid overflow for float16
+            df['value'] = np.log(df.value + 1)
+            add_to_store(df, 'annos_dist')
+
         if self.features.scores:
             self.log('scores ...')
             df = select_scores(path, dataset, range_sel, self.features.scores)
-            if pos is not None:
-                df = df.loc[df.pos.isin(pos)]
-            d['scores'] = df
-        self.log('Join features ...')
-        for k, v, in d.items():
-            d[k]['cat'] = k
-        d = pd.concat(d)
-        return d
+            # fill missing values by mean
+            df.value.fillna(df.value.mean())
+            add_to_store(df, 'scores')
+
+        return self.__tc
 
     def select(self, path, dataset):
         if self.chromos is None:
             self.chromos = data.list_chromos(path, dataset)
         if self.samples is None:
             self.samples = hdf.ls(path, pt.join(dataset, 'cpg', '1'))
-        d = []
+
+        self.__t = None
+        def add_to_store(d, chromo):
+            self.log('Store ...')
+            i = pd.MultiIndex.from_product([chromo, d.index.values],
+                                           names=['chromo', 'pos'])
+            d.index = i
+            store = self.__t
+            if store is None:
+                store = d
+            else:
+                store = pd.concat([store, d])
+            del self.__tc
+            store = store.astype(self.dtype)
+            self.__t = store
+
         for chromo in self.chromos:
-            chromo = str(chromo)
-            self.log('Chromosome %s ...' % (chromo))
-            dc = self.select_chromo(path, dataset, chromo)
-            dc['chromo'] = chromo
-            d.append(dc)
-        d = pd.concat(d)
-        if self.spread:
-            self.log('Reshape matrix ...')
-            d = pd.pivot_table(d, index=['chromo', 'pos'],
-                               columns=['cat', 'feature'], values='value')
-        return d
+            self.log('Chromosome %s ...' % (str(chromo)))
+            d = self.select_chromo(path, dataset, str(chromo))
+            add_to_store(d, chromo)
+
+        return self.__t
