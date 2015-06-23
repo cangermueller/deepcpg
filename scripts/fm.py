@@ -31,6 +31,26 @@ class App(object):
             '-o', '--out_file',
             help='Output HDF path')
         p.add_argument(
+            '--knn',
+            help='knn features',
+            action='store_true')
+        p.add_argument(
+            '--knn_dist',
+            help='knn distance features',
+            action='store_true')
+        p.add_argument(
+            '--annos',
+            help='Annotation features',
+            action='store_true')
+        p.add_argument(
+            '--annos_dist',
+            help='Annotation distance features',
+            action='store_true')
+        p.add_argument(
+            '--scores',
+            help='Scores features',
+            action='store_true')
+        p.add_argument(
             '--kmers',
             help='HDF path to kmers')
         p.add_argument(
@@ -53,9 +73,12 @@ class App(object):
         log.debug(opts)
 
         fs = dsel.FeatureSelection()
-        fs.knn = True
-        fs.knn_dist = False
-        fs.annos = True
+        fs.cpg = True
+        fs.knn = opts.knn
+        fs.knn_dist = opts.knn_dist
+        fs.annos = opts.annos
+        fs.annos_dist = opts.annos_dist
+        fs.scores = opts.scores
 
         sel = dsel.Selector(fs)
         sel.samples = None

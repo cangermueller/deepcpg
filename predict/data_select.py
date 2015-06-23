@@ -158,6 +158,8 @@ class Selector(object):
             self.log('knn_dist ...')
             df = select_knn(path, dataset, range_sel, self.samples,
                             self.features.knn, True)
+            # log distance to avoid overflow for float16
+            df['value'] = np.log2(df.value + 1)
             add_to_store(df, 'knn_dist')
 
         if self.features.annos:
@@ -169,7 +171,7 @@ class Selector(object):
             self.log('annos_dist ...')
             df = select_annos(path, dataset, range_sel, self.features.annos_dist, dist=True)
             # log distance to avoid overflow for float16
-            df['value'] = np.log(df.value + 1)
+            df['value'] = np.log2(df.value + 1)
             add_to_store(df, 'annos_dist')
 
         if self.features.scores:

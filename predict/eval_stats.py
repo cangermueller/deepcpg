@@ -115,6 +115,17 @@ def __cor(x, axis=0, fun=np.mean):
     return c
 
 
+def __met_rate(x, delta):
+    return x.mean(axis=0).mean()
+
+
+def met_rate_win(x, delta):
+    """Return mean methylation rate between samples in window."""
+    return ut.rolling_apply(x, delta, __met_rate, delta).iloc[:, 0]
+
+
+
+
 class Processor(object):
 
     def __init__(self, out_file):

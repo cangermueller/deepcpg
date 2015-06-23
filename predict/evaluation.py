@@ -87,7 +87,7 @@ class Loader(object):
 
         def group_cut(d):
             e = d.copy()
-            if d.iloc[0].stat == 'cpg_cov':
+            if d.iloc[0].stat in ['cpg_cov']:
                 f = pd.cut
             else:
                 f = pd.qcut

@@ -10,6 +10,22 @@ __dir = pt.dirname(pt.realpath(__file__))
 # sys.path.insert(0, pt.join(__dir, '../module'))
 
 
+def cor(y, z):
+    return np.corrcoef(y, z)[0, 1]
+
+
+def mse(y, z):
+    return np.mean((y - z)**2)
+
+def acc(y, z):
+    y, z = complete_cases(y, z)
+    return skm.accuracy_score(y, np.round(z))
+
+def auc(y, z):
+    y, z = complete_cases(y, z)
+    return skm.roc_auc_score(y, z)
+
+
 def complete_cases(x, y=None):
     x = [x]
     if y is not None:
@@ -50,19 +66,26 @@ def scores(Y, Z, fun=skm.roc_auc_score):
     return s
 
 
-def scores_frame(Y, Z):
-    funs = {'auc': skm.roc_auc_score, 'acc': skm.accuracy_score, 'tpr': skm.recall_score}
-    order = ['auc', 'acc', 'tpr']
+def scores_frame(Y, Z,
+                 funs={'auc': skm.roc_auc_score,
+                       'acc': skm.accuracy_score,
+                       'tpr': skm.recall_score},
+                 order=['auc', 'acc', 'tpr']):
     s = dict()
     ZZ = np.round(Z)
     for k, v in funs.items():
         z = Z
-        if k != 'auc':
+        if k in ['acc', 'tpr']:
             z = ZZ
         s[k] = scores(Y, z, v)
     s = pd.DataFrame(s, index=Y.columns)
     s = s.loc[:, order]
     return s
+
+
+def scores_frame_reg(Y, Z,
+                     funs={'mse': mse, 'cor': cor}, order=['mse', 'cor']):
+    return scores_frame(Y, Z, funs=funs, order=order)
 
 
 def flatten_index(index, sep='_'):
@@ -85,8 +108,12 @@ def holdout_opt(model, param_grid, train_X, train_Y, val_X, val_Y, fun=skm.roc_a
     for params in param_grid:
         model.set_params(**params)
         model.fit(train_X, train_Y)
+        if fun in [mse, cor]:
+            pf = model.predict
+        else:
+            pf = model.predict_proba
         def score_fun(X, Y):
-            return score(Y, model.predict_proba(X), fun)
+            return score(Y, pf(X), fun)
         s = []
         s.append(score_fun(train_X, train_Y))
         s.append(score_fun(val_X, val_Y))
@@ -128,7 +155,8 @@ class MultitaskClassifier(object):
         self.models = []
         for task in range(self.ntasks):
             Xt, yt = self.Xy_(X, Y, task)
-            m = skb.clone(self.model)
+            m = copy.deepcopy(self.model)
+            # m = skb.clone(self.model)
             m.fit(Xt, yt)
             self.models.append(m)
 
@@ -211,3 +239,11 @@ def sample_features(samples, features):
         sf.extend(shared)
         rv.append(sf)
     return rv
+
+
+def data_sample(X, Y, sample):
+    y = Y.loc[:, sample]
+    h = np.asarray(y.notnull())
+    X = X.loc[h]
+    y = y.loc[h]
+    return (X, y)
