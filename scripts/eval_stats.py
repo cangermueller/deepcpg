@@ -38,9 +38,12 @@ class EvalStats(object):
                        help='Name of evaluation functions',
                        nargs='+')
         p.add_argument('--wlen',
-                       help='Window length for windowing functions',
+                       help='Default window length',
                        default=3000,
                        type=int)
+        p.add_argument('--wlen_stat',
+                       help='Window length of specific statistics [stat=wlen]',
+                       nargs='+')
         p.add_argument('--chromos',
                        help='Only consider these chromosomes',
                        nargs='+')
@@ -64,11 +67,19 @@ class EvalStats(object):
             log.setLevel(logging.INFO)
         log.debug(opts)
 
+        stats_wlen = dict()
+        for stat in opts.stats:
+            stats_wlen[stat] = opts.wlen
+        for wlen_stat in opts.wlen_stat:
+            stat, wlen = wlen_stat.split('=')
+            wlen = int(wlen)
+            stats_wlen[stat] = wlen
+
         stats = dict()
         for stat_name in opts.stats:
             if stat_name.find('win') >= 0:
-                def tfun(x, name=stat_name):
-                    return get_fun(name)(x, delta=opts.wlen / 2)
+                def tfun(x, name=stat_name, wlen=stats_wlen[stat_name]):
+                    return get_fun(name)(x, delta=wlen / 2)
                 fun = tfun
             else:
                 fun = get_fun(stat_name)

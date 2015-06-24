@@ -135,6 +135,7 @@ class Selector(object):
             self.log('Store ...')
             store = self.__tc
             d['cat'] = name
+            self.log('  pivot ...')
             d = pd.pivot_table(d, index='pos', columns=['cat', 'feature'], values='value')
             if store is None:
                 store = d

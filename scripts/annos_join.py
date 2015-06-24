@@ -51,7 +51,7 @@ class App(object):
         log.info('Read annotations ...')
         d = []
         for in_file in opts.in_files:
-            d.append(annos.read_bed(in_file), usecols=[0, 1, 2])
+            d.append(annos.read_bed(in_file, usecols=[0, 1, 2]))
         d = pd.concat(d)
 
         log.info('Join annotations ...')

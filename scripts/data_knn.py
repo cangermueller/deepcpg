@@ -38,6 +38,10 @@ class App(object):
             type=int,
             default=5)
         p.add_argument(
+            '--no_dist',
+            help='Do not compute distance to knn',
+            action='store_true')
+        p.add_argument(
             '--chromos',
             help='Only apply to these chromosome',
             nargs='+')
@@ -71,7 +75,7 @@ class App(object):
         else:
             out_path = in_path
             out_group = in_group
-        fe = fext.KnnCpgFeatureExtractor(opts.knn)
+        fe = fext.KnnCpgFeatureExtractor(opts.knn, dist=not opts.no_dist)
         p = data_knn.Processor(fe)
         p.out_path = out_path
         p.out_group = out_group

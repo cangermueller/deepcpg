@@ -6,15 +6,18 @@ class KnnCpgFeatureExtractor(object):
     same position.
     """
 
-    def __init__(self, k=1):
+    def __init__(self, k=1, dist=True):
         self.k = k
+        self.dist = dist
 
-        t = [''] * 4 * k
+        n = 4 if self.dist else 2
+        t = [''] * n * k
         for i in range(k):
             t[k - 1 - i] = 'cpg_l_%d' % (i + 1)
             t[k + i] = 'cpg_r_%d' % (i + 1)
-            t[3 * k - 1 - i] = 'dist_l_%d' % (i + 1)
-            t[3 * k + i] = 'dist_r_%d' % (i + 1)
+            if self.dist:
+                t[3 * k - 1 - i] = 'dist_l_%d' % (i + 1)
+                t[3 * k + i] = 'dist_r_%d' % (i + 1)
         self.labels = t
 
     def extract(self, x, y, ys):
@@ -41,7 +44,8 @@ class KnnCpgFeatureExtractor(object):
         k = self.k
         kk = 2 * self.k
         yc = self.__larger_equal(x, y)
-        rv = np.empty((n, 4 * k))
+        dtype = np.float32 if self.dist else np.float16
+        rv = np.empty((n, len(self.labels)), dtype=dtype)
         rv.fill(np.nan)
         for i in range(n):
             # Left side
@@ -60,7 +64,8 @@ class KnnCpgFeatureExtractor(object):
                 xl += kk
                 xr += kk
                 # Distance
-                rv[i, xl:xr] = np.abs(y[yl:yr] - x[i])
+                if self.dist:
+                    rv[i, xl:xr] = np.abs(y[yl:yr] - x[i])
 
             # Right side
             yl = yc[i]
@@ -84,7 +89,8 @@ class KnnCpgFeatureExtractor(object):
             xl += kk
             xr += kk
             # Distance
-            rv[i, xl:xr] = np.abs(y[yl:yr] - x[i])
+            if self.dist:
+                rv[i, xl:xr] = np.abs(y[yl:yr] - x[i])
 
         return rv
 

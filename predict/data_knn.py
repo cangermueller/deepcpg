@@ -2,6 +2,7 @@ import argparse
 import sys
 import logging
 import os.path as pt
+import numpy as np
 import pandas as pd
 import warnings
 
@@ -37,8 +38,9 @@ class Processor(object):
         k = self.knn_ext.k
         out_group = pt.join(dataset, 'knn%d' % (k), chromo, sample)
         to_hdf(f[~t], out_group)
-        out_group = pt.join(dataset, 'knn%d_dist' % (k), chromo, sample)
-        to_hdf(f[t], out_group)
+        if np.sum(t) > 0:
+            out_group = pt.join(dataset, 'knn%d_dist' % (k), chromo, sample)
+            to_hdf(f[t], out_group)
 
     def process_sample(self, d, sample):
         self.log('Sample %s ...' % (sample))

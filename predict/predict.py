@@ -2,7 +2,6 @@ import os.path as pt
 import numpy as np
 import pandas as pd
 import sklearn.metrics as skm
-import sklearn.base as skb
 from sklearn.grid_search import ParameterGrid
 import copy
 
@@ -13,17 +12,35 @@ __dir = pt.dirname(pt.realpath(__file__))
 def cor(y, z):
     return np.corrcoef(y, z)[0, 1]
 
-
 def mse(y, z):
     return np.mean((y - z)**2)
 
-def acc(y, z):
-    y, z = complete_cases(y, z)
-    return skm.accuracy_score(y, np.round(z))
+def rmse(y, z):
+    return np.sqrt(mse(y, z))
 
 def auc(y, z):
-    y, z = complete_cases(y, z)
     return skm.roc_auc_score(y, z)
+
+def acc(y, z, r=True):
+    if r:
+        z = np.round(z)
+    return skm.accuracy_score(y, z)
+
+def tpr(y, z, r=True):
+    if r:
+        z = np.round(z)
+    return skm.recall_score(y, z)
+
+def fpr(y, z, r=True):
+    if r:
+        z = np.round(z)
+    c = skm.confusion_matrix(y, z)
+    return c[0, 0] / c[0].sum()
+
+def mcc(y, z, r=True):
+    if r:
+        z = np.round(z)
+    return skm.matthews_corrcoef(y, z)
 
 
 def complete_cases(x, y=None):
@@ -44,13 +61,11 @@ def complete_cases(x, y=None):
     xc = [x_[h] for x_ in x]
     return xc
 
-
 def score(Y, Z, fun=skm.roc_auc_score):
     y = np.asarray(Y).ravel()
     z = np.asarray(Z).ravel()
     y, z = complete_cases(y, z)
     return fun(y, z)
-
 
 def scores(Y, Z, fun=skm.roc_auc_score):
     Y = np.asarray(Y)
@@ -67,19 +82,22 @@ def scores(Y, Z, fun=skm.roc_auc_score):
 
 
 def scores_frame(Y, Z,
-                 funs={'auc': skm.roc_auc_score,
-                       'acc': skm.accuracy_score,
-                       'tpr': skm.recall_score},
-                 order=['auc', 'acc', 'tpr']):
+                 funs=[('auc', auc),
+                       ('acc', acc),
+                       ('tpr', tpr),
+                       ('fpr', fpr),
+                       ('mcc', mcc),
+                       ('rmse', rmse),
+                       ('cor', cor)]
+                 ):
     s = dict()
-    ZZ = np.round(Z)
-    for k, v in funs.items():
-        z = Z
-        if k in ['acc', 'tpr']:
-            z = ZZ
-        s[k] = scores(Y, z, v)
-    s = pd.DataFrame(s, index=Y.columns)
-    s = s.loc[:, order]
+    l = []
+    for k, v in funs:
+        s[k] = scores(Y, Z, v)
+        l.append(k)
+    s = pd.DataFrame(s, index=Y.columns, columns=l)
+    s.index.name = 'sample'
+    s.reset_index(inplace=True)
     return s
 
 
@@ -216,7 +234,7 @@ class MultitaskClassifier(object):
 
 def sample_features(samples, features):
     """Return feature indices for different samples. Useful to create a
-       sample specific classifier with MutlitaskClassifier."""
+       sample specific classifier with MultitaskClassifier."""
     ffeatures = flatten_index(features)
     shared = []
     specific = []
