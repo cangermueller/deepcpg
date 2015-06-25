@@ -31,7 +31,7 @@ def tpr(y, z, r=True):
         z = np.round(z)
     return skm.recall_score(y, z)
 
-def fpr(y, z, r=True):
+def tnr(y, z, r=True):
     if r:
         z = np.round(z)
     c = skm.confusion_matrix(y, z)
@@ -85,7 +85,7 @@ def scores_frame(Y, Z,
                  funs=[('auc', auc),
                        ('acc', acc),
                        ('tpr', tpr),
-                       ('fpr', fpr),
+                       ('tnr', tnr),
                        ('mcc', mcc),
                        ('rmse', rmse),
                        ('cor', cor)]

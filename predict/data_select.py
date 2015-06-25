@@ -45,12 +45,14 @@ def select_cpg(path, dataset, range_sel, samples=None):
         gs = pt.join(g, sample)
         f = pd.read_hdf(path, gs, where=range_sel.query())
         f['feature'] = sample
-        d = f if d.None else pd.concat((d, f))
-    d = pd.concat(d)
+        if d is None:
+            d = f
+        else:
+            d = pd.concat((d, f))
     return d
 
 
-def select_knn(path, dataset, range_sel, samples=None, k=None, dist=False):
+def select_knn(path, dataset, range_sel, samples=None, k=None, dist=False, log=None):
     if k is None or type(k) is bool:
         p = r'knn\d'
         if dist:
@@ -68,8 +70,9 @@ def select_knn(path, dataset, range_sel, samples=None, k=None, dist=False):
     if samples is None:
         samples = hdf.ls(path, g)
     d = None
-    first = None
     for sample in samples:
+        if log is not None:
+            log('  %s ...' % (sample))
         gs = pt.join(g, sample)
         f = pd.read_hdf(path, gs, where=range_sel.query())
         if dist:
@@ -77,17 +80,13 @@ def select_knn(path, dataset, range_sel, samples=None, k=None, dist=False):
         else:
             t = 'cpg_'
         f['feature'] = [sample + '_' + x.replace(t, '') for x in f.feature]
-        print('pivot')
         f = pd.pivot_table(f, index='pos', columns='feature', values='value')
         if d is None:
             d = f
-            first = f
         else:
-            print('concat')
-            d = pd.concat((d, f), axis=1)
-            assert d.shape[0] == first.shape[0]
-    cat = 'knn_dist' if dist else 'knn'
-    d.columns = pd.MultiIndex.from_product((cat, d.columns))
+            e = pd.concat((d, f), axis=1)
+            assert e.shape[0] == d.shape[0]
+            d = e
     return d
 
 
@@ -97,14 +96,15 @@ def select_annos(path, dataset, range_sel, annos=None, dist=False):
         group += '_dist'
     if annos is None or type(annos) is bool:
         annos = hdf.ls(path, pt.join(dataset, group))
-    d = []
+    d = None
     for anno in annos:
         gs = pt.join(dataset, group, anno, range_sel.chromo)
         f = pd.read_hdf(path, gs, where=range_sel.query())
         f['feature'] = anno
-        d.append(f)
-    d = pd.concat(d)
-
+        if d is None:
+            d = f
+        else:
+            d = pd.concat((d, f))
     return d
 
 
@@ -116,8 +116,7 @@ def select_scores(path, dataset, range_sel, annos=None):
         gs = pt.join(dataset, 'scores', anno, range_sel.chromo)
         f = pd.read_hdf(path, gs, where=range_sel.query())
         f['feature'] = anno
-        d.append(f)
-    d = pd.concat(d)
+        d = f if d is None else pd.concat((d, f))
     return d
 
 
@@ -142,17 +141,16 @@ class Selector(object):
 
         self.__tc = None
         def add_to_store(d, name, pivot=True):
-            self.log('Store ...')
             store = self.__tc
-            self.log('  pivot ...')
             if pivot:
-                d['cat'] = name
-                d = pd.pivot_table(d, index='pos', columns=['cat', 'feature'], values='value')
+                self.log('  pivot ...')
+                d = pd.pivot_table(d, index='pos', columns='feature', values='value')
+            d.columns = pd.MultiIndex.from_product((name, d.columns))
+            self.log('  concat ...')
             if store is None:
                 store = d
             else:
                 store = pd.concat([store, d], axis=1)
-            self.log('  retype ...')
             store = store.astype(self.dtype)
             self.__tc = store
 
@@ -164,7 +162,7 @@ class Selector(object):
         if self.features.knn:
             self.log('knn ...')
             df = select_knn(path, dataset, range_sel, self.samples,
-                            self.features.knn, False)
+                            self.features.knn, False, log=self.log)
             add_to_store(df, 'knn', pivot=False)
 
         if self.features.knn_dist:

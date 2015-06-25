@@ -25,7 +25,8 @@ def cpg_cov(x):
 
 def cpg_cov_win(x, delta):
     """Return mean CpG coverage in window."""
-    return ut.rolling_apply(x, delta, __cpg_cov, mean=True).iloc[:, 0]
+    f = lambda x: __cpg_cov(x, mean=True)
+    return ut.rolling_apply(x, delta, f).iloc[:, 0]
 
 
 def __var(x, axis=0):
@@ -36,7 +37,8 @@ def __var(x, axis=0):
 
 def __var_win(x, delta, axis=0):
     """Return variance in window."""
-    return ut.rolling_apply(x, delta, __var, axis=axis).iloc[:, 0]
+    f = lambda x: __var(x, axis=axis)
+    return ut.rolling_apply(x, delta, f).iloc[:, 0]
 
 
 def var_samples_win(x, delta):
@@ -55,7 +57,8 @@ def __cpg_content(x, delta):
 
 def cpg_content_win(x, delta):
     """Return CpG content (% CpG) in window."""
-    return ut.rolling_apply(x, delta, __cpg_content, delta).iloc[:, 0]
+    f = lambda x: __cpg_content(x, delta)
+    return ut.rolling_apply(x, delta, f).iloc[:, 0]
 
 
 def __cpg_density(x, delta):
@@ -65,7 +68,8 @@ def __cpg_density(x, delta):
 
 def cpg_density_win(x, delta):
     """Return density of CpG matrix in window."""
-    return ut.rolling_apply(x, delta, __cpg_density, delta).iloc[:, 0]
+    f = lambda x: __cpg_density(x, delta)
+    return ut.rolling_apply(x, delta, f).iloc[:, 0]
 
 
 def __min_dist_sample(x):
@@ -121,7 +125,8 @@ def __met_rate(x, delta):
 
 def met_rate_win(x, delta):
     """Return mean methylation rate between samples in window."""
-    return ut.rolling_apply(x, delta, __met_rate, delta).iloc[:, 0]
+    f = lambda x: __cpg_density(x, delta)
+    return ut.rolling_apply(x, delta, f).iloc[:, 0]
 
 
 

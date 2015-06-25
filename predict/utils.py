@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import numba
 
 
 def group_apply(d, by, fun, level=False, set_index=False, *args, **kwargs):
@@ -24,20 +25,22 @@ def group_apply(d, by, fun, level=False, set_index=False, *args, **kwargs):
     return r_all
 
 
-def rolling_apply(d, delta, fun, *args, **kwargs):
+def rolling_apply(d, delta, fun):
     rv = None
-    for i in range(d.shape[0]):
-        p = d.index[i]
-        l = i
-        while l > 0 and abs(d.index[l - 1] - p) <= delta:
-            l -= 1
-        r = i
-        while r < d.shape[0] - 1 and abs(d.index[r + 1] - p) <= delta:
+    l = 0
+    r = 0
+    pos = d.index
+    n = len(pos)
+    for i in range(n):
+        p = pos[i]
+        while l < i and p - pos[l] > delta:
+            l += 1
+        while r < len(pos) - 1 and pos[r + 1] - p <= delta:
             r += 1
         di = d.iloc[l:(r + 1)]
-        rvi = np.atleast_1d(fun(di, *args, **kwargs))
+        rvi = np.atleast_1d(fun(di))
         if rv is None:
-            rv = np.empty((d.shape[0], rvi.shape[0]))
+            rv = np.empty((n, rvi.shape[0]))
         rv[i] = rvi
     rv = pd.DataFrame(rv, index=d.index)
     return rv

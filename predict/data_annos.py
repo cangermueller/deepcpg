@@ -37,7 +37,7 @@ class Processor(object):
         if self.distance:
             group += '_dist'
         out_group = pt.join(self.dataset, group, anno_name, chromo)
-        f.to_hdf(self.path, out_group, format='t', data_columns=True)
+        f.to_hdf(self.path, out_group)
 
     def process(self, annos, anno_name):
         chromos = data.list_chromos(self.path, self.dataset)
