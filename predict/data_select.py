@@ -40,12 +40,12 @@ def select_cpg(path, dataset, range_sel, samples=None):
     g = pt.join(dataset, 'cpg', range_sel.chromo)
     if samples is None:
         samples = hdf.ls(path, g)
-    d = []
+    d = None
     for sample in samples:
         gs = pt.join(g, sample)
         f = pd.read_hdf(path, gs, where=range_sel.query())
         f['feature'] = sample
-        d.append(f)
+        d = f if d.None else pd.concat((d, f))
     d = pd.concat(d)
     return d
 
@@ -67,7 +67,8 @@ def select_knn(path, dataset, range_sel, samples=None, k=None, dist=False):
     g = pt.join(dataset, name, range_sel.chromo)
     if samples is None:
         samples = hdf.ls(path, g)
-    d = []
+    d = None
+    first = None
     for sample in samples:
         gs = pt.join(g, sample)
         f = pd.read_hdf(path, gs, where=range_sel.query())
@@ -76,8 +77,17 @@ def select_knn(path, dataset, range_sel, samples=None, k=None, dist=False):
         else:
             t = 'cpg_'
         f['feature'] = [sample + '_' + x.replace(t, '') for x in f.feature]
-        d.append(f)
-    d = pd.concat(d)
+        print('pivot')
+        f = pd.pivot_table(f, index='pos', columns='feature', values='value')
+        if d is None:
+            d = f
+            first = f
+        else:
+            print('concat')
+            d = pd.concat((d, f), axis=1)
+            assert d.shape[0] == first.shape[0]
+    cat = 'knn_dist' if dist else 'knn'
+    d.columns = pd.MultiIndex.from_product((cat, d.columns))
     return d
 
 
@@ -131,16 +141,18 @@ class Selector(object):
         range_sel = RangeSelection(chromo, self.start, self.end)
 
         self.__tc = None
-        def add_to_store(d, name):
+        def add_to_store(d, name, pivot=True):
             self.log('Store ...')
             store = self.__tc
-            d['cat'] = name
             self.log('  pivot ...')
-            d = pd.pivot_table(d, index='pos', columns=['cat', 'feature'], values='value')
+            if pivot:
+                d['cat'] = name
+                d = pd.pivot_table(d, index='pos', columns=['cat', 'feature'], values='value')
             if store is None:
                 store = d
             else:
                 store = pd.concat([store, d], axis=1)
+            self.log('  retype ...')
             store = store.astype(self.dtype)
             self.__tc = store
 
@@ -153,7 +165,7 @@ class Selector(object):
             self.log('knn ...')
             df = select_knn(path, dataset, range_sel, self.samples,
                             self.features.knn, False)
-            add_to_store(df, 'knn')
+            add_to_store(df, 'knn', pivot=False)
 
         if self.features.knn_dist:
             self.log('knn_dist ...')
@@ -161,7 +173,7 @@ class Selector(object):
                             self.features.knn, True)
             # log distance to avoid overflow for float16
             df['value'] = np.log2(df.value + 1)
-            add_to_store(df, 'knn_dist')
+            add_to_store(df, 'knn_dist', pivot=False)
 
         if self.features.annos:
             self.log('annos ...')

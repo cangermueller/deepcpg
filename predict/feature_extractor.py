@@ -13,11 +13,11 @@ class KnnCpgFeatureExtractor(object):
         n = 4 if self.dist else 2
         t = [''] * n * k
         for i in range(k):
-            t[k - 1 - i] = 'cpg_l_%d' % (i + 1)
-            t[k + i] = 'cpg_r_%d' % (i + 1)
+            t[k - 1 - i] = 'cpg_l%d' % (i + 1)
+            t[k + i] = 'cpg_r%d' % (i + 1)
             if self.dist:
-                t[3 * k - 1 - i] = 'dist_l_%d' % (i + 1)
-                t[3 * k + i] = 'dist_r_%d' % (i + 1)
+                t[3 * k - 1 - i] = 'dist_l%d' % (i + 1)
+                t[3 * k + i] = 'dist_r%d' % (i + 1)
         self.labels = t
 
     def extract(self, x, y, ys):
