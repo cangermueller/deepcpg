@@ -5,6 +5,8 @@ import sklearn.metrics as skm
 from sklearn.grid_search import ParameterGrid
 import copy
 
+from predict import fm
+
 __dir = pt.dirname(pt.realpath(__file__))
 # sys.path.insert(0, pt.join(__dir, '../module'))
 
@@ -17,6 +19,9 @@ def mse(y, z):
 
 def rmse(y, z):
     return np.sqrt(mse(y, z))
+
+def rrmse(y, z):
+    return 1 - rmse(y, z)
 
 def auc(y, z):
     return skm.roc_auc_score(y, z)
@@ -101,9 +106,8 @@ def scores_frame(Y, Z,
     return s
 
 
-def scores_frame_reg(Y, Z,
-                     funs={'mse': mse, 'cor': cor}, order=['mse', 'cor']):
-    return scores_frame(Y, Z, funs=funs, order=order)
+def scores_frame_reg(Y, Z, funs=[('rmse', rmse), ('cor', cor)]):
+    return scores_frame(Y, Z, funs=funs)
 
 
 def flatten_index(index, sep='_'):
@@ -145,6 +149,30 @@ def holdout_opt(model, param_grid, train_X, train_Y, val_X, val_Y, fun=skm.roc_a
     scores = pd.DataFrame(scores)
     return (opt_model, scores)
 
+
+def read_data(path, group='train', include=None, exclude=None, max_rows=None):
+    sel = fm.Selector()
+    X = sel.select(path, group, 'X')
+    Y = sel.select(path, group, 'Y')
+    if max_rows is not None:
+        X = X.iloc[:max_rows]
+        Y = Y.iloc[:max_rows]
+    if include is not None:
+        X = X.loc[:, X.columns.get_level_values(0).isin(include)]
+    if exclude is not None:
+        X = X.loc[:, ~X.columns.get_level_values(0).isin(exclude)]
+    assert np.isnan(X.values).sum() == 0
+    assert np.isinf(X.values).sum() == 0
+    return (X, Y)
+
+
+def select_sample(X, Y, sample):
+    Y = Y.loc[:, sample]
+    t = Y.notnull()
+    Y = Y.loc[t]
+    X = X.loc[t]
+    assert np.all(Y.index.values == X.index.values)
+    return (X, Y)
 
 
 class MultitaskClassifier(object):
@@ -257,6 +285,16 @@ def sample_features(samples, features):
         sf.extend(shared)
         rv.append(sf)
     return rv
+
+
+class SampleSpecificClassifier(MultitaskClassifier):
+
+    def fit(self, X, Y):
+        sf = sample_features(Y.columns, X.columns)
+        super(SampleSpecificClassifier, self).fit(X, Y, task_features=sf)
+
+
+
 
 
 def data_sample(X, Y, sample):

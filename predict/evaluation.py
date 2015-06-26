@@ -34,26 +34,30 @@ class Loader(object):
         z = pd.melt(z.reset_index(), id_vars=['chromo', 'pos'], var_name='sample', value_name='z')
         return z
 
-    def A(self, data_path, annos=None):
+    def A(self, data_path, annos=None, dist=False):
         if annos is None:
             annos = True
         fsel = data_select.FeatureSelection()
         fsel.cpg = False
         fsel.knn = False
         fsel.knn_dist = False
-        fsel.annos = annos
-
+        if dist:
+            fsel.annos_dist = annos
+        else:
+            fsel.annos = annos
         sel = data_select.Selector(fsel)
         sel.chromos = self.chromos
 
         d = sel.select(data_path, self.group)
         assert len(d.columns.levels[0]) == 1
         d.columns = d.columns.droplevel(0)
+        if dist:
+            d = d == 0
         return d
 
-    def a(self, data_path, annos=None):
+    def a(self, data_path, annos=None, dist=False):
         # [chromo, pos, anno]
-        a = self.A(data_path, annos)
+        a = self.A(data_path, annos=annos, dist=dist)
         a = pd.melt(a.reset_index(), id_vars=['chromo', 'pos'], var_name='anno', value_name='is_in')
         a = a.assign(is_in=a.is_in == 1).query('is_in == True')
         a = a.loc[:, a.columns != 'is_in']
@@ -70,11 +74,11 @@ class Loader(object):
         s = pd.melt(s.reset_index(), id_vars=['chromo', 'pos'], var_name='stat', value_name='value')
         return s
 
-    def yza(self, fm_path, z_path, data_path, annos=None):
+    def yza(self, fm_path, z_path, data_path, annos=None, dist=False):
         # [chromo, pos, sample, y, z, anno]
         y = self.y(fm_path)
         z = self.z(z_path)
-        a = self.a(data_path, annos)
+        a = self.a(data_path, annos=annos, dist=dist)
         yza = pd.merge(pd.merge(y, z, how='inner'), a, how='inner')
         return yza
 

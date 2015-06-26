@@ -31,7 +31,6 @@ def cpg_cov_win(x, delta):
 
 def __var(x, axis=0):
     """Return mean over axis and than variance."""
-    x.mean(axis=axis).var()
     return x.mean(axis=axis).var()
 
 
@@ -125,7 +124,7 @@ def __met_rate(x, delta):
 
 def met_rate_win(x, delta):
     """Return mean methylation rate between samples in window."""
-    f = lambda x: __cpg_density(x, delta)
+    f = lambda x: __met_rate(x, delta)
     return ut.rolling_apply(x, delta, f).iloc[:, 0]
 
 
@@ -169,7 +168,7 @@ class Selector(object):
 
     def __init__(self, chromos=None, stats=None):
         self.chromos = chromos
-        self.stats = None
+        self.stats = stats
 
     def select_chromo(self, path, group, chromo, stats):
         d = []
@@ -184,6 +183,8 @@ class Selector(object):
         stats = self.stats
         if stats is None:
             stats = hdf.ls(path, group)
+        if not isinstance(stats, list):
+            stats = [stats]
         chromos = self.chromos
         if chromos is None:
             chromos = hdf.ls(path, pt.join(group, stats[0]))

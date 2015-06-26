@@ -70,10 +70,11 @@ class EvalStats(object):
         stats_wlen = dict()
         for stat in opts.stats:
             stats_wlen[stat] = opts.wlen
-        for wlen_stat in opts.wlen_stat:
-            stat, wlen = wlen_stat.split('=')
-            wlen = int(wlen)
-            stats_wlen[stat] = wlen
+        if opts.wlen_stat is not None:
+            for wlen_stat in opts.wlen_stat:
+                stat, wlen = wlen_stat.split('=')
+                wlen = int(wlen)
+                stats_wlen[stat] = wlen
 
         stats = dict()
         for stat_name in opts.stats:
