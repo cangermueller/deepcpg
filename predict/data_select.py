@@ -90,7 +90,7 @@ def select_knn(path, dataset, range_sel, samples=None, k=None, dist=False, log=N
     return d
 
 
-def select_annos(path, dataset, range_sel, annos=None, dist=False):
+def select_annos(path, dataset, range_sel, annos=None, dist=False, log=None):
     group = 'annos'
     if dist:
         group += '_dist'
@@ -98,25 +98,38 @@ def select_annos(path, dataset, range_sel, annos=None, dist=False):
         annos = hdf.ls(path, pt.join(dataset, group))
     d = None
     for anno in annos:
+        if log is not None:
+            log('  %s ...' % (anno))
         gs = pt.join(dataset, group, anno, range_sel.chromo)
         f = pd.read_hdf(path, gs, where=range_sel.query())
-        f['feature'] = anno
+        f.set_index('pos', inplace=True)
+        f.columns = [anno]
         if d is None:
             d = f
         else:
-            d = pd.concat((d, f))
+            e = pd.concat((d, f), axis=1)
+            assert e.shape[0] == d.shape[0]
+            d = e
     return d
 
 
-def select_scores(path, dataset, range_sel, annos=None):
+def select_scores(path, dataset, range_sel, annos=None, log=None):
     if annos is None or type(annos) is bool:
         annos = hdf.ls(path, pt.join(dataset, 'scores'))
-    d = []
+    d = None
     for anno in annos:
+        if log is not None:
+            log('  %s ...' % (anno))
         gs = pt.join(dataset, 'scores', anno, range_sel.chromo)
         f = pd.read_hdf(path, gs, where=range_sel.query())
-        f['feature'] = anno
-        d = f if d is None else pd.concat((d, f))
+        f.set_index('pos', inplace=True)
+        f.columns = [anno]
+        if d is None:
+            d = f
+        else:
+            e = pd.concat((d, f), axis=1)
+            assert e.shape[0] == d.shape[0]
+            d = e
     return d
 
 
@@ -140,56 +153,61 @@ class Selector(object):
         range_sel = RangeSelection(chromo, self.start, self.end)
 
         self.__tc = None
-        def add_to_store(d, name, pivot=True):
-            store = self.__tc
+        def add_to_store(d, name, pivot=False):
             if pivot:
                 self.log('  pivot ...')
                 d = pd.pivot_table(d, index='pos', columns='feature', values='value')
             d.columns = pd.MultiIndex.from_product((name, d.columns))
             self.log('  concat ...')
+            store = self.__tc
             if store is None:
                 store = d
             else:
-                store = pd.concat([store, d], axis=1)
+                t = pd.concat([store, d], axis=1)
+                assert t.shape[0] == store.shape[0]
+                store = t
             store = store.astype(self.dtype)
             self.__tc = store
 
         if self.features.cpg:
             self.log('cpg ...')
             df = select_cpg(path, dataset, range_sel, self.samples)
-            add_to_store(df, 'cpg')
+            add_to_store(df, 'cpg', pivot=True)
 
         if self.features.knn:
             self.log('knn ...')
             df = select_knn(path, dataset, range_sel, self.samples,
                             self.features.knn, False, log=self.log)
-            add_to_store(df, 'knn', pivot=False)
+            add_to_store(df, 'knn')
 
         if self.features.knn_dist:
             self.log('knn_dist ...')
             df = select_knn(path, dataset, range_sel, self.samples,
-                            self.features.knn, True)
+                            self.features.knn, True, log=self.log)
             # log distance to avoid overflow for float16
-            df['value'] = np.log2(df.value + 1)
-            add_to_store(df, 'knn_dist', pivot=False)
+            df = np.log2(df + 1)
+            add_to_store(df, 'knn_dist')
 
         if self.features.annos:
             self.log('annos ...')
-            df = select_annos(path, dataset, range_sel, self.features.annos)
+            df = select_annos(path, dataset, range_sel, self.features.annos, log=self.log)
+            assert np.all(df.notnull())
             add_to_store(df, 'annos')
 
         if self.features.annos_dist:
             self.log('annos_dist ...')
-            df = select_annos(path, dataset, range_sel, self.features.annos_dist, dist=True)
+            df = select_annos(path, dataset, range_sel, self.features.annos_dist, dist=True, log=self.log)
             # log distance to avoid overflow for float16
-            df['value'] = np.log2(df.value + 1)
+            df = np.log2(df + 1)
+            assert np.all(df.notnull())
             add_to_store(df, 'annos_dist')
 
         if self.features.scores:
             self.log('scores ...')
-            df = select_scores(path, dataset, range_sel, self.features.scores)
+            df = select_scores(path, dataset, range_sel, self.features.scores, log=self.log)
             # fill missing values by mean
-            df.value.fillna(df.value.mean())
+            df.fillna(df.mean(axis=0), inplace=True)
+            assert np.all(df.notnull())
             add_to_store(df, 'scores')
 
         return self.__tc
@@ -210,7 +228,9 @@ class Selector(object):
             if store is None:
                 store = d
             else:
-                store = pd.concat([store, d])
+                t = pd.concat([store, d])
+                assert t.shape[0] == store.shape[0]
+                store = t
             del self.__tc
             store = store.astype(self.dtype)
             self.__t = store

@@ -47,6 +47,12 @@ def mcc(y, z, r=True):
         z = np.round(z)
     return skm.matthews_corrcoef(y, z)
 
+def data_sample(X, Y, sample):
+    y = Y.loc[:, sample]
+    h = np.asarray(y.notnull())
+    X = X.loc[h]
+    y = y.loc[h]
+    return (X, y)
 
 def complete_cases(x, y=None):
     x = [x]
@@ -150,7 +156,7 @@ def holdout_opt(model, param_grid, train_X, train_Y, val_X, val_Y, fun=skm.roc_a
     return (opt_model, scores)
 
 
-def read_data(path, group='train', include=None, exclude=None, max_rows=None):
+def read_data(path, group='train', include=None, exclude=None, max_rows=None, dtype=None):
     sel = fm.Selector()
     X = sel.select(path, group, 'X')
     Y = sel.select(path, group, 'Y')
@@ -161,6 +167,8 @@ def read_data(path, group='train', include=None, exclude=None, max_rows=None):
         X = X.loc[:, X.columns.get_level_values(0).isin(include)]
     if exclude is not None:
         X = X.loc[:, ~X.columns.get_level_values(0).isin(exclude)]
+    if dtype is not None:
+        X = X.astype(dtype)
     assert np.isnan(X.values).sum() == 0
     assert np.isinf(X.values).sum() == 0
     return (X, Y)
@@ -191,7 +199,7 @@ class MultitaskClassifier(object):
         X = X[h]
         return (X, y)
 
-    def fit(self, X, Y, task_features=None):
+    def fit(self, X, Y, task_features=None, ids=None):
         X = np.asarray(X)
         Y = np.asarray(Y)
         self.ntasks = Y.shape[1]
@@ -203,7 +211,12 @@ class MultitaskClassifier(object):
             Xt, yt = self.Xy_(X, Y, task)
             m = copy.deepcopy(self.model)
             # m = skb.clone(self.model)
-            m.fit(Xt, yt)
+            if ids is None:
+                m.fit(Xt, yt)
+            else:
+                h = ~np.isnan(Y[:, task])
+                idst = ids[h]
+                m.fit(Xt, yt, idst)
             self.models.append(m)
 
     def predict(self, X):
@@ -216,13 +229,16 @@ class MultitaskClassifier(object):
         Y = np.vstack(Y).T
         return Y
 
-    def predict_proba(self, X):
+    def predict_proba(self, X, ids=None):
         X = np.asarray(X)
         Y = []
         for task in range(self.ntasks):
             m = self.models[task]
             Xt = self.X_(X, task)
-            Y.append(m.predict_proba(Xt)[:, 1])
+            if ids is None:
+                Y.append(m.predict_proba(Xt)[:, 1])
+            else:
+                Y.append(m.predict_proba(Xt, ids))
         Y = np.vstack(Y).T
         return Y
 
@@ -294,12 +310,127 @@ class SampleSpecificClassifier(MultitaskClassifier):
         super(SampleSpecificClassifier, self).fit(X, Y, task_features=sf)
 
 
+class GlobalPredictor(object):
+
+    def __init__(self, model, T=None):
+        """ T is samples x sample_features matrix. """
+        self.model = model
+        if T is not None:
+            T = np.asarray(T)
+        self.T = T
+        self.shuffle = True
+
+    def __train_data(self, X, Y):
+        Xr = []
+        yr = []
+        for i in range(self.k):
+            t = ~np.isnan(Y[:, i])
+            yi = Y[t, i]
+            Xi = X[t]
+            if self.T is not None:
+                Xi = np.hstack((Xi, np.tile(self.T[i], (Xi.shape[0], 1))))
+            yr.append(yi)
+            Xr.append(Xi)
+        Xr = np.vstack(Xr)
+        yr = np.hstack(yr)
+        assert Xr.shape[0] == len(yr)
+        if self.shuffle:
+            t = np.arange(Xr.shape[0])
+            Xr = Xr[t]
+            yr = yr[t]
+        return (Xr, yr)
+
+    def fit(self, X, Y):
+        if self.T is not None:
+            assert Y.shape[1] == self.T.shape[0]
+        self.k = Y.shape[1]
+        X = np.asarray(X)
+        Y = np.asarray(Y)
+        X, y = self.__train_data(X, Y)
+        self.model.fit(X, y)
+
+    def predict_proba(self, X):
+        X = np.asarray(X)
+        Z = []
+        for i in range(self.k):
+            if self.T is None:
+                Xi = X
+            else:
+                Xi = np.hstack((X, np.tile(self.T[i], (X.shape[0], 1))))
+            zi = self.model.predict_proba(Xi)[:, 1].reshape(-1, 1)
+            Z.append(zi)
+        Z = np.hstack(Z)
+        return Z
+
+    def feature_importances(self):
+        attr = None
+        if hasattr(self.model, 'feature_importances_'):
+            fi = self.model.feature_importances_
+        elif hasattr(self.model, 'coef_'):
+            fi = self.model.coef_
+        else:
+            raise NotImplementedError
+        return fi
 
 
+class MultiModelClassifier(object):
 
-def data_sample(X, Y, sample):
-    y = Y.loc[:, sample]
-    h = np.asarray(y.notnull())
-    X = X.loc[h]
-    y = y.loc[h]
-    return (X, y)
+    def __init__(self, m):
+        self.model = m
+
+    def X_(self, X, task):
+        return X[:, self.task_features[task]]
+
+    def Xy_(self, X, Y, task):
+        y = Y[:, task]
+        h = ~np.isnan(y)
+        y = y[h]
+        X = self.X_(X, task)
+        X = X[h]
+        return (X, y)
+
+    def fit(self, X, y, ids=None):
+        X = np.asarray(X)
+        y = np.asarray(y)
+        if ids is None:
+            ids = np.repeat(0, len(y))
+        assert X.shape[0] == len(y)
+        assert len(ids) == len(y)
+        model_ids = np.unique(ids)
+        self.models = {}
+        for model_id in model_ids:
+            t = ids == model_id
+            Xm = X[t]
+            ym = y[t]
+            assert len(np.unique(ym)) == 2
+            m = copy.deepcopy(self.model)
+            m.fit(Xm, ym)
+            self.models[model_id] = m
+
+    def predict_proba(self, X, ids=None):
+        X = np.asarray(X)
+        if ids is None:
+            ids = np.repeat(0, X.shape[0])
+        assert X.shape[0] == len(ids)
+        model_ids = np.unique(ids)
+        z = np.empty(X.shape[0])
+        z.fill(np.nan)
+        for model_id in model_ids:
+            if not model_id in self.models.keys():
+                m = list(self.models.values())[0]
+            else:
+                m = self.models[model_id]
+            t = ids == model_id
+            z[t] = m.predict_proba(X[t])[:, 1]
+        assert np.all(~np.isnan(z))
+        return z
+
+    def predict(self, X, *args, **kwargs):
+        z = self.predict_proba(X, *args, **kwargs)
+        return np.round(z)
+
+    def get_params(self):
+        return self.model.get_params()
+
+    def set_params(self, **kwargs):
+        return self.model.set_params(**kwargs)

@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import numba
 
 
 def group_apply(d, by, fun, level=False, set_index=False, *args, **kwargs):
