@@ -54,7 +54,7 @@ class App(object):
             type=int)
         p.add_argument(
             '--start',
-            help='Start position on chromomse',
+            help='Start position on chromosome',
             type=int)
         p.add_argument(
             '--stop',
