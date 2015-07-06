@@ -36,8 +36,9 @@ class App(object):
             help='Output HDF path.',
             default='data.h5')
         p.add_argument(
-            '--chromo',
-            help='Only process data from single chromosome')
+            '--chromos',
+            help='Only use these chromosomes',
+            nargs='+')
         p.add_argument(
             '--nrows',
             help='Only read that many rows from each file',
@@ -68,7 +69,7 @@ class App(object):
 
         hdf_path, hdf_group = hdf.split_path(opts.out_file)
         p = data_cpg.Processor(hdf_path, hdf_group)
-        p.chromo = opts.chromo
+        p.chromos = opts.chromos
         p.nrows = opts.nrows
         p.pos_min = opts.start
         p.pos_max = opts.stop

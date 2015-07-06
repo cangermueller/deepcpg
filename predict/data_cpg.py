@@ -14,7 +14,7 @@ class Processor(object):
     def __init__(self, out_path, out_group='/'):
         self.out_path = out_path
         self.out_group = out_group
-        self.chromo = None
+        self.chromos = None
         self.pos_min = None
         self.pos_max = None
         self.nrows = None
@@ -29,7 +29,7 @@ class Processor(object):
 
     def process(self, path):
         sample = pt.splitext(pt.basename(path))[0]
-        d = data.read_cpg(path, self.chromo, self.nrows)
+        d = data.read_cpg(path, self.chromos, self.nrows)
         if self.pos_min is not None:
             d = d.loc[d.pos >= self.pos_min]
         if self.pos_max is not None:

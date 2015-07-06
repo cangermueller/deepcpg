@@ -237,7 +237,7 @@ class Selector(object):
                 store = d
             else:
                 t = pd.concat([store, d])
-                assert t.shape[0] == store.shape[0]
+                assert t.shape[1] == store.shape[1]
                 store = t
             del self.__tc
             store = store.astype(self.dtype)
@@ -251,10 +251,11 @@ class Selector(object):
         return self.__t
 
 
-def select_cpg_matrix(path, group='/', chromo='1', subsets=None, reindex=False):
+def select_cpg_matrix(path, group='/', chromos=None, subsets=None, reindex=False):
     fs = FeatureSelection()
     fs.cpg = subsets if subsets else True
     sel = Selector(fs)
+    sel.chromos = chromos
     Y = sel.select(path, group)
     Y.index = Y.index.droplevel(0)
     if reindex:

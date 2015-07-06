@@ -17,33 +17,17 @@ def read_pos(path, dataset, chromo):
     return pos.values
 
 
-def read_cpg_list(path, dataset, chromo, samples=None, nrows=None):
-    group = pt.join(dataset, 'cpg', str(chromo))
-    if samples is None:
-        samples = hdf.ls(path, group)
-    d = []
-    for sample in samples:
-        ds = pd.read_hdf(path, pt.join(group, sample), stop=nrows)
-        ds['sample'] = sample
-        d.append(ds)
-    d = pd.concat(d)
-    return d
-
-
 def list_chromos(path, dataset):
     group = pt.join(dataset, 'pos')
     return hdf.ls(path, group)
 
 
-def read_cpg(path, chromo=None, nrows=None):
-    if chromo is not None:
-        cmd = "grep '^\s*%s' %s" % (chromo, path)
-        f = sp.Popen(cmd, shell=True, cwd=os.getcwd(), stdout=sp.PIPE).stdout
-    else:
-        f = path
-    d = pd.read_table(f, header=None, usecols=[0, 1, 2], nrows=nrows,
+def read_cpg(path, chromos=None, nrows=None):
+    d = pd.read_table(path, header=None, usecols=[0, 1, 2], nrows=nrows,
                       dtype={0: np.str, 1: np.int32, 2: np.float32})
     d.columns = ['chromo', 'pos', 'value']
+    if chromos is not None:
+        d = d.loc[d.chromo.isin(chromos)]
     d['chromo'] = [chromo_to_int(x) for x in d.chromo]
     d['value'] = np.round(d.value)
     assert np.all((d.value == 0) | (d.value == 1)), 'Invalid methylation states'

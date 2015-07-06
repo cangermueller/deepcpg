@@ -149,7 +149,7 @@ class Processor(object):
     def process_chromo(self, stats, chromo):
         # Read combined train and val CpGs
         Y = data_select.select_cpg_matrix(self.in_path, self.in_group,
-                                          chromo=chromo,
+                                          chromos=[chromo],
                                           subsets=['train', 'val'])
         for stat_name, stat_fun in stats.items():
             self.log(stat_name + ' ...')
