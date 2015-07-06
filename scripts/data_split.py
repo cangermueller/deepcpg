@@ -4,13 +4,12 @@ import argparse
 import sys
 import logging
 import os.path as pt
-import pandas as pd
+import numpy as np
 import warnings
 
-from predict import data
 from predict import hdf
-from predict import feature_extractor as fext
-from predict import data_knn
+from predict import data
+from predict import data_split
 
 
 class App(object):
@@ -25,30 +24,25 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Computes KNN features')
+            description='Split CpGs into train, test, and validation set')
         p.add_argument(
             'in_file',
-            help='Input HDF to data split (test, train, val)')
+            help='Input HDF path of data file.')
         p.add_argument(
-            '-o', '--out_file',
-            help='Output HDF path if different from input HDF path')
+            '--test_size',
+            help='Size of test set',
+            type=float,
+            default=0.3)
         p.add_argument(
-            '-k', '--knn',
-            help='Number of k nearest neighbors',
+            '--val_size',
+            help='Size of validation set',
+            type=float,
+            default=0.1)
+        p.add_argument(
+            '--seed',
+            help='Seed of rng',
             type=int,
-            default=5)
-        p.add_argument(
-            '--no_dist',
-            help='Do not compute distance to knn',
-            action='store_true')
-        p.add_argument(
-            '--chromos',
-            help='Only apply to these chromosome',
-            nargs='+')
-        p.add_argument(
-            '--samples',
-            help='Only apply to these samples',
-            nargs='+')
+            default=0)
         p.add_argument(
             '--verbose', help='More detailed log messages', action='store_true')
         p.add_argument(
@@ -66,21 +60,13 @@ class App(object):
         log.debug(opts)
 
         in_path, in_group = hdf.split_path(opts.in_file)
-        if opts.out_file:
-            out_path, out_group = hdf.split_path(opts.out_file)
-        else:
-            out_path = in_path
-            out_group = in_group
-        fe = fext.KnnCpgFeatureExtractor(opts.knn, dist=not opts.no_dist)
-        p = data_knn.Processor(in_path, fe)
-        p.in_group = in_group
-        p.out_path = out_path
-        p.out_group = out_group
-        p.chromos = opts.chromos
-        p.samples = opts.samples
+        p = data_split.Processor(in_path)
+        p.test_size = opts.test_size
+        p.val_size = opts.val_size
+        p.rng = np.random.RandomState(opts.seed)
         p.logger = lambda x: log.info(x)
 
-        log.info('Process ...')
+        log.info('Split ...')
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             p.process()
@@ -91,3 +77,4 @@ class App(object):
 if __name__ == '__main__':
     app = App()
     app.run(sys.argv)
+

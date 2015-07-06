@@ -19,7 +19,7 @@ class Processor(object):
         self.distance = distance
 
     def annotate(self, chromo, annos):
-        pos = data.get_pos(self.path, self.dataset, chromo)
+        pos = data.read_pos(self.path, self.dataset, chromo)
         chromo = int(chromo)
         annos = annos.loc[annos.chromo == chromo]
         start, end = A.join_overlapping(annos['start'].values,
@@ -29,6 +29,7 @@ class Processor(object):
         else:
             f = A.is_in(pos, start, end)
         f = pd.DataFrame(dict(pos=pos, value=f))
+        f.set_index('pos', inplace=True)
         return f
 
     def process_chromo(self, chromo, annos, anno_name):

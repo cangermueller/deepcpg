@@ -19,7 +19,7 @@ class Processor(object):
         self.dataset = dataset
 
     def annotate(self, chromo, annos):
-        pos = data.get_pos(self.path, self.dataset, chromo)
+        pos = data.read_pos(self.path, self.dataset, chromo)
         chromo = int(chromo)
         annos = annos.loc[annos.chromo == chromo]
         start, end = A.join_overlapping(annos['start'].values,
@@ -29,12 +29,13 @@ class Processor(object):
         m = A.in_which(pos, start, end)
         f[m >= 0] = annos.iloc[m[m >= 0]].score
         f = pd.DataFrame(dict(pos=pos, value=f))
+        f.set_index('pos', inplace=True)
         return f
 
     def process_chromo(self, chromo, annos, anno_name):
         f = self.annotate(chromo, annos)
         out_group = pt.join(self.dataset, 'scores', anno_name, chromo)
-        f.to_hdf(self.path, out_group, format='t', data_columns=True)
+        f.to_hdf(self.path, out_group)
 
     def process(self, annos, anno_name):
         annos = annos.sort(['chromo', 'start', 'end'])

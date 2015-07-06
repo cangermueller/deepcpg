@@ -1,4 +1,5 @@
 import numpy as np
+import numba
 
 
 class KnnCpgFeatureExtractor(object):

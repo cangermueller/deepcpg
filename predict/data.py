@@ -10,11 +10,11 @@ import numpy as np
 from predict import hdf
 
 
-def get_pos(path, dataset, chromo):
-    d = read_cpg_list(path, dataset, chromo)
-    d = pd.pivot_table(d, index='pos', columns='sample', values='value')
-    p = sorted(d.index)
-    return p
+
+def read_pos(path, dataset, chromo):
+    group = pt.join(dataset, 'pos', str(chromo))
+    pos = pd.read_hdf(path, group)
+    return pos.values
 
 
 def read_cpg_list(path, dataset, chromo, samples=None, nrows=None):

@@ -65,7 +65,7 @@ class Loader(object):
 
     def S(self, es_path, stats=None):
         sel = eval_stats.Selector(self.chromos, stats)
-        d = sel.select(es_path, self.group)
+        d = sel.select(es_path, 'train')
         return d
 
     def s(self, es_path, stats=None):
@@ -82,7 +82,7 @@ class Loader(object):
         yza = pd.merge(pd.merge(y, z, how='inner'), a, how='inner')
         return yza
 
-    def yzs(self ,fm_path, z_path, es_path, stats=None, nbins=3):
+    def yzs(self, fm_path, z_path, es_path, stats=None, nbins=3):
         # [chromo, pos, sample, y, z, stat, value, cut]
         y = self.y(fm_path)
         z = self.z(z_path)

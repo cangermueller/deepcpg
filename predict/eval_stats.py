@@ -8,6 +8,8 @@ import warnings
 
 from predict import utils as ut
 from predict import hdf
+from predict import data_select
+from predict import data
 
 
 def __cpg_cov(x, mean=False):
@@ -132,8 +134,11 @@ def met_rate_win(x, delta):
 
 class Processor(object):
 
-    def __init__(self, out_file):
-        self.out_file = out_file
+    def __init__(self, in_path):
+        self.in_path = in_path
+        self.in_group = '/'
+        self.out_path = '/es'
+        self.out_group = '/'
         self.chromos = None
         self.logger = None
 
@@ -141,10 +146,11 @@ class Processor(object):
         if self.logger is not None:
             self.logger(msg)
 
-    def process_chromo(self, in_file, stats, chromo):
-        in_path, in_group = hdf.split_path(in_file)
-        Y = pd.read_hdf(in_path, pt.join(in_group, 'Y', chromo))
-        out_path, out_group = hdf.split_path(self.out_file)
+    def process_chromo(self, stats, chromo):
+        # Read combined train and val CpGs
+        Y = data_select.select_cpg_matrix(self.in_path, self.in_group,
+                                          chromo=chromo,
+                                          subsets=['train', 'val'])
         for stat_name, stat_fun in stats.items():
             self.log(stat_name + ' ...')
             s = stat_fun(Y)
@@ -152,16 +158,16 @@ class Processor(object):
             assert np.all(s.index == Y.index)
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
-                s.to_hdf(out_path, pt.join(out_group, stat_name, chromo))
+                g = pt.join(self.out_group, stat_name, chromo)
+                s.to_hdf(self.out_path, g)
 
-    def process(self, in_file, stats):
-        in_path, in_group = hdf.split_path(in_file)
+    def process(self, stats):
         chromos = self.chromos
         if chromos is None:
-            chromos = hdf.ls(in_path, pt.join(in_group, 'Y'))
+            chromos = hdf.ls(self.in_path, pt.join(self.in_group, 'pos'))
         for chromo in chromos:
             self.log('Chromosome %s ...' % (str(chromo)))
-            self.process_chromo(in_file, stats, str(chromo))
+            self.process_chromo(stats, str(chromo))
 
 
 class Selector(object):

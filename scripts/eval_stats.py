@@ -16,6 +16,7 @@ from predict import eval_stats
 def get_fun(name):
     return eval_stats.__dict__[name]
 
+
 class EvalStats(object):
 
     def run(self, args):
@@ -87,10 +88,19 @@ class EvalStats(object):
             stats[stat_name] = fun
 
         log.info('Process ...')
-        p = eval_stats.Processor(opts.out_file)
+        in_path, in_group = hdf.split_path(opts.in_file)
+        if opts.out_file:
+            out_path, out_group = hdf.split_path(opts.out_file)
+        else:
+            out_path = in_path
+            out_group = '/es'
+        p = eval_stats.Processor(in_path)
+        p.in_group = in_group
+        p.out_path = out_path
+        p.out_group = out_group
         p.chromos = opts.chromos
         p.logger = lambda x: log.info(x)
-        p.process(opts.in_file, stats)
+        p.process(stats)
 
         log.info('Done!')
         return 0

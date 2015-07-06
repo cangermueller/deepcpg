@@ -9,7 +9,7 @@ from predict import data, hdf
 class FeatureSelection(object):
 
     def __init__(self):
-        self.cpg = False  # True, False, None
+        self.cpg = False  # True, False, or list ['train', 'test', 'val']
         self.knn = False  # k, True, False, None
         self.knn_dist = False  # k, True, False, None
         self.annos = False  # non-empty list, True, False, None
@@ -36,20 +36,26 @@ class RangeSelection(object):
             return None
 
 
-def select_cpg(path, dataset, range_sel, samples=None):
-    g = pt.join(dataset, 'cpg', range_sel.chromo)
+def select_cpg(path, dataset, range_sel, samples=None, subsets=None):
+    if subsets is None:
+        subsets = ['']
     if samples is None:
+        g = pt.join(dataset, subsets[0], 'cpg', range_sel.chromo)
         samples = hdf.ls(path, g)
     d = None
     for sample in samples:
-        gs = pt.join(g, sample)
-        f = pd.read_hdf(path, gs, where=range_sel.query())
-        f['feature'] = sample
+        f = []
+        for group in subsets:
+            g = pt.join(dataset, group, 'cpg', range_sel.chromo, sample)
+            f.append(pd.read_hdf(path, g, where=range_sel.query()))
+        f = pd.concat(f)
+        f.columns = [sample]
         if d is None:
             d = f
         else:
-            d = pd.concat((d, f))
+            d = pd.concat((d, f), axis=1)
     return d
+
 
 
 def select_knn(path, dataset, range_sel, samples=None, k=None, dist=False, log=None):
@@ -102,7 +108,6 @@ def select_annos(path, dataset, range_sel, annos=None, dist=False, log=None):
             log('  %s ...' % (anno))
         gs = pt.join(dataset, group, anno, range_sel.chromo)
         f = pd.read_hdf(path, gs, where=range_sel.query())
-        f.set_index('pos', inplace=True)
         f.columns = [anno]
         if d is None:
             d = f
@@ -122,7 +127,6 @@ def select_scores(path, dataset, range_sel, annos=None, log=None):
             log('  %s ...' % (anno))
         gs = pt.join(dataset, 'scores', anno, range_sel.chromo)
         f = pd.read_hdf(path, gs, where=range_sel.query())
-        f.set_index('pos', inplace=True)
         f.columns = [anno]
         if d is None:
             d = f
@@ -171,8 +175,12 @@ class Selector(object):
 
         if self.features.cpg:
             self.log('cpg ...')
-            df = select_cpg(path, dataset, range_sel, self.samples)
-            add_to_store(df, 'cpg', pivot=True)
+            if isinstance(self.features.cpg, list):
+                t = self.features.cpg
+            else:
+                t = None
+            df = select_cpg(path, dataset, range_sel, self.samples, t)
+            add_to_store(df, 'cpg')
 
         if self.features.knn:
             self.log('knn ...')
@@ -241,3 +249,15 @@ class Selector(object):
             add_to_store(d, chromo)
 
         return self.__t
+
+
+def select_cpg_matrix(path, group='/', chromo='1', subsets=None, reindex=False):
+    fs = FeatureSelection()
+    fs.cpg = subsets if subsets else True
+    sel = Selector(fs)
+    Y = sel.select(path, group)
+    Y.index = Y.index.droplevel(0)
+    if reindex:
+        p = data.read_pos(path, group, chromo)
+        Y = Y.reindex(p)
+    return Y

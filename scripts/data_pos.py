@@ -27,7 +27,7 @@ class App(object):
             description='Adds position vector')
         p.add_argument(
             'in_file',
-            help='Input HDF path to dataset (test, train, val)')
+            help='Input HDF path to dataset')
         p.add_argument(
             '--verbose', help='More detailed log messages', action='store_true')
         p.add_argument(

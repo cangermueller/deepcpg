@@ -33,18 +33,8 @@ class App(object):
             nargs='+')
         p.add_argument(
             '-o', '--out_file',
-            help='Output HDF path. Creates train, test, val groups.',
+            help='Output HDF path.',
             default='data.h5')
-        p.add_argument(
-            '--test_size',
-            help='Size of test set',
-            type=float,
-            default=0.5)
-        p.add_argument(
-            '--val_size',
-            help='Size of validation set',
-            type=float,
-            default=0.1)
         p.add_argument(
             '--chromo',
             help='Only process data from single chromosome')
@@ -60,11 +50,6 @@ class App(object):
             '--stop',
             help='Stop position on chromosome',
             type=int)
-        p.add_argument(
-            '--seed',
-            help='Seed of rng',
-            type=int,
-            default=0)
         p.add_argument(
             '--verbose', help='More detailed log messages', action='store_true')
         p.add_argument(
@@ -82,12 +67,11 @@ class App(object):
         log.debug(opts)
 
         hdf_path, hdf_group = hdf.split_path(opts.out_file)
-        p = data_cpg.Processor(hdf_path, hdf_group, opts.test_size, opts.val_size)
+        p = data_cpg.Processor(hdf_path, hdf_group)
         p.chromo = opts.chromo
         p.nrows = opts.nrows
         p.pos_min = opts.start
         p.pos_max = opts.stop
-        p.rng = np.random.RandomState(opts.seed)
 
         log.info('Process files ...')
         for in_file in opts.in_files:
