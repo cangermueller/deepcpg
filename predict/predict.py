@@ -24,6 +24,8 @@ def rrmse(y, z):
     return 1 - rmse(y, z)
 
 def auc(y, z):
+    if len(y) == 0 or len(np.unique(y)) < 2:
+        return np.nan
     return skm.roc_auc_score(y, z)
 
 def acc(y, z, r=True):
@@ -434,3 +436,36 @@ class MultiModelClassifier(object):
 
     def set_params(self, **kwargs):
         return self.model.set_params(**kwargs)
+
+
+class ContextPredictor(object):
+
+    def __init__(self):
+        pass
+
+    def predict_chromo(self, Y, annos):
+        Z = Y.copy()
+        is_anno = np.empty(Y.shape[0], dtype=np.bool)
+        is_anno.fill(False)
+        for i, anno in annos.iterrows():
+            t = (Z.index >= anno.start) & (Z.index <= anno.end)
+            if np.any(t):
+                Zt = Z.loc[t]
+                Z.loc[t] = Zt.fillna(Zt.mean())
+                is_anno[t] = True
+        return (Z, is_anno)
+
+    def predict(self, Y, annos):
+        chromos = Y.index.get_level_values(0).unique()
+        Z = []
+        is_anno = []
+        for chromo in chromos:
+            Yc = Y.loc[chromo]
+            ac = annos.loc[annos.chromo == int(chromo)]
+            Zc, isac = self.predict_chromo(Yc, ac)
+            Z.append(Zc)
+            is_anno.append(isac)
+        Z = pd.concat(Z, keys=chromos)
+        Z.fillna(Y.mean(), inplace=True)
+        is_anno = np.hstack(is_anno)
+        return (Z, is_anno)

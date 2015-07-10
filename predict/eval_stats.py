@@ -151,6 +151,7 @@ class Processor(object):
         Y = data_select.select_cpg_matrix(self.in_path, self.in_group,
                                           chromos=[chromo],
                                           subsets=['train', 'val'])
+        Y.index = Y.index.droplevel(0)
         for stat_name, stat_fun in stats.items():
             self.log(stat_name + ' ...')
             s = stat_fun(Y)

@@ -251,14 +251,22 @@ class Selector(object):
         return self.__t
 
 
-def select_cpg_matrix(path, group='/', chromos=None, subsets=None, reindex=False):
+def select_cpg_matrix(path, group='/', chromos=None, subsets=None, reindex=False, droplevel=False):
     fs = FeatureSelection()
     fs.cpg = subsets if subsets else True
     sel = Selector(fs)
     sel.chromos = chromos
     Y = sel.select(path, group)
-    Y.index = Y.index.droplevel(0)
     if reindex:
-        p = data.read_pos(path, group, chromo)
-        Y = Y.reindex(p)
+        ichromos = []
+        ipos = []
+        chromos = Y.index.get_level_values(0).unique()
+        for chromo in chromos:
+            p = data.read_pos(path, group, chromo)
+            ichromos.extend([chromo] * len(p))
+            ipos.extend(p)
+        i = pd.MultiIndex.from_arrays((ichromos, ipos), names=['chromo', 'pos'])
+        Y = Y.reindex(i)
+    if droplevel:
+        Y.columns = Y.columns.droplevel(0)
     return Y

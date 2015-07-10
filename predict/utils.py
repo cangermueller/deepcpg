@@ -24,11 +24,14 @@ def group_apply(d, by, fun, level=False, set_index=False, *args, **kwargs):
     return r_all
 
 
-def rolling_apply(d, delta, fun):
+def rolling_apply(d, delta, fun, level=None):
     rv = None
     l = 0
     r = 0
-    pos = d.index
+    if level is None:
+        pos = d.index
+    else:
+        pos = d.index.get_level_values(level)
     n = len(pos)
     for i in range(n):
         p = pos[i]
@@ -41,7 +44,7 @@ def rolling_apply(d, delta, fun):
         if rv is None:
             rv = np.empty((n, rvi.shape[0]))
         rv[i] = rvi
-    rv = pd.DataFrame(rv, index=d.index)
+    rv = pd.DataFrame(rv, index=d.index, columns=d.columns)
     return rv
 
 
