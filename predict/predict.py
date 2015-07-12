@@ -74,6 +74,21 @@ def complete_cases(x, y=None):
     xc = [x_[h] for x_ in x]
     return xc
 
+def complete_frame(X, y):
+    h = y.notnull()
+    X = X.loc[h]
+    y = y.loc[h]
+    return (X, y)
+
+def complete_array(X, y, w=None):
+    h = ~np.isnan(y).ravel()
+    X = X[h]
+    y = y[h]
+    if w is None:
+        return (X, y)
+    else:
+        return (X, y, w[h])
+
 def score(Y, Z, fun=skm.roc_auc_score):
     y = np.asarray(Y).ravel()
     z = np.asarray(Z).ravel()
