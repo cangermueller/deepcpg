@@ -1,18 +1,23 @@
-import numpy as np
 import pandas as pd
+import os
 import os.path as pt
 import pickle
+import matplotlib
+import matplotlib.pyplot as plt
 
 import predict.dnn.mt_dnn as dmt
 import predict.predict as pred
 import predict.evaluation as peval
 
 
+matplotlib.style.use('ggplot')
+
+
 class Pipeline(object):
 
     def __init__(self, params, train_X, train_Y, val_X=None, val_Y=None,
                  test_X=None, test_Y=None, train_ws=None, val_ws=None,
-                 base_path='.'):
+                 base_path='.', logger=None):
         self.params = params
         self.data = dict(
             train=(train_X, train_Y, train_ws),
@@ -20,7 +25,8 @@ class Pipeline(object):
             test=(test_X, test_Y, None)
         )
         self.base_path = base_path
-        self.logger = lambda x: print(x)
+        os.makedirs(self.base_path, exist_ok=True)
+        self.logger = logger
 
     def log(self, x):
         if (self.logger):
@@ -33,18 +39,43 @@ class Pipeline(object):
         else:
             return (X, Y)
 
+    def lc_plot(self, lc):
+        t = ['cost_train']
+        if self.data['val'][0] is not None:
+            t.append('cost_val')
+        d = lc.loc[:, t]
+        fig, ax = plt.subplots(figsize=(10, 6))
+        d.plot(ax=ax, figsize=(10, 6))
+        ax.set_xlabel('epoch')
+        ax.set_ylabel('cost')
+        return (fig, ax)
+
     def fit(self):
         self.log('\nFit model ...')
-        model = dmt.MtDnn(self.params, logger=print)
+        model = dmt.MtDnn(self.params, logger=self.logger)
         train_X, train_Y, train_ws = self.get_data('train', True)
         val_X, val_Y, val_ws = self.get_data('val', True)
-        model.fit(train_X, train_Y, val_X, val_Y, train_ws, val_ws)
+        lc = []
+        model.fit(train_X, train_Y, val_X, val_Y, train_ws, val_ws,
+                  lc_logger=lambda x: lc.append(x.mean()))
         self.model = model
 
-        self.log('Save model ...')
+        self.log('\nSave model ...')
+        model.logger = None
         t = pt.join(self.base_path, 'model.pkl')
         with open(t, 'wb') as f:
             pickle.dump(model, f)
+
+        self.log('\nSave learning curve ...')
+        lc = pd.DataFrame(pd.concat(lc, axis=1)).T
+        lc['epoch'] = range(lc.shape[0])
+        t = pt.join(self.base_path, 'lc.csv')
+        lc.to_csv(t, sep='\t', index=0)
+        t = pt.join(self.base_path, 'lc.pdf')
+        fig, ax = self.lc_plot(lc)
+        fig.savefig(t)
+
+        return lc
 
     def perf(self, dset='train'):
         self.log('\nEvaluate %s performance ...' % (dset))

@@ -156,7 +156,7 @@ class MtDnn(object):
             self.logger(x)
 
     def fit(self, train_X, train_Y, val_X=None, val_Y=None,
-            train_ws=None, val_ws=None):
+            train_ws=None, val_ws=None, lc_logger=None):
 
         def prepro(X, Y, ws):
             X, Y = format_XY(X, Y)
@@ -172,6 +172,7 @@ class MtDnn(object):
         else:
             val_X, val_Y, val_ws = prepro(val_X, val_Y, val_ws)
         self.ntasks = len(train_Y)
+        self.lc_logger = lc_logger
 
         # task-specific class weights
         wc = self.params.wc
@@ -211,6 +212,7 @@ class MtDnn(object):
         self.val_X = None
         self.val_Y = None
         self.val_ws = None
+        self.lc_logger = None
 
 
     def setup(self):
@@ -336,6 +338,8 @@ class MtDnn(object):
              },
             columns=['cost_train', 'cost_val', 'auc_train', 'auc_val', 'lr']
             )
+        if self.lc_logger is not None:
+            self.lc_logger(stats)
         self.log('-' * 100)
         self.log('Epoch: %2d' % (epoch))
         self.log(format_header(stats.columns))
