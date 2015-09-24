@@ -12,6 +12,18 @@ import predict.evaluation as peval
 
 matplotlib.style.use('ggplot')
 
+plt.ioff()
+
+
+def plot_lc(lc):
+    t = ['cost_train', 'cost_val']
+    d = lc.loc[:, t]
+    fig, ax = plt.subplots(figsize=(10, 6))
+    d.plot(ax=ax, figsize=(10, 6))
+    ax.set_xlabel('epoch')
+    ax.set_ylabel('cost')
+    return (fig, ax)
+
 
 class Pipeline(object):
 
@@ -39,17 +51,6 @@ class Pipeline(object):
         else:
             return (X, Y)
 
-    def lc_plot(self, lc):
-        t = ['cost_train']
-        if self.data['val'][0] is not None:
-            t.append('cost_val')
-        d = lc.loc[:, t]
-        fig, ax = plt.subplots(figsize=(10, 6))
-        d.plot(ax=ax, figsize=(10, 6))
-        ax.set_xlabel('epoch')
-        ax.set_ylabel('cost')
-        return (fig, ax)
-
     def fit(self):
         self.log('\nFit model ...')
         model = dmt.MtDnn(self.params, logger=self.logger)
@@ -71,9 +72,8 @@ class Pipeline(object):
         lc['epoch'] = range(lc.shape[0])
         t = pt.join(self.base_path, 'lc.csv')
         lc.to_csv(t, sep='\t', index=0)
-        t = pt.join(self.base_path, 'lc.pdf')
-        fig, ax = self.lc_plot(lc)
-        fig.savefig(t)
+        #fig, ax = plot_lc(lc)
+        #fig.savefig(pt.join(self.base_path, 'lc.pdf'))
 
         return lc
 

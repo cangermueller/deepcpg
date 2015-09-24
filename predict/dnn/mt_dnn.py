@@ -178,7 +178,7 @@ class MtDnn(object):
         wc = self.params.wc
         if wc is None:
             wc = np.ones(2)
-        if len(wc) != self.ntasks:
+        if not isinstance(wc, list):
             wc = [wc] * self.ntasks
         for i in range(len(wc)):
             t = np.asarray(wc[i], dtype=np.float32)
