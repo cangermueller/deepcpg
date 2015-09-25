@@ -23,14 +23,14 @@ class Processor(object):
             self.logger(msg)
 
     def write(self, f, chromo, sample):
-        t = f.feature.str.contains('dist_')
         k = self.knn_ext.k
         out_group = pt.join(self.out_group, 'knn%d' % (k), chromo, sample)
-        f[~t].to_hdf(self.out_path, out_group)
+        t = f.columns.str.contains('dist_')
+        f.loc[:, ~t].to_hdf(self.out_path, out_group)
         if np.sum(t) > 0:
             out_group = pt.join(self.out_group,
                                 'knn%d_dist' % (k), chromo, sample)
-            f[t].to_hdf(self.out_path, out_group)
+            f.loc[:, t].to_hdf(self.out_path, out_group)
 
     def process_sample(self, chromo, sample, pos):
         self.log('Sample %s ...' % (sample))
@@ -46,10 +46,7 @@ class Processor(object):
         assert len(np.unique(cpg.index.values)) == len(cpg)
         cpg = cpg.sort_index()
         f = self.knn_ext.extract(pos, cpg.index.values, cpg.value.values)
-        f = pd.DataFrame(f, columns=self.knn_ext.labels)
-        f['pos'] = pos
-        f = pd.melt(f, id_vars='pos', var_name='feature',
-                    value_name='value')
+        f = pd.DataFrame(f, index=pos, columns=self.knn_ext.labels)
         return f
 
     def process_chromo(self, chromo):

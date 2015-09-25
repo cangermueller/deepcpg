@@ -60,12 +60,13 @@ def select_cpg(path, dataset, range_sel, samples=None, subsets=None):
 
 def select_knn(path, dataset, range_sel, samples=None, k=None, dist=False, log=None):
     if k is None or type(k) is bool:
-        p = r'knn\d'
+        p = 'knn\\d+'
         if dist:
             p += '_dist'
         p += '$'
-        t = hdf.ls(path, dataset)
-        t = [x for x in t if re.match(p, x)]
+        groups = hdf.ls(path, dataset)
+        t = [x for x in groups if re.match(p, x)]
+        assert len(t)
         name = t[0]
     else:
         name = 'knn%d' % (k)
@@ -81,12 +82,6 @@ def select_knn(path, dataset, range_sel, samples=None, k=None, dist=False, log=N
             log('  %s ...' % (sample))
         gs = pt.join(g, sample)
         f = pd.read_hdf(path, gs, where=range_sel.query())
-        if dist:
-            t = 'dist_'
-        else:
-            t = 'cpg_'
-        f['feature'] = [sample + '_' + x.replace(t, '') for x in f.feature]
-        f = pd.pivot_table(f, index='pos', columns='feature', values='value')
         if d is None:
             d = f
         else:
