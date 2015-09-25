@@ -173,8 +173,9 @@ def holdout_opt(model, param_grid, train_X, train_Y, val_X, val_Y, fun=skm.roc_a
     return (opt_model, scores)
 
 
-def read_data(path, group='train', include=None, exclude=None, max_rows=None, dtype=None):
-    sel = fm.Selector()
+def read_data(path, group='train', include=None, exclude=None, max_rows=None,
+              dtype=None, chromos=None):
+    sel = fm.Selector(chromos=chromos)
     X = sel.select(path, group, 'X')
     Y = sel.select(path, group, 'Y')
     if max_rows is not None:
