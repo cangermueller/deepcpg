@@ -223,6 +223,8 @@ class Selector(object):
 
         self.__t = None
         def add_to_store(d, chromo):
+            if d is None:
+                return
             self.log('Store ...')
             i = pd.MultiIndex.from_product([chromo, d.index.values],
                                            names=['chromo', 'pos'])
