@@ -33,6 +33,14 @@ class App(object):
             '-o', '--out_file',
             help='Output file')
         p.add_argument(
+            '--rate',
+            help='Compute rate instead of binary CpG state',
+            action='store_true')
+        p.add_argument(
+            '--nrows',
+            help='Read only that many rows',
+            type=int)
+        p.add_argument(
             '--verbose',
             help='More detailed log messages',
             action='store_true')
@@ -53,9 +61,11 @@ class App(object):
 
         in_file = opts.in_file if opts.in_file else sys.stdin
         d = pd.read_table(in_file, header=None, usecols=[0, 1, 4, 5],
-                          dtype={0: np.str})
+                          dtype={0: np.str}, nrows=opts.nrows)
         d.columns = ['chromo', 'pos', 'npos', 'nneg']
         d['rate'] = d.npos / (d.npos + d.nneg)
+        if not opts.rate:
+            d['rate'] = d['rate'].round()
         d = d.loc[:, ['chromo', 'pos', 'rate']]
         s = d.to_csv(opts.out_file, sep='\t', header=None, index=False)
         if s is not None:
