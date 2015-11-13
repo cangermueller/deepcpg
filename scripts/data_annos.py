@@ -31,6 +31,9 @@ class App(object):
             'in_file',
             help='Input HDF path to dataset (test, train, val)')
         p.add_argument(
+            '-o', '--out_file',
+            help='Write to different file than input file')
+        p.add_argument(
             '-a', '--anno_files',
             help='Annotation files in BED format',
             nargs='+')
@@ -41,6 +44,11 @@ class App(object):
         p.add_argument(
             '--distance',
             help='Compute distance to annotations',
+            action='store_true'
+        )
+        p.add_argument(
+            '--index',
+            help='Store index of matching annotations',
             action='store_true'
         )
         p.add_argument(
@@ -61,7 +69,8 @@ class App(object):
 
         log.info('Add annotations ...')
         in_path, in_group = hdf.split_path(opts.in_file)
-        p = data_annos.Processor(in_path, in_group, opts.distance)
+        p = data_annos.Processor(in_path, in_group, opts.distance, opts.index)
+        p.out_path = opts.out_file
         for anno_file in opts.anno_files:
             anno_name = opts.prefix + pt.splitext(pt.basename(anno_file))[0]
             log.info('\t%s...', anno_name)

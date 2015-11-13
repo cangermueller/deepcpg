@@ -136,6 +136,198 @@ eval_funs = [('auc', pred.auc),
              ('rrmse', pred.rrmse),
              ('cor', pred.cor)]
 
+def evaluate(y, z, mask=-1, funs=eval_funs):
+    y = y.ravel()
+    z = z.ravel()
+    if mask is not None:
+        t = y != mask
+        y = y[t]
+        z = z[t]
+    s = dict()
+    for name, fun in eval_funs:
+        s[name] = fun(y, z)
+    return pd.DataFrame(s, columns=[x for x, _ in eval_funs], index=[0])
+
+def evaluate_all(y, z):
+    keys = sorted(z.keys())
+    p = [evaluate(y[k], z[k]) for k in keys]
+    p = pd.concat(p)
+    p.index = keys
+    return p
+
+def eval_to_str(e, index=False):
+    s = e.to_csv(None, sep='\t', index=index, float_format='%.4f')
+    return s
+
+
+def get_weights(y, outputs):
+    w = dict()
+    for o in outputs:
+        yo = y[o]
+        wo = np.zeros(len(yo), dtype='float32')
+        wo[yo != -1] = 1
+        w[o] = wo
+    return w
+
+def read_data(path, max_samples=None):
+    f = h5.File(path, 'r')
+    data = dict()
+    for k, v in f.items():
+        if max_samples is None:
+            data[k] = v.value
+        else:
+            data[k] = v[:max_samples]
+    c = data['c_x'].astype('float32')
+    c[:, 1] /= c[:, 1].max()
+    data['c_x'] = c
+    f.close()
+    return data
+
+class App(object):
+
+    def run(self, args):
+        name = pt.basename(args[0])
+        parser = self.create_parser(name)
+        opts = parser.parse_args(args[1:])
+        return self.main(name, opts)
+
+    def create_parser(self, name):
+        p = argparse.ArgumentParser(
+            prog=name,
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+            description='Build and train model')
+        p.add_argument(
+            '--train_data',
+            help='Training data file')
+        p.add_argument(
+            '--val_data',
+            help='Validation data file')
+        p.add_argument(
+            '--test_data',
+            help='Test data file')
+        p.add_argument(
+            '-o', '--out_dir',
+            help='Output directory')
+        p.add_argument(
+            '--model_params',
+            help='Model parameters file')
+        p.add_argument(
+            '--model_file',
+            help='JSON model description')
+        p.add_argument(
+            '--model_weights',
+            help='Model weights')
+        p.add_argument(
+            '--max_samples',
+            help='Limit # samples',
+            type=int)
+        p.add_argument(
+            '--seed',
+            help='Seed of rng',
+            type=int,
+            default=0)
+        p.add_argument(
+            '--verbose',
+            help='More detailed log messages',
+            action='store_true')
+        p.add_argument(
+            '--log_file',
+            help='Write log messages to file')
+        return p
+
+    def main(self, name, opts):
+        logging.basicConfig(filename=opts.log_file,
+                            format='%(levelname)s (%(asctime)s): %(message)s')
+        log = logging.getLogger(name)
+        if opts.verbose:
+            log.setLevel(logging.DEBUG)
+        else:
+            log.setLevel(logging.INFO)
+            log.debug(opts)
+
+
+        if opts.seed is not None:
+            np.random.seed(opts.seed)
+        pd.set_option('display.width', 150)
+
+        log.info('Read data')
+        train_data = read_data(opts.train_data, opts.max_samples)
+        #  train_data = filter(lambda x: not re.match('u[1-9]+_y', x[0]), train_data.items())
+
+        model_params = NetParams()
+        if opts.model_params:
+            with open(opts.model_params, 'r') as f:
+                configs = yaml.load(f.read())
+                model_params.update(configs)
+        print('Model parameters:')
+        print(model_params)
+        print()
+
+        if opts.model_file:
+            log.info('Build model from file')
+            with open(opts.model_file, 'r') as f:
+                model = f.read()
+            model = kmodels.model_from_json(model)
+        else:
+            log.info('Build model')
+            model = build_model(model_params)
+            with open(pt.join(opts.out_dir, 'model.json'), 'w') as f:
+                f.write(model.to_json())
+
+        if opts.train_data is None:
+            return 0
+
+        print('%d training samples' % (len(train_data['pos'])))
+        if opts.val_data:
+            val_data = read_data(opts.val_data)
+            print('%d validation samples' % (len(val_data['pos'])))
+        else:
+            val_data = train_data
+
+        sample_weight_train = get_weights(train_data, model.output_order)
+        sample_weight_val = get_weights(val_data, model.output_order)
+
+        log.info('Fit model')
+        cb = []
+        cb.append(ModelCheckpoint(pt.join(opts.out_dir, 'model_weights')))
+        cb.append(EarlyStopping(patience=model_params.early_stop, verbose=1))
+        pl = PerformanceLogger(train_data, val_data)
+        cb.append(pl)
+        model.fit(train_data, validation_data=val_data,
+                  callbacks=cb, nb_epoch=model_params.max_epochs,
+                  verbose=2,
+                  sample_weight=sample_weight_train,
+                  sample_weight_val=sample_weight_val)
+
+        t = pt.join(opts.out_dir, 'model_weights_best.h5')
+        if pt.isfile(t):
+            model.load_weights(t)
+
+        for n in ['train', 'val']:
+            pl.logs[n].to_csv(pt.join(opts.out_dir, 'perf_%s.csv' % (n)), sep='\t', float_format='%.4f')
+
+        print('\nTraining set performance:')
+        z_train = model.predict(train_data)
+        print(evaluate_all(train_data, z_train))
+
+        print('\nValidation set loss:')
+        z_val = model.predict(val_data)
+        print(evaluate_all(val_data, z_val))
+
+        if opts.test_data is not None:
+            test_data = read_data(opts.test_data)
+            print('\nTest set performance:')
+            z_test = model.predict(test_data)
+            print(evaluate_all(test_data, z_test))
+
+        log.info('Done!')
+
+        return 0
+
+
+if __name__ == '__main__':
+    app = App()
+    app.run(sys.argv)
 
 def plot_annos(pa):
     pam = pa.groupby('anno').apply(lambda x: pd.DataFrame(dict(mean=x.auc.mean()),
