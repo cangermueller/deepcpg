@@ -61,6 +61,7 @@ class App(object):
         s = glob(pt.join(ddir, '*.bed'))
         if not opts.path:
             s = [pt.splitext(pt.basename(x))[0] for x in s]
+        s = sorted(s)
         for x in s:
             print(x)
 

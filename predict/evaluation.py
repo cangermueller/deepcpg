@@ -1,9 +1,9 @@
 import numpy as np
 import pandas as pd
 import os.path as pt
-import matplotlib
-import matplotlib.pyplot as plt
-import seaborn as sns
+#  import matplotlib
+#  import matplotlib.pyplot as plt
+#  import seaborn as sns
 
 from predict import data_select
 from predict import eval_stats
@@ -11,7 +11,7 @@ from predict import fm
 from predict import predict as pred
 
 
-matplotlib.style.use('ggplot')
+#  matplotlib.style.use('ggplot')
 
 
 class Loader(object):
@@ -329,22 +329,22 @@ if __name__ == '__main__':
     app = App()
     app.run(sys.argv)
 
-def plot_annos(pa):
-    pam = pa.groupby('anno').apply(lambda x: pd.DataFrame(dict(mean=x.auc.mean()),
-                                                          index=[0])).reset_index(level=0)
-    pam.sort('mean', ascending=False, inplace=True)
-    fig, ax = plt.subplots(figsize=(10, len(pa.anno.unique()) * 0.5))
-    sns.boxplot(y='anno', x='auc', data=pa, orient='h', order=pam.anno, ax=ax)
-    sns.stripplot(y='anno', x='auc', data=pa, orient='h', order=pam.anno,
-                  jitter=True, size=5, color='black', edgecolor='black', ax=ax)
-    return (fig, ax)
+#  def plot_annos(pa):
+    #  pam = pa.groupby('anno').apply(lambda x: pd.DataFrame(dict(mean=x.auc.mean()),
+                                                          #  index=[0])).reset_index(level=0)
+    #  pam.sort('mean', ascending=False, inplace=True)
+    #  fig, ax = plt.subplots(figsize=(10, len(pa.anno.unique()) * 0.5))
+    #  sns.boxplot(y='anno', x='auc', data=pa, orient='h', order=pam.anno, ax=ax)
+    #  sns.stripplot(y='anno', x='auc', data=pa, orient='h', order=pam.anno,
+                  #  jitter=True, size=5, color='black', edgecolor='black', ax=ax)
+    #  return (fig, ax)
 
 
-def plot_stats(ps):
-    grid = sns.FacetGrid(ps, col='stat', hue='stat', col_wrap=2,
-                         sharex=False, size=6)
-    grid.map(plt.plot, 'mean', 'auc', marker="o", ms=6, linewidth=2)
-    return grid
+#  def plot_stats(ps):
+    #  grid = sns.FacetGrid(ps, col='stat', hue='stat', col_wrap=2,
+                         #  sharex=False, size=6)
+    #  grid.map(plt.plot, 'mean', 'auc', marker="o", ms=6, linewidth=2)
+    #  return grid
 
 
 class Evaluater(object):
