@@ -36,4 +36,5 @@ docs/build/*
 /venv*/
 MANIFEST
 
+*.h5
 /tests/data/
