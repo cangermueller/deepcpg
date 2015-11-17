@@ -9,13 +9,24 @@ import pandas as pd
 import numpy as np
 from predict.evaluation import evaluate, eval_to_str
 import sqlite3 as sql
+import hashlib
 
 
 def to_sql(sql_path, data, table, meta):
+    md5 = hashlib.md5()
+    for v in sorted(meta.values()):
+        md5.update(v.encode())
+    id_ = md5.hexdigest()
+
     data = data.copy()
     for k, v in meta.items():
         data[k] = v
+    data['id'] = id_
     con =  sql.connect(sql_path)
+    try:
+        con.execute('DELETE FROM %s WHERE id = "%s"' % (table, id_))
+    except sql.OperationalError:
+        pass
     data.to_sql(table, con, if_exists='append', index=False)
     con.close()
 
