@@ -1,13 +1,4 @@
-import argparse
-import sys
-import logging
-import pdb
-import os.path as path
-import pickle as pkl
 import gzip as gz
-import h5py
-
-from predict import hdf
 
 
 class FastaSeq(object):

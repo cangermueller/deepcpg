@@ -1,13 +1,8 @@
-import argparse
-import sys
-import logging
 import os.path as pt
 import numpy as np
 import pandas as pd
-import progressbar
 import h5py
 import copy
-import warnings
 
 from predict import hdf
 from predict import data

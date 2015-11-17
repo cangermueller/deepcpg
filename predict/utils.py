@@ -48,10 +48,6 @@ def rolling_apply(d, delta, fun, level=None):
     return rv
 
 
-def join_index(index, sep='_'):
-    return [sep.join(x) for x in index.values]
-
-
 def to_rhdf(d, filename, group):
     if d.columns.nlevels > 1:
         d = d.copy()

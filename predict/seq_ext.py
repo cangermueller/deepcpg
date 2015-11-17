@@ -5,7 +5,6 @@ import h5py
 import copy
 
 from predict import hdf
-from predict import data
 
 
 def adjust_pos(p, seq, target='CG'):
