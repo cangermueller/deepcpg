@@ -113,7 +113,7 @@ class App(object):
         p.add_argument(
             '--knn_group',
             help='Name of KNN group',
-            default='knn_shared')
+            default='knn')
         p.add_argument(
             '--max_samples',
             help='Limit # samples',

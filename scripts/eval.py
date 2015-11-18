@@ -22,13 +22,14 @@ def to_sql(sql_path, data, table, meta):
     for k, v in meta.items():
         data[k] = v
     data['id'] = id_
-    con =  sql.connect(sql_path)
+    con = sql.connect(sql_path)
     try:
         con.execute('DELETE FROM %s WHERE id = "%s"' % (table, id_))
     except sql.OperationalError:
         pass
     data.to_sql(table, con, if_exists='append', index=False)
     con.close()
+
 
 def read_test(test_file, chromos=None):
     f = h5.File(test_file)
@@ -42,6 +43,7 @@ def read_test(test_file, chromos=None):
     for k in ['y', 'z']:
         d[k] = np.hstack(d[k])
     return chromos, d['pos'], d['y'], d['z']
+
 
 def read_annos(annos_file, chromo, name, pos=None):
     f = h5.File(annos_file)
@@ -57,6 +59,7 @@ def read_annos(annos_file, chromo, name, pos=None):
     d['annos'] = d['annos'].astype('bool')
     return d['pos'], d['annos']
 
+
 def read_stats(stats_file, chromo, stats, pos=None):
     f = h5.File(stats_file)
     g = f[chromo]
@@ -69,10 +72,12 @@ def read_stats(stats_file, chromo, stats, pos=None):
         assert np.all(d['pos'] == pos)
     return d['pos'], d[stats]
 
+
 def write_output(p, name, out_dir):
     t = eval_to_str(p)
     with open(pt.join(out_dir, 'perf_%s.csv' % (name)), 'w') as f:
         f.write(t)
+
 
 def eval_annos(y, z, chromos, cpos, annos_file, annos=None):
     if annos is None:
@@ -95,6 +100,7 @@ def eval_annos(y, z, chromos, cpos, annos_file, annos=None):
     pa.reset_index(inplace=True)
     pa.sort_values('anno', inplace=True)
     return pa
+
 
 def eval_stats(y, z, chromos, cpos, stats_file, stats=None, nbins=5):
     if stats is None:
@@ -131,6 +137,7 @@ def eval_stats(y, z, chromos, cpos, stats_file, stats=None, nbins=5):
     ps.sort_values(['stat', 'bin'], inplace=True)
     return ps
 
+
 class App(object):
 
     def run(self, args):
@@ -154,8 +161,9 @@ class App(object):
             '--sql_file',
             help='Append to sqlite database')
         p.add_argument(
-            '--sql_label',
-            help='Label for sqlite database')
+            '--sql_meta',
+            help='Meta columns in SQL table',
+            nargs='+')
         p.add_argument(
             '--annos_file',
             help='HDF file with annotations')
@@ -205,11 +213,14 @@ class App(object):
             out_dir = pt.dirname(opts.test_file)
 
         if opts.sql_file is not None:
-            assert opts.sql_label is not None
-            sql = dict()
-            sql['label'] = opts.sql_label
-            sql['path'] = pt.realpath(opts.test_file)
-            sql['sample'] = pt.basename(pt.dirname(pt.dirname(opts.test_file)))
+            sql_meta = dict()
+            sql_meta['path'] = pt.realpath(opts.test_file)
+            sql_meta['target'] = pt.basename(
+                pt.dirname(pt.dirname(opts.test_file)))
+            if opts.sql_meta is not None:
+                for meta in opts.sql_meta:
+                    k, v = meta.split('=')
+                    sql_meta[k] = v
 
         log.info('Read')
         chromos, cpos, y, z = read_test(opts.test_file, opts.chromos)
@@ -220,7 +231,7 @@ class App(object):
         print(eval_to_str(p))
         write_output(p, 'global', out_dir)
         if opts.sql_file:
-            to_sql(opts.sql_file, p, 'global', sql)
+            to_sql(opts.sql_file, p, 'global', sql_meta)
 
         if opts.annos_file is not None:
             log.info('Evaluate annotation-specific  performance')
@@ -230,7 +241,7 @@ class App(object):
             print(eval_to_str(pa))
             write_output(pa, 'annos', out_dir)
             if opts.sql_file:
-                to_sql(opts.sql_file, pa, 'annos', sql)
+                to_sql(opts.sql_file, pa, 'annos', sql_meta)
 
         if opts.stats_file is not None:
             log.info('Evaluate statistics-based performance')
@@ -241,7 +252,7 @@ class App(object):
             print(eval_to_str(ps))
             write_output(ps, 'stats', out_dir)
             if opts.sql_file:
-                to_sql(opts.sql_file, ps, 'stats', sql)
+                to_sql(opts.sql_file, ps, 'stats', sql_meta)
 
         log.info('Done!')
 

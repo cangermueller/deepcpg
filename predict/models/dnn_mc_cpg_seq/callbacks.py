@@ -1,39 +1,59 @@
-import sys
 from keras.callbacks import Callback
 import pandas as pd
 import numpy as np
-import warnings
 
 from utils import MASK
 from predict.evaluation import eval_funs
 
 
-class PerformanceLogger(Callback):
+class LearningRateScheduler(Callback):
 
-    def __init__(self, data, validation_data=None):
-        self.data = data
-        self.validation_data = validation_data
-        self.eval_funs = eval_funs
-        self.eval_names = [x[0] for x in self.eval_funs]
-        self.logs = dict()
-        self.logs['train'] = None
-        if validation_data is not None:
-            self.logs['val'] = None
+    def __init__(self, callback, monitor='val_loss', patience=0):
+        super(LearningRateScheduler, self).__init__()
+        self.callback = callback
+        self.patience = patience
+        self.monitor = monitor
 
-    def stack(self, epoch=None):
-        l = sorted(self.logs.keys())
-        d = [self.logs[k] for k in l]
-        if epoch:
-            d = [x.loc[epoch] for x in d]
-        d = pd.concat(d, axis=1, keys=l)
-        return d
+        self.counter = 0
+        self.prev_score = np.inf
+        self.best_score = np.inf
+        self.best_weights = None
 
     def on_epoch_end(self, epoch, logs={}):
-        self.logs['train'] = self.add(self.data, self.logs['train'], epoch)
-        if self.validation_data:
-            self.logs['val'] = self.add(self.validation_data, self.logs['val'], epoch)
-        d = self.stack(epoch)
+        score = logs.get(self.monitor)
+        if score <= self.prev_score:
+            self.counter = 0
+            if score <= self.best_score:
+                self.best_score = score
+                self.best_weights = self.model.get_weights()
+        else:
+            self.counter += 1
+            if self.counter > self.patience:
+                self.callback()
+                self.model.set_weights(self.best_weights)
+                self.counter = 0
+        self.prev_score = score
+
+
+class PerformanceLogger(Callback):
+
+    def __init__(self, data, label=None):
+        self.data = data
+        self.eval_funs = eval_funs
+        self.eval_names = [x[0] for x in self.eval_funs]
+        self.logs = None
+        self.label = label
+
+    def on_epoch_end(self, epoch, logs={}):
+        self.logs = self.add(self.data, self.logs, epoch)
+        d = self.logs.loc[epoch]
+        if self.label is None:
+            t = 'Performance:'
+        else:
+            t = 'Performance (%s):' % (self.label)
+        print(t)
         print(np.round(d, 4))
+        print()
 
     def add(self, data, logs, epoch):
         log = self.evaluate(data, epoch)
@@ -62,30 +82,3 @@ class PerformanceLogger(Callback):
 
     def __str__(self):
         return str(self.stack())
-
-
-class ModelCheckpoint(Callback):
-
-    def __init__(self, filepath, monitor='val_loss', verbose=0):
-        super(Callback, self).__init__()
-        self.monitor = monitor
-        self.verbose = verbose
-        self.filepath = filepath
-        self.best = np.Inf
-
-    def on_epoch_end(self, epoch, logs={}):
-        self.model.save_weights(self.filepath + '_last.h5', overwrite=True)
-        current = logs.get(self.monitor)
-        if current is None:
-            warnings.warn("Can save best model only with %s available, skipping." % (self.monitor), RuntimeWarning)
-        else:
-            if current < self.best:
-                if self.verbose > 0:
-                    print("Epoch %05d: %s improved from %0.5f to %0.5f, saving model to %s"
-                          % (epoch, self.monitor, self.best, current, self.filepath))
-                self.best = current
-                self.model.save_weights(self.filepath + '_best.h5', overwrite=True)
-            else:
-                if self.verbose > 0:
-                    print("Epoch %05d: %s did not improve" % (epoch, self.monitor))
-            sys.stdout.flush()

@@ -109,7 +109,7 @@ class App(object):
         pos.columns = ['chromo', 'pos']
         if opts.chromos is not None:
             pos = pos.loc[pos.chromo.isin(opts.chromos)]
-        pos.sort(['chromo', 'pos'], inplace=True)
+        pos.sort_values(['chromo', 'pos'], inplace=True)
         pos = pd.Series(pos.pos.values, index=pos.chromo.values)
 
         in_file = h5.File(opts.seq_file, 'r')
