@@ -35,3 +35,20 @@ def evaluate_all(y, z):
     p = pd.concat(p)
     p.index = keys
     return p
+
+class DataReader(object):
+
+    def __init__(self, path, chromos=None, shuffle=False, chunk_size=100000):
+        self.path = path
+        self.chromos = chromos
+        self.shuffle = shuffle
+        self.chunk_size = chunk_size
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        pass
+
+    def next(self):
+        return self.__next__()

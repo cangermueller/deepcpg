@@ -86,16 +86,19 @@ def eval_annos(y, z, chromos, cpos, annos_file, annos=None):
         f.close()
         annos = list(filter(lambda x: x.startswith('loc_'), annos))
     pa = []
+    annos_used = []
     for anno in annos:
         a = []
         for chromo, pos in zip(chromos, cpos):
             a.append(read_annos(annos_file, chromo, anno, pos)[1])
         a = np.hstack(a)
-        ya = y[a]
-        za = z[a]
-        pa.append(evaluate(ya, za))
+        if a.sum() > 10:
+            ya = y[a]
+            za = z[a]
+            annos_used.append(anno)
+            pa.append(evaluate(ya, za))
     pa = pd.concat(pa, axis=0)
-    pa.index = pd.Index(annos)
+    pa.index = pd.Index(annos_used)
     pa.index.name = 'anno'
     pa.reset_index(inplace=True)
     pa.sort_values('anno', inplace=True)

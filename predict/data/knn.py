@@ -10,6 +10,8 @@ import h5py as h5
 
 from predict import feature_extractor as fext
 
+MAX_DIST = np.iinfo('int32').max - 100
+
 
 class App(object):
 
