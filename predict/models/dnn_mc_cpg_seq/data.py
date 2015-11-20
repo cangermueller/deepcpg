@@ -121,7 +121,7 @@ def read_seq(path, chromo, pos=None, seq_len=None):
         assert seq_len <= s.shape[1]
         c = s.shape[1] // 2
         d = seq_len // 2
-        s = s[c-d:c+d+1]
+        s = s[:, c-d:c+d+1]
         assert s.shape[1] == seq_len
     f.close()
     if pos is not None:
@@ -130,7 +130,7 @@ def read_seq(path, chromo, pos=None, seq_len=None):
         assert np.all(p == pos)
         s = s[t]
         assert s.shape[0] == len(pos)
-    return (p, s)
+    return s
 
 
 class App(object):
@@ -260,7 +260,9 @@ class App(object):
             log.info('Read seq')
             if opts.seq_file is not None:
                 t = read_seq(opts.seq_file, chromo, pos, seq_len=seq_len)
-                g.create_dataset('s_x', dtype='float16')
+                g.create_dataset('s_x',
+                                 shape=(t.shape[0], t.shape[1], 4),
+                                 dtype='float16')
                 for i in range(0, t.shape[0], opts.chunk_size):
                     j = i + opts.chunk_size
                     g['s_x'][i:j] = encode_seqs(t[i:j])

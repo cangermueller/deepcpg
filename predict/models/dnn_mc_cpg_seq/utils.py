@@ -1,7 +1,7 @@
 import h5py as h5
-import keras.models as kmodels
 import pandas as pd
 import numpy as np
+import random
 
 from predict.evaluation import evaluate
 
@@ -9,6 +9,7 @@ MASK = -1
 
 
 def load_model(json_file, weights_file=None):
+    import keras.models as kmodels
     with open(json_file, 'r') as f:
         model = f.read()
     model = kmodels.model_from_json(model)
@@ -36,19 +37,44 @@ def evaluate_all(y, z):
     p.index = keys
     return p
 
+
 class DataReader(object):
 
-    def __init__(self, path, chromos=None, shuffle=False, chunk_size=100000):
+    def __init__(self, path, chromos=None, shuffle=True, chunk_size=1, loop=False):
         self.path = path
+        if chromos is None:
+            f = h5.File(self.path)
+            chromos = sorted([x for x in f.keys() if x.isdigit()])
+            f.close()
         self.chromos = chromos
         self.shuffle = shuffle
         self.chunk_size = chunk_size
+        self.loop = loop
 
     def __iter__(self):
+        self._iter_chromos = list(reversed(self.chromos))
+        if self.shuffle:
+            random.shuffle(self._iter_chromos)
+        self._iter_idx = []
         return self
 
     def __next__(self):
-        pass
+        if len(self._iter_idx) == 0:
+            if len(self._iter_chromos) == 0:
+                if self.loop:
+                    iter(self)
+                else:
+                    raise StopIteration
+            self._iter_chromo = self._iter_chromos.pop()
+            f = h5.File(self.path)
+            n = f['/%s/pos' % (self._iter_chromo)].shape[0]
+            f.close()
+            self._iter_idx = list(reversed(range(0, n, self.chunk_size)))
+            if self.shuffle:
+                random.shuffle(self._iter_idx)
+        self._iter_i = self._iter_idx.pop()
+        self._iter_j = self._iter_i + self.chunk_size
+        return (self._iter_chromo, self._iter_i, self._iter_j)
 
     def next(self):
         return self.__next__()

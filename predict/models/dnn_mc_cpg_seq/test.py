@@ -59,8 +59,13 @@ class App(object):
             '-o', '--out_dir',
             help='Output directory')
         p.add_argument(
-            '--max_samples',
-            help='Limit # samples',
+            '--chunk_size',
+            help='Size of training chunks',
+            type=int,
+            default=10**7)
+        p.add_argument(
+            '--max_chunks',
+            help='Limit # training chunks',
             type=int)
         p.add_argument(
             '--seed',
@@ -90,9 +95,6 @@ class App(object):
             np.random.seed(opts.seed)
         pd.set_option('display.width', 150)
 
-        log.info('Read data')
-        data = read_data(opts.data_file, opts.max_samples)
-
         #  z = dict()
         #  for k, v in data.items():
             #  if k.startswith('u'):
@@ -100,6 +102,27 @@ class App(object):
 
         log.info('Load model')
         model = load_model(opts.model_file, opts.model_weights_file)
+
+        f = h5.File(opts.data_file)
+        labels = dict()
+        for k in ['label_units', 'label
+        label_units = f['label_units'].value
+        reader = DataReader(opts.data_file, shuffle=False)
+        prev_chromo = ''
+        z = None
+        g = None
+        for chromo, i, j in reader:
+            if chromo != prev_chromo:
+                if z is not None:
+                    pass
+                g = f[chromo]
+            d = {k: g[k][i:j] for k in g.keys()}
+            z = model.predict(d)
+
+
+
+
+
 
         log.info('Predict')
         z = model.predict(data)
