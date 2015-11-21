@@ -81,6 +81,10 @@ class App(object):
             help='Write log messages to file')
         return p
 
+    def write(self, out_data, labels):
+        pass
+
+
     def main(self, name, opts):
         logging.basicConfig(filename=opts.log_file,
                             format='%(levelname)s (%(asctime)s): %(message)s')
@@ -104,28 +108,26 @@ class App(object):
         model = load_model(opts.model_file, opts.model_weights_file)
 
         f = h5.File(opts.data_file)
-        labels = dict()
-        for k in ['label_units', 'label
-        label_units = f['label_units'].value
+
         reader = DataReader(opts.data_file, shuffle=False)
         prev_chromo = ''
-        z = None
-        g = None
         for chromo, i, j in reader:
             if chromo != prev_chromo:
-                if z is not None:
-                    pass
-                g = f[chromo]
+                if out_data is not None:
+                    self.write(out_data, labels)
+                out_data = dict()
+                for k in model.output_order:
+                    out_data[k] = dict(pos=[], y=[], z=[])
+
             d = {k: g[k][i:j] for k in g.keys()}
             z = model.predict(d)
 
-
-
-
-
-
-        log.info('Predict')
-        z = model.predict(data)
+            for u, zu in z.items():
+                yu = d[u]
+                t = yu != MASK
+                out_data[u]['z'].append(zu[t])
+                out_data[u]['y'].append(yu[t])
+                out_data[u]['pos'].append(d['pos'][t])
 
         log.info ('Evaluate')
         p = evaluate_all(data, z)
