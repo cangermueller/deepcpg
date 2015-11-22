@@ -218,8 +218,6 @@ class App(object):
         if opts.sql_file is not None:
             sql_meta = dict()
             sql_meta['path'] = pt.realpath(opts.test_file)
-            sql_meta['target'] = pt.basename(
-                pt.dirname(pt.dirname(opts.test_file)))
             if opts.sql_meta is not None:
                 for meta in opts.sql_meta:
                     k, v = meta.split('=')

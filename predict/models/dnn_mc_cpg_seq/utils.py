@@ -16,19 +16,6 @@ def load_model(json_file, weights_file=None):
     model.load_weights(weights_file)
     return model
 
-def read_data(path, max_samples=None):
-    f = h5.File(path, 'r')
-    data = dict()
-    for k, v in f.items():
-        if max_samples is None or k.startswith('label'):
-            data[k] = v.value
-        else:
-            data[k] = v[:max_samples]
-    f.close()
-    data['c_x'] = data['c_x'].astype('float32')
-    dist_max = np.iinfo('int32').max - 100
-    data['c_x'][:, 1] /= dist_max
-    return data
 
 def evaluate_all(y, z):
     keys = sorted(z.keys())
@@ -38,27 +25,59 @@ def evaluate_all(y, z):
     return p
 
 
+def read_and_stack(reader, callback):
+    x = []
+    for o in reader:
+        x.append(callback(*o))
+    y = dict()
+    for k in x[0].keys():
+        y[k] = dict()
+        for l in x[0][k].keys():
+            y[k][l] = np.hstack([x[i][k][l] for i in range(len(x))])
+    return y
+
+
+def read_labels(path):
+    f = h5.File(path)
+    g = f['labels']
+    l = dict()
+    for k in g.keys():
+        l[k] = [x.decode() for x in g[k].value]
+    f.close()
+    return l
+
+
+def read_chromos(path):
+    f = h5.File(path)
+    chromos = sorted([x for x in f.keys() if x != 'labels'])
+    f.close()
+    return chromos
+
+
 class DataReader(object):
 
-    def __init__(self, path, chromos=None, shuffle=True, chunk_size=1, loop=False):
+    def __init__(self, path, chromos=None, shuffle=False, chunk_size=1,
+                 loop=False, max_chunks=None):
         self.path = path
         if chromos is None:
-            f = h5.File(self.path)
-            chromos = sorted([x for x in f.keys() if x.isdigit()])
-            f.close()
+            chromos = read_chromos(self.path)
         self.chromos = chromos
         self.shuffle = shuffle
         self.chunk_size = chunk_size
         self.loop = loop
+        self.max_chunks = max_chunks
 
     def __iter__(self):
         self._iter_chromos = list(reversed(self.chromos))
         if self.shuffle:
             random.shuffle(self._iter_chromos)
         self._iter_idx = []
+        self._n = 0
         return self
 
     def __next__(self):
+        if self.max_chunks is not None and self._n == self.max_chunks:
+            raise StopIteration
         if len(self._iter_idx) == 0:
             if len(self._iter_chromos) == 0:
                 if self.loop:
@@ -74,6 +93,7 @@ class DataReader(object):
                 random.shuffle(self._iter_idx)
         self._iter_i = self._iter_idx.pop()
         self._iter_j = self._iter_i + self.chunk_size
+        self._n += 1
         return (self._iter_chromo, self._iter_i, self._iter_j)
 
     def next(self):

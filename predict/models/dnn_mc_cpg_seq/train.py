@@ -16,7 +16,7 @@ import yaml
 import random
 
 from predict.evaluation import eval_to_str
-from utils import evaluate_all, load_model, MASK, DataReader
+from utils import evaluate_all, load_model, MASK, DataReader, read_and_stack
 from callbacks import LearningRateScheduler, PerformanceLogger
 
 
@@ -334,9 +334,9 @@ class App(object):
         cb.append(EarlyStopping(patience=model_params.early_stop, verbose=1))
 
         def lr_schedule():
-            old_lr=opts.lr.get_value()
+            old_lr=model.optimizer.lr.get_value()
             new_lr=old_lr * model_params.lr_decay
-            opts.lr.set_value(new_lr)
+            model.optimizer.lr.set_value(new_lr)
             print('Learning rate dropped from %.4f to %.4f' % (old_lr, new_lr))
 
         cb.append(LearningRateScheduler(lr_schedule,
@@ -361,20 +361,23 @@ class App(object):
             f.close()
             return d
 
-        train_reader = DataReader(opts.train_file, chunk_size=opts.chunk_size)
+        train_reader = DataReader(opts.train_file, shuffle=True,
+                                  chunk_size=opts.chunk_size,
+                                  max_chunks=opts.max_chunks)
         if opts.val_file is None:
             val_reader = None
         else:
-            val_reader = DataReader(opts.val_file, chunk_size=opts.chunk_size, loop=True)
+            val_reader = DataReader(opts.val_file, shuffle=True,
+                                    chunk_size=opts.chunk_size, loop=True)
             val_reader = iter(val_reader)
 
         line = '---------------------------------------------------------------'
-
         for e in range(model_params.max_epochs):
+            print(line)
             print('Epoch %d' % (e + 1))
             print(line)
             train_chromo_prev = ''
-            num_chunks = 0
+            stop = False
             for train_chromo, train_i, train_j in train_reader:
                 if train_chromo != train_chromo_prev:
                     print('>>>>>>>>>> Chromosome %s <<<<<<<<<<' % (train_chromo))
@@ -403,28 +406,39 @@ class App(object):
                             verbose=2,
                             sample_weight=sample_weights_train,
                             sample_weight_val=sample_weights_val)
-
-                num_chunks += 1
-                if opts.max_chunks is not None and num_chunks == opts.max_chunks:
+                if model.stop_training:
+                    stop = True
+                if stop:
                     break
-            if opts.max_chunks is not None and num_chunks == opts.max_chunks:
-                    break
+            if stop:
+                break
 
         if pt.isfile(model_weights_best):
             model.load_weights(model_weights_best)
 
-        print('\nTraining set performance:')
-        z_train=model.predict(train_data)
-        p_train=evaluate_all(train_data, z_train)
-        t=eval_to_str(p_train)
-        print(t)
-        with open(pt.join(opts.out_dir, 'perf_train.csv'), 'w') as f:
-            f.write(t)
+        print('\nValidation set performance:')
+        f = h5.File(opts.val_file)
 
-        print('\nValidation set loss:')
-        z_val=model.predict(val_data)
-        p_val=evaluate_all(val_data, z_val)
-        t=eval_to_str(p_val)
+        def read_predict(chromo, i, j):
+            g = f[chromo]
+            d = {k: g[k][i:j] for k in g.keys()}
+            z = model.predict(d)
+            for k in z.keys():
+                z[k] = z[k].ravel()
+            y = {k: d[k] for k in z.keys()}
+            for k in z.keys():
+                t = y[k] != MASK
+                z[k] = z[k][t]
+                y[k] = y[k][t]
+            return dict(y=y, z=z)
+
+        reader = DataReader(opts.val_file, chunk_size=opts.chunk_size,
+                            max_chunks=opts.max_chunks)
+        yz = read_and_stack(reader, read_predict)
+        f.close()
+
+        p = evaluate_all(yz['y'], yz['z'])
+        t = eval_to_str(p)
         print(t)
         with open(pt.join(opts.out_dir, 'perf_val.csv'), 'w') as f:
             f.write(t)

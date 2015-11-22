@@ -9,6 +9,9 @@ import numpy as np
 import gc
 
 
+MAX_DIST = 10**6
+
+
 def read_pos(path, chromo, max_samples=None):
     f = h5.File(path, 'r')
     p = f['/cpg/%s/pos' % (chromo)]
@@ -69,7 +72,7 @@ def read_knn(path, chromo, pos=None, what='knn', knn_group='knn_shared',
     return d
 
 
-def read_knn_dist(max_dist=10**6, *args, **kwargs):
+def read_knn_dist(max_dist=MAX_DIST, *args, **kwargs):
     d = read_knn(what='dist', *args, **kwargs)
     d = np.array(np.minimum(max_dist, d) / max_dist, dtype='float16')
     return d
@@ -177,7 +180,7 @@ class App(object):
             '--chunk_size',
             help='Max # records to read',
             type=int,
-            default=100000)
+            default=10**7)
         p.add_argument(
             '--max_samples',
             help='Limit # samples',
@@ -225,10 +228,11 @@ class App(object):
                 f.close()
 
         f = h5.File(opts.out_file, 'w')
-        label_files = [pt.splitext(pt.basename(x))[0] for x in opts.data_files]
-        f['label_files'] = [x.encode() for x in label_files]
-        label_units = ['u%d_y' % (x) for x in range(len(opts.data_files))]
-        f['label_units'] = [x.encode() for x in label_units]
+        labels = dict()
+        labels['files'] = [pt.splitext(pt.basename(x))[0] for x in opts.data_files]
+        labels['targets'] = ['u%d_y' % (x) for x in range(len(opts.data_files))]
+        for k, v in labels.items():
+            f['/labels/%s' % (k)] = [x.encode() for x in v]
 
         for chromo in opts.chromos:
             log.info('Chromosome %s' % (chromo))
@@ -237,12 +241,13 @@ class App(object):
             log.info('Read positions')
             pos = read_pos_all(opts.data_files, chromo,
                                max_samples=opts.max_samples)
+            assert pos.min() > 0
             g['pos'] = pos
 
             log.info('Read CpG sites')
             for i, data_file in enumerate(opts.data_files):
                 d = read_cpg(data_file, chromo, pos)
-                g[label_units[i]] = d
+                g[labels['targets'][i]] = d
 
             log.info('Read KNN')
             g.create_dataset('c_x',

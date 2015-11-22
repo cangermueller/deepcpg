@@ -9,29 +9,9 @@ import pandas as pd
 import numpy as np
 import h5py as h5
 
-from utils import evaluate_all, read_data, load_model, MASK
-from predict.evaluation import eval_to_str
+from utils import DataReader, read_chromos, read_labels, read_and_stack
+from utils import MASK, load_model
 
-
-def write_test(test_file, d):
-    f = h5.File(test_file, 'a')
-    start = 0
-    chromos = [x.decode() for x in d['chromos']]
-    for i, chromo in enumerate(chromos):
-        end = start + d['chromos_len'][i]
-        e = {k: d[k] for k in ['pos', 'y', 'z']}
-        for k in e.keys():
-            e[k] = e[k][start:end]
-        t = e['y'] != MASK
-        for k in e.keys():
-            e[k] = e[k][t]
-        for k, v in e.items():
-            k = pt.join(chromo, k)
-            if k in f:
-                del f[k]
-            f.create_dataset(k, data=v)
-        start = end
-    f.close()
 
 class App(object):
 
@@ -39,6 +19,7 @@ class App(object):
         name = pt.basename(args[0])
         parser = self.create_parser(name)
         opts = parser.parse_args(args[1:])
+        self.opts = opts
         return self.main(name, opts)
 
     def create_parser(self, name):
@@ -81,9 +62,20 @@ class App(object):
             help='Write log messages to file')
         return p
 
-    def write(self, out_data, labels):
-        pass
-
+    def write_z(self, z, chromo, labels):
+        lmap = dict()
+        for target, _file in zip(labels['targets'], labels['files']):
+            lmap[target] = _file
+        for t in z['z'].keys():
+            p = pt.join(self.opts.out_dir, lmap[t])
+            os.makedirs(p, exist_ok=True)
+            f = h5.File(pt.join(p, 'test.h5'), 'a')
+            if chromo in f:
+                del f[chromo]
+            g = f.create_group(chromo)
+            for k in z.keys():
+                g[k] = z[k][t]
+            f.close()
 
     def main(self, name, opts):
         logging.basicConfig(filename=opts.log_file,
@@ -99,54 +91,38 @@ class App(object):
             np.random.seed(opts.seed)
         pd.set_option('display.width', 150)
 
-        #  z = dict()
-        #  for k, v in data.items():
-            #  if k.startswith('u'):
-                #  z[k] = np.random.binomial(1, 0.5, len(v))
-
         log.info('Load model')
         model = load_model(opts.model_file, opts.model_weights_file)
 
-        f = h5.File(opts.data_file)
-
-        reader = DataReader(opts.data_file, shuffle=False)
-        prev_chromo = ''
-        for chromo, i, j in reader:
-            if chromo != prev_chromo:
-                if out_data is not None:
-                    self.write(out_data, labels)
-                out_data = dict()
-                for k in model.output_order:
-                    out_data[k] = dict(pos=[], y=[], z=[])
-
+        def read_predict(chromo, i, j):
+            f = h5.File(opts.data_file)
+            g = f[chromo]
             d = {k: g[k][i:j] for k in g.keys()}
-            z = model.predict(d)
+            f.close()
+            r = dict()
+            #  r['y'] = {k: d[k] for k in ['u0_y', 'u1_y', 'u2_y']}
+            #  r['z'] = {k: np.random.uniform(0, 1, len(r['y'][k])) for k in r['y'].keys()}
+            r['z'] = model.predict(d)
+            for k in r['z'].keys():
+                r['z'][k] = np.ravel(r['z'][k])
+            r['y'] = {k: d[k] for k in r['z'].keys()}
+            r['pos'] = {k: d['pos'] for k in r['z'].keys()}
+            for k in r['z'].keys():
+                t = r['y'][k] != MASK
+                for x in r.keys():
+                    r[x][k] = r[x][k][t]
+            return r
 
-            for u, zu in z.items():
-                yu = d[u]
-                t = yu != MASK
-                out_data[u]['z'].append(zu[t])
-                out_data[u]['y'].append(yu[t])
-                out_data[u]['pos'].append(d['pos'][t])
+        labels = read_labels(opts.data_file)
+        chromos = read_chromos(opts.data_file)
+        for chromo in chromos:
+            log.info('Chromosome %s' % chromo)
+            reader = DataReader(opts.data_file, chunk_size=opts.chunk_size,
+                                chromos=[chromo],
+                                max_chunks=opts.max_chunks)
+            z = read_and_stack(reader, read_predict)
+            self.write_z(z, chromo, labels)
 
-        log.info ('Evaluate')
-        p = evaluate_all(data, z)
-
-        print('Performance:')
-        print(eval_to_str(p))
-
-        log.info('Write')
-        labels = dict()
-        for a, b in zip(data['label_units'], data['label_files']):
-            labels[a.decode()] = b.decode()
-        for t in z.keys():
-            log.info(labels[t])
-            d = {k: data[k] for k in ['chromos', 'chromos_len', 'pos']}
-            d['z'] = z[t]
-            d['y'] = data[t]
-            out_dir = pt.join(opts.out_dir, labels[t])
-            os.makedirs(out_dir, exist_ok=True)
-            write_test(pt.join(out_dir, 'test.h5'), d)
         log.info('Done!')
 
         return 0

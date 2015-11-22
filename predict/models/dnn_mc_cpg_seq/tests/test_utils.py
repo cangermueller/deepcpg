@@ -16,6 +16,6 @@ class TestDataReader(object):
         self.make_file(path, chromos)
 
         print()
-        r = DataReader(path, chunk_size=3, shuffle=True, loop=True)
+        r = DataReader(path, chunk_size=1, shuffle=False, loop=False)
         for chromo, i, j in r:
             print(chromo, i, j)
