@@ -2,9 +2,6 @@ from keras.callbacks import Callback
 import pandas as pd
 import numpy as np
 
-from utils import MASK
-from predict.evaluation import eval_funs
-
 
 class LearningRateScheduler(Callback):
 
@@ -37,48 +34,65 @@ class LearningRateScheduler(Callback):
 
 class PerformanceLogger(Callback):
 
-    def __init__(self, data, label=None):
-        self.data = data
-        self.eval_funs = eval_funs
-        self.eval_names = [x[0] for x in self.eval_funs]
-        self.logs = None
-        self.label = label
+    def __init__(self, batch_logs=['loss', 'acc'], epoch_logs=['val_loss', 'val_acc']):
+        if batch_logs is None:
+            batch_logs = []
+        if epoch_logs is None:
+            epoch_logs = []
+        self.batch_logs = batch_logs
+        self.epoch_logs = epoch_logs
 
-    def on_epoch_end(self, epoch, logs={}):
-        self.logs = self.add(self.data, self.logs, epoch)
-        d = self.logs.loc[epoch]
-        if self.label is None:
-            t = 'Performance:'
+    def on_train_begin(self, logs={}):
+        self._batch_logs = []
+        self._epoch_logs = []
+
+    def on_epoch_begin(self, epoch, logs={}):
+        self._batch_logs.append([])
+
+    def on_batch_end(self, batch, logs={}):
+        l = {k: v for k, v in logs.items() if k in self.batch_logs}
+        self._batch_logs[-1].append(l)
+
+    def on_epoch_end(self, batch, logs={}):
+        l = {k: v for k, v in logs.items() if k in self.epoch_logs}
+        self._epoch_logs.append(l)
+
+    def _list_to_frame(self, l, keys):
+        keys = [k for k in keys if k in l[0].keys()]
+        d = {k: [] for k in keys}
+        for ll in l:
+            for k in keys:
+                d[k].append(float(ll[k]))
+        d = pd.DataFrame(d, columns=keys)
+        return d
+
+    def epoch_frame(self):
+        d = self._list_to_frame(self._epoch_logs, self.epoch_logs)
+        t = list(d.columns)
+        d['epoch'] = np.arange(d.shape[0]) + 1
+        d = d.loc[:, ['epoch'] + t]
+        return d
+
+    def batch_frame(self, epoch=None):
+        if epoch is None:
+            d = []
+            for e in range(len(self._batch_logs)):
+                de = self.batch_frame(e + 1)
+                t = list(de.columns)
+                de['epoch'] = e + 1
+                de = de.loc[:, ['epoch'] + t]
+                d.append(de)
+            d = pd.concat(d)
         else:
-            t = 'Performance (%s):' % (self.label)
-        print(t)
-        print(np.round(d, 4))
-        print()
+            d = self._list_to_frame(self._batch_logs[epoch - 1], self.batch_logs)
+            t = list(d.columns)
+            d['batch'] = np.arange(d.shape[0]) + 1
+            d = d.loc[:, ['batch'] + t]
+        return d
 
-    def add(self, data, logs, epoch):
-        log = self.evaluate(data, epoch)
-        if logs is None:
-            logs = log
-        else:
-            logs = pd.concat((logs, log))
-        return logs
-
-    def evaluate(self, data, epoch):
-        log = {k: [] for k, f in self.eval_funs}
-        X = {k: data[k] for k in self.model.input_order}
-        zall = self.model.predict(X)
-        for k in self.model.output_order:
-            y = data[k]
-            z = zall[k].ravel()
-            t = y != MASK
-            y = y[t]
-            z = z[t]
-            for eval_fun in self.eval_funs:
-                log[eval_fun[0]].append(eval_fun[1](y, z))
-        i = pd.MultiIndex.from_product([[epoch], self.model.output_order])
-        log = pd.DataFrame(log, columns=self.eval_names,
-                           index=i)
-        return log
-
-    def __str__(self):
-        return str(self.stack())
+    def frame(self):
+        b = self.batch_frame().groupby('epoch', as_index=False).mean()
+        b = b.loc[:, b.columns != 'batch']
+        e = self.epoch_frame()
+        c = pd.merge(b, e, on='epoch')
+        return c

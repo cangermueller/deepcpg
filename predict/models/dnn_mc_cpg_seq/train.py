@@ -69,6 +69,7 @@ class NetParams(object):
         self.early_stop = 3
         self.max_epochs = 10
         self.batch_size = 128
+        self.shuffle = 'batch'
 
     def update(self, params):
         params = dict(params)
@@ -220,6 +221,11 @@ def sample_weights(y, outputs):
         w[o] = wo
     return w
 
+def perf_logs_str(logs):
+    t = logs.to_csv(None, sep='\t', float_format='%.3f', index=False)
+    return t
+
+
 
 class App(object):
 
@@ -252,18 +258,6 @@ class App(object):
         p.add_argument(
             '--model_weights',
             help='Model weights')
-        p.add_argument(
-            '--max_chunks',
-            help='Limit # training chunks',
-            type=int)
-        p.add_argument(
-            '--log_train',
-            help='Log training set performance each epoch',
-            action='store_true')
-        p.add_argument(
-            '--log_val',
-            help='Log validation set performance each epoch',
-            action='store_true')
         p.add_argument(
             '--verbose_fit',
             help='Fit verbosity level',
@@ -346,18 +340,8 @@ class App(object):
 
         cb.append(LearningRateScheduler(lr_schedule,
                                         patience=model_params.early_stop - 1))
-
-        if opts.log_train:
-            pl_train = PerformanceLogger(None, label='train')
-            cb.append(pl_train)
-        else:
-            pl_train = None
-
-        if opts.log_val:
-            pl_val = PerformanceLogger(None, label='val')
-            cb.append(pl_val)
-        else:
-            pl_val = None
+        perf_logger = PerformanceLogger()
+        cb.append(perf_logger)
 
         def read_data(path):
             f = h5.File(path)
@@ -376,15 +360,25 @@ class App(object):
 
         model.fit(train_data, validation_data=val_data,
                   batch_size=model_params.batch_size,
-                  callbacks=cb,
-                  shuffle='batch',
+                  shuffle=model_params.shuffle,
                   nb_epoch=model_params.max_epochs,
+                  callbacks=cb,
                   verbose=opts.verbose_fit,
                   sample_weight=sample_weights_train,
                   sample_weight_val=sample_weights_val)
 
         if pt.isfile(model_weights_best):
             model.load_weights(model_weights_best)
+
+        t = perf_logs_str(perf_logger.frame())
+        print('Learning curve:')
+        print(t)
+        with open(pt.join(opts.out_dir, 'lc.csv'), 'w') as f:
+            f.write(t)
+
+        t = perf_logs_str(perf_logger.batch_frame())
+        with open(pt.join(opts.out_dir, 'lc_batch.csv'), 'w') as f:
+            f.write(t)
 
         print('\nValidation set performance:')
         z = model.predict(val_data)
