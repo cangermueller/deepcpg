@@ -19,7 +19,7 @@ def load_model(json_file, weights_file=None):
 
 def evaluate_all(y, z):
     keys = sorted(z.keys())
-    p = [evaluate(y[k], z[k]) for k in keys]
+    p = [evaluate(y[k][:], z[k][:]) for k in keys]
     p = pd.concat(p)
     p.index = keys
     return p

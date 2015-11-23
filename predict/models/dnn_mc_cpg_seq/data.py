@@ -52,18 +52,18 @@ def read_cpg(path, chromo, pos=None):
 
 
 def read_knn(path, chromo, pos=None, what='knn', knn_group='knn_shared',
-             max_knn=None):
+             knn=None):
     f = h5.File(path, 'r')
     g = f['/%s/%s' % (knn_group, chromo)]
     p = g['pos'].value
     d = g[what]
-    if max_knn is None:
+    if knn is None:
         d = d.value
     else:
-        assert max_knn % 2 == 0
-        assert max_knn <= d.shape[1]
+        assert knn % 2 == 0
+        assert knn <= d.shape[1]
         c = d.shape[1] // 2
-        t = max_knn // 2
+        t = knn // 2
         d = d[:, c-t:c+t]
     f.close()
     if pos is not None:
@@ -165,12 +165,12 @@ class App(object):
             nargs='+',
             default=['1'])
         p.add_argument(
-            '--max_knn',
+            '--knn',
             help='Max # knn',
             type=int)
         p.add_argument(
-            '--max_seq_len',
-            help='Max sequence length',
+            '--seq_len',
+            help='Sequence length',
             type=int)
         p.add_argument(
             '--knn_group',
@@ -212,65 +212,97 @@ class App(object):
         if opts.seed is not None:
             np.random.seed(opts.seed)
 
-        max_knn = opts.max_knn
-        if max_knn is None:
+        # Get KNN
+        knn = opts.knn
+        if knn is None:
             f = h5.File(opts.data_files[0])
-            max_knn = f[
+            knn = f[
                 '%s/%s/knn' %
                 (opts.knn_group, opts.chromos[0])].shape[1]
             f.close()
 
+        # Get sequence length
         if opts.seq_file is not None:
-            seq_len = opts.max_seq_len
+            seq_len = opts.seq_len
             if seq_len is None:
                 f = h5.File(opts.seq_file)
                 seq_len = f['/%s/seq' % opts.chromos[0]].shape[1]
                 f.close()
 
+        # Write target labels
         f = h5.File(opts.out_file, 'w')
         labels = dict()
-        labels['files'] = [pt.splitext(pt.basename(x))[0] for x in opts.data_files]
-        labels['targets'] = ['u%d_y' % (x) for x in range(len(opts.data_files))]
+        lfiles = []
+        ltargets = []
+        for i, data_file in enumerate(opts.data_files):
+            lfiles.append(pt.splitext(pt.basename(data_file))[0])
+            ltargets.append('u%d_y' % (i))
+        labels = dict(files=lfiles, targets=ltargets)
         for k, v in labels.items():
             f['/labels/%s' % (k)] = [x.encode() for x in v]
 
-        for chromo in opts.chromos:
-            log.info('Chromosome %s' % (chromo))
-            g = f.create_group(chromo)
-
-            log.info('Read positions')
-            pos = read_pos_all(opts.data_files, chromo,
+        # Get positions
+        chromos = opts.chromos
+        pos = dict()
+        chromos_len = dict()
+        for chromo in chromos:
+            cpos = read_pos_all(opts.data_files, chromo,
                                max_samples=opts.max_samples)
-            assert pos.min() > 0
-            g['pos'] = pos
+            chromos_len[chromo] = len(cpos)
+            pos[chromo] = cpos
+        posc = np.hstack([pos[x] for x in chromos])
+
+        # Write positions
+        g = f.create_group('pos')
+        N = len(posc)
+        g['pos'] = posc
+        g['chromos'] = [x.encode() for x in chromos]
+        g['chromos_len'] = [chromos_len[x] for x in chromos]
+
+        fd = f.create_group('data')
+
+        for t in ltargets:
+            fd.create_dataset(t, shape=(N,), dtype='float16')
+
+        fd.create_dataset('c_x',
+                         shape=(N, 2, len(opts.data_files), knn),
+                         dtype='float16')
+
+        fd.create_dataset('s_x',
+                         shape=(N, seq_len, 4),
+                         dtype='float16')
+
+        # Write data
+        idx = 0
+        for chromo in chromos:
+            log.info('Chromosome %s' % (chromo))
+            cpos = pos[chromo]
+            start = idx
+            end = idx + chromos_len[chromo]
 
             log.info('Read CpG sites')
-            for i, data_file in enumerate(opts.data_files):
-                d = read_cpg(data_file, chromo, pos)
-                g[labels['targets'][i]] = d
+            for target, data_file in zip(ltargets, opts.data_files):
+                d = read_cpg(data_file, chromo, cpos)
+                fd[target][start:end] = d
 
             log.info('Read KNN')
-            g.create_dataset('c_x',
-                             shape=(len(pos), 2, len(opts.data_files),
-                                    max_knn), dtype='float16')
-            for i in range(0, len(pos), opts.chunk_size):
+            for i in range(0, len(cpos), opts.chunk_size):
                 j = i + opts.chunk_size
-                p = pos[i:j]
-                g['c_x'][i:j] = read_knn_all(opts.data_files,
-                                             chromo=chromo,
-                                             pos=p,
-                                             knn_group=opts.knn_group,
-                                             max_knn=max_knn)
+                t = read_knn_all(opts.data_files,
+                                 chromo=chromo,
+                                 pos=cpos[i:j],
+                                 knn_group=opts.knn_group,
+                                 knn=knn)
+                fd['c_x'][start+i:start+i+t.shape[0]] = t
 
-            log.info('Read seq')
             if opts.seq_file is not None:
-                t = read_seq(opts.seq_file, chromo, pos, seq_len=seq_len)
-                g.create_dataset('s_x',
-                                 shape=(t.shape[0], t.shape[1], 4),
-                                 dtype='float16')
+                log.info('Read seq')
+                t = read_seq(opts.seq_file, chromo, cpos, seq_len=seq_len)
                 for i in range(0, t.shape[0], opts.chunk_size):
                     j = i + opts.chunk_size
-                    g['s_x'][i:j] = encode_seqs(t[i:j])
+                    tt = encode_seqs(t[i:j])
+                    fd['s_x'][start+i:start+i+tt.shape[0]] = tt
+            idx = end
 
         f.close()
 

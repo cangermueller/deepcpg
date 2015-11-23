@@ -10,11 +10,28 @@ def test_data():
     chromo = '5'
 
     f = h5.File('./data.h5', 'r')
-    g = f[chromo]
-    d = {x: g[x].value for x in g.keys()}
+    g = f['pos']
+    dp = {k: g[k].value for k in g.keys()}
+    dp['chromos'] = [x.decode() for x in dp['chromos']]
+
+    idx = 0
+    for i in range(len(dp['chromos'])):
+        chromo_len = dp['chromos_len'][i]
+        if dp['chromos'][i] == chromo:
+            break
+        idx += chromo_len
+    s = idx
+    e = idx + chromo_len
+
+    cpos = dp['pos'][s:e]
+    assert np.all(cpos[:-1] < cpos[1:])
+
+    g = f['data']
+    d = {x: g[x][s:e] for x in g.keys()}
     f.close()
 
-    i = np.nonzero(d['pos'] == pos)[0]
+
+    i = np.nonzero(cpos == pos)[0]
 
     # Targets sample 1
     o = d['u0_y'][i - delta: i + delta + 1]

@@ -16,7 +16,7 @@ import yaml
 import random
 
 from predict.evaluation import eval_to_str
-from utils import evaluate_all, load_model, MASK, DataReader, read_and_stack
+from utils import evaluate_all, load_model, MASK
 from callbacks import LearningRateScheduler, PerformanceLogger
 
 
@@ -82,11 +82,15 @@ class NetParams(object):
         self.set_targets(self.num_targets)
 
     def set_targets(self, num_targets):
-        self.cpg.dim[1] = self.num_targets
         self.num_targets = num_targets
+        self.cpg.dim[1] = self.num_targets
 
     def __str__(self):
-        return str(vars(self))
+        s = 'Seq module:\n' + str(self.seq)
+        s += '\n\nCpG module:\n' + str(self.cpg)
+        p = {k: v for k, v in vars(self).items() if not k in ['cpg', 'seq']}
+        s += '\n\nGlobal module:\n' + str(p)
+        return s
 
 
 def label(prefix, x):
@@ -211,8 +215,8 @@ def sample_weights(y, outputs):
     w = dict()
     for o in outputs:
         yo = y[o]
-        wo = np.zeros(len(yo), dtype='float32')
-        wo[yo != MASK] = 1
+        wo = np.zeros(yo.shape[0], dtype='float32')
+        wo[yo[:] != MASK] = 1
         w[o] = wo
     return w
 
@@ -249,11 +253,6 @@ class App(object):
             '--model_weights',
             help='Model weights')
         p.add_argument(
-            '--chunk_size',
-            help='Size of training chunks',
-            type=int,
-            default=10**7)
-        p.add_argument(
             '--max_chunks',
             help='Limit # training chunks',
             type=int)
@@ -265,6 +264,11 @@ class App(object):
             '--log_val',
             help='Log validation set performance each epoch',
             action='store_true')
+        p.add_argument(
+            '--verbose_fit',
+            help='Fit verbosity level',
+            type=int,
+            default=2)
         p.add_argument(
             '--seed',
             help='Seed of rng',
@@ -297,17 +301,19 @@ class App(object):
         pd.set_option('display.width', 150)
 
         f = h5.File(opts.train_file)
-        t = list(filter(lambda x: x.isdigit(), f.keys()))
-        t = list(f[t[0]].keys())
+        num_targets = f['/labels/targets'].shape[0]
+        seq_len = f['/data/s_x'].shape[1]
+        knn = f['/data/c_x'].shape[3]
         f.close()
-        num_targets = len([x for x in t if x.startswith('u')])
 
         model_params = NetParams()
         if opts.model_params:
             with open(opts.model_params, 'r') as f:
-                configs=yaml.load(f.read())
-                configs['num_targets'] = num_targets
+                configs = yaml.load(f.read())
                 model_params.update(configs)
+                model_params.seq.dim = [seq_len]
+                model_params.cpg.dim[0] = knn
+                model_params.set_targets(num_targets)
 
         print('Model parameters:')
         print(model_params)
@@ -318,24 +324,23 @@ class App(object):
             model = load_model(opts.model_file)
         else:
             log.info('Build model')
-            model = None
-            model=build_model(model_params)
+            model = build_model(model_params)
             with open(pt.join(opts.out_dir, 'model.json'), 'w') as f:
                 f.write(model.to_json())
 
         log.info('Fit model')
-        model_weights_last=pt.join(opts.out_dir, 'model_weights_last.h5')
-        model_weights_best=pt.join(opts.out_dir, 'model_weights_best.h5')
+        model_weights_last = pt.join(opts.out_dir, 'model_weights_last.h5')
+        model_weights_best = pt.join(opts.out_dir, 'model_weights_best.h5')
 
-        cb=[]
+        cb = []
         cb.append(ModelCheckpoint(model_weights_last, save_best_only=False))
         cb.append(ModelCheckpoint(model_weights_best,
                                   save_best_only=True, verbose=1))
         cb.append(EarlyStopping(patience=model_params.early_stop, verbose=1))
 
         def lr_schedule():
-            old_lr=model.optimizer.lr.get_value()
-            new_lr=old_lr * model_params.lr_decay
+            old_lr = model.optimizer.lr.get_value()
+            new_lr = old_lr * model_params.lr_decay
             model.optimizer.lr.set_value(new_lr)
             print('Learning rate dropped from %.4f to %.4f' % (old_lr, new_lr))
 
@@ -354,90 +359,36 @@ class App(object):
         else:
             pl_val = None
 
-        def read_data(path, chromo, i, j):
+        def read_data(path):
             f = h5.File(path)
-            g = f[str(chromo)]
-            d = {k: g[k][i:j] for k in g.keys()}
-            f.close()
+            g = f['data']
+            d = {k: g[k] for k in g.keys()}
             return d
 
-        train_reader = DataReader(opts.train_file, shuffle=True,
-                                  chunk_size=opts.chunk_size,
-                                  max_chunks=opts.max_chunks)
+        train_data = read_data(opts.train_file)
         if opts.val_file is None:
-            val_reader = None
+            val_data = train_data
         else:
-            val_reader = DataReader(opts.val_file, shuffle=True,
-                                    chunk_size=opts.chunk_size, loop=True)
-            val_reader = iter(val_reader)
+            val_data = read_data(opts.val_file)
 
-        line = '---------------------------------------------------------------'
-        for e in range(model_params.max_epochs):
-            print(line)
-            print('Epoch %d' % (e + 1))
-            print(line)
-            train_chromo_prev = ''
-            stop = False
-            for train_chromo, train_i, train_j in train_reader:
-                if train_chromo != train_chromo_prev:
-                    print('>>>>>>>>>> Chromosome %s <<<<<<<<<<' % (train_chromo))
-                    train_chromo_prev = train_chromo
+        sample_weights_train = sample_weights(train_data, model.output_order)
+        sample_weights_val = sample_weights(val_data, model.output_order)
 
-                train_data = read_data(opts.train_file, train_chromo, train_i, train_j)
-                sample_weights_train = sample_weights(train_data, model.output_order)
-
-                if val_reader is None:
-                    val_data = train_data
-                    sample_weights_val = sample_weights_train
-                else:
-                    val_chromo, val_i, val_j = next(val_reader)
-                    val_data = read_data(opts.val_file, val_chromo, val_i, val_j)
-                    sample_weights_val = sample_weights(val_data, model.output_order)
-
-                if pl_train is not None:
-                    pl_train.data = train_data
-                if pl_val is not None:
-                    pl_val.data = val_data
-
-                model.fit(train_data, validation_data=val_data,
-                            batch_size=model_params.batch_size,
-                            callbacks=cb,
-                            nb_epoch=1,
-                            verbose=2,
-                            sample_weight=sample_weights_train,
-                            sample_weight_val=sample_weights_val)
-                if model.stop_training:
-                    stop = True
-                if stop:
-                    break
-            if stop:
-                break
+        model.fit(train_data, validation_data=val_data,
+                  batch_size=model_params.batch_size,
+                  callbacks=cb,
+                  shuffle='batch',
+                  nb_epoch=model_params.max_epochs,
+                  verbose=opts.verbose_fit,
+                  sample_weight=sample_weights_train,
+                  sample_weight_val=sample_weights_val)
 
         if pt.isfile(model_weights_best):
             model.load_weights(model_weights_best)
 
         print('\nValidation set performance:')
-        f = h5.File(opts.val_file)
-
-        def read_predict(chromo, i, j):
-            g = f[chromo]
-            d = {k: g[k][i:j] for k in g.keys()}
-            z = model.predict(d)
-            for k in z.keys():
-                z[k] = z[k].ravel()
-            y = {k: d[k] for k in z.keys()}
-            for k in z.keys():
-                t = y[k] != MASK
-                z[k] = z[k][t]
-                y[k] = y[k][t]
-            return dict(y=y, z=z)
-
-        reader = DataReader(opts.val_file, chunk_size=opts.chunk_size,
-                            max_chunks=opts.max_chunks)
-        yz = read_and_stack(reader, read_predict)
-        f.close()
-
-        p = evaluate_all(yz['y'], yz['z'])
+        z = model.predict(val_data)
+        p = evaluate_all(val_data, z)
         t = eval_to_str(p)
         print(t)
         with open(pt.join(opts.out_dir, 'perf_val.csv'), 'w') as f:
