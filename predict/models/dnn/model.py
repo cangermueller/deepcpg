@@ -8,12 +8,13 @@ import keras.optimizers as kopt
 class CpgParams(object):
 
     def __init__(self):
+        self.activation = 'relu'
         self.num_filters = 4
         self.filter_len = 4
         self.pool_len = 2
         self.num_hidden = 32
-        self.dropout = 0.2
-        self.dropout_inputs = 0.0
+        self.drop_in = 0.0
+        self.drop_out = 0.2
         self.batch_norm = False
 
     def update(self, params):
@@ -30,12 +31,13 @@ class CpgParams(object):
 class SeqParams(object):
 
     def __init__(self):
+        self.activation = 'relu'
         self.num_filters = 4
         self.filter_len = 8
         self.pool_len = 4
         self.num_hidden = 32
-        self.dropout = 0.2
-        self.dropout_inputs = 0.0
+        self.drop_in = 0.0
+        self.drop_out = 0.2
         self.batch_norm = False
 
     def update(self, params):
@@ -52,8 +54,9 @@ class SeqParams(object):
 class TargetParams(object):
 
     def __init__(self):
+        self.activation = 'relu'
         self.num_hidden = 16
-        self.dropout = 0.2
+        self.drop_out = 0.2
         self.batch_norm = False
 
     def __str__(self):
@@ -108,12 +111,12 @@ class Params(object):
 
 def seq_layers(params):
     layers = []
-    if params.dropout_inputs:
-        layer = kcore.Dropout(params.dropout_inputs)
+    if params.drop_in:
+        layer = kcore.Dropout(params.drop_in)
         layers.append(('xd', layer))
     layer = kconv.Convolution1D(nb_filter=params.num_filters,
                                 filter_length=params.filter_len,
-                                activation='relu',
+                                activation=params.activation,
                                 init='glorot_uniform',
                                 border_mode='same')
     layers.append(('c1', layer))
@@ -121,38 +124,44 @@ def seq_layers(params):
     layers.append(('p1', layer))
     layer = kcore.Flatten()
     layers.append(('f1', layer))
-    layer = kcore.Dropout(params.dropout)
-    layers.append(('f1d', layer))
+    if params.drop_out:
+        layer = kcore.Dropout(params.drop_out)
+        layers.append(('f1d', layer))
     if params.num_hidden:
-        layer = kcore.Dense(params.num_hidden,
-                            init='glorot_uniform')
+        layer = kcore.Dense(output_dim=params.num_hidden,
+                            init='glorot_uniform',
+                            activation=params.activation)
         layers.append(('h1', layer))
         if params.batch_norm:
             layer = knorm.BatchNormalization()
             layers.append(('h1b', layer))
-        layer = kcore.Activation('relu')
+        layer = kcore.Activation(params.activation)
         layers.append(('h1a', layer))
-        layer = kcore.Dropout(params.dropout)
-        layers.append(('h1d', layer))
+        if params.drop_out:
+            layer = kcore.Dropout(params.drop_out)
+            layers.append(('h1d', layer))
     return layers
 
 
 def cpg_layers(params):
     layers = []
-    if params.dropout_inputs:
-        layer = kcore.Dropout(params.dropout_inputs)
+    if params.drop_in:
+        layer = kcore.Dropout(params.drop_in)
         layers.append(('xd', layer))
     layer = kconv.Convolution2D(nb_filter=params.num_filters,
                                 nb_row=1,
-                                nb_col=nb_params.filter_len,
-                                activation='relu',
+                                nb_col=params.filter_len,
+                                activation=params.activation,
                                 init='glorot_uniform',
                                 border_mode='same')
     layers.append(('c1', layer))
-    layer = kconv.MaxPooling2D(poolsize=(1, params.pool_len))
+    layer = kconv.MaxPooling2D(pool_size=(1, params.pool_len))
     layers.append(('p1', layer))
-    layer = kcore.Dropout(params.dropout)
-    layers.append(('p1d', layer))
+    layer = kcore.Flatten()
+    layers.append(('f1', layer))
+    if params.drop_out:
+        layer = kcore.Dropout(params.drop_out)
+        layers.append(('f1d', layer))
     if params.num_hidden:
         layer = kcore.Dense(params.num_hidden,
                             init='glorot_uniform')
@@ -160,10 +169,11 @@ def cpg_layers(params):
         if params.batch_norm:
             layer = knorm.BatchNormalization()
             layers.append(('h1b', layer))
-        layer = kcore.Activation('relu')
+        layer = kcore.Activation(params.activation)
         layers.append(('h1a', layer))
-        layer = kcore.Dropout(params.dropout)
-        layers.append(('h1d', layer))
+        if params.drop_out:
+            layer = kcore.Dropout(params.drop_out)
+            layers.append(('h1d', layer))
     return layers
 
 
@@ -171,17 +181,19 @@ def target_layers(params):
     layers = []
     if params.num_hidden:
         layer = kcore.Dense(params.num_hidden,
-                            init='glorot_uniform')
+                            init='glorot_uniform',
+                            activation='relu')
         layers.append(('h1', layer))
         if params.batch_norm:
             layer = knorm.BatchNormalization()
             layers.append(('h1b', layer))
-        layer = kcore.Activation('relu')
+        layer = kcore.Activation(params.activation)
         layers.append(('h1a', layer))
-        layer = kcore.Dropout(params.dropout)
-        layers.append(('h1d', layer))
+        if params.drop_out:
+            layer = kcore.Dropout(params.drop_out)
+            layers.append(('h1d', layer))
     layer = kcore.Dense(1,
-                        activation='relu',
+                        activation='sigmoid',
                         init='glorot_uniform')
     layers.append(('o', layer))
     return layers
@@ -191,6 +203,7 @@ def build(params, targets, seq_len=None, cpg_len=None, compile=True):
     model = kmodels.Graph()
     prev_nodes = []
     if params.seq:
+        assert seq_len is not None, 'seq_len required!'
         def label(x):
             return 's_%s' % (x)
 
@@ -204,10 +217,11 @@ def build(params, targets, seq_len=None, cpg_len=None, compile=True):
         prev_nodes.append(prev_node)
 
     if params.cpg:
+        assert cpg_len is not None, 'cpg_len required!'
         def label(x):
             return 'c_%s' % (x)
 
-        layers = cpg_layers(params.seq)
+        layers = cpg_layers(params.cpg)
         prev_node = label('x')
         model.add_input(prev_node, input_shape=(2, len(targets), cpg_len))
         for layer in layers:
@@ -224,11 +238,11 @@ def build(params, targets, seq_len=None, cpg_len=None, compile=True):
         layers = target_layers(params.target)
         layer = layers[0]
         cur_node = label(layer[0])
-        import ipdb; ipdb.set_trace()
         if len(prev_nodes) > 1:
             model.add_node(inputs=prev_nodes, name=cur_node, layer=layer[1])
         else:
             model.add_node(input=prev_nodes[0], name=cur_node, layer=layer[1])
+        prev_node = cur_node
         layers = layers[1:]
         for layer in layers:
             cur_node = label(layer[0])
@@ -239,6 +253,8 @@ def build(params, targets, seq_len=None, cpg_len=None, compile=True):
         outputs.append(output)
 
     if compile:
-        opt = vars(kopt)[params.optimizer](**params.optimizer_args)
+        opt = vars(kopt)[params.optimizer](**params.optimizer_params)
         loss = {output: 'binary_crossentropy' for output in outputs}
         model.compile(loss=loss, optimizer=opt)
+
+    return model
