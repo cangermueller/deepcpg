@@ -4,11 +4,7 @@ import argparse
 import sys
 import logging
 import os.path as pt
-import keras.models as kmodels
-from keras.layers import core as kcore
-from keras.layers import convolutional as kconv
 from keras.callbacks import EarlyStopping, ModelCheckpoint
-import keras.optimizers as kopt
 import pandas as pd
 import numpy as np
 import h5py as h5
@@ -20,78 +16,6 @@ from utils import evaluate_all, load_model, MASK
 from callbacks import LearningRateScheduler, PerformanceLogger
 
 
-class CpgNetParams(object):
-
-    def __init__(self):
-        self.dim = [200, 1]
-        self.num_filters = 4
-        self.filter_len = 4
-        self.pool_len = 2
-        self.num_hidden = 32
-        self.dropout = 0.2
-
-    def update(self, params):
-        self.__dict__.update(params)
-
-    def __str__(self):
-        return str(vars(self))
-
-
-class SeqNetParams(object):
-
-    def __init__(self):
-        self.dim = [1001]
-        self.num_filters = 4
-        self.filter_len = 8
-        self.pool_len = 4
-        self.num_hidden = 32
-        self.dropout = 0.2
-
-    def update(self, params):
-        self.__dict__.update(params)
-
-    def __str__(self):
-        return str(vars(self))
-
-
-class NetParams(object):
-
-    def __init__(self):
-        self.seq = SeqNetParams()
-        self.cpg = CpgNetParams()
-
-        self.num_hidden = 16
-        self.num_targets = 1
-        self.dropout = 0.25
-
-        self.lr = 0.01
-        self.lr_decay = 0.5
-        self.early_stop = 3
-        self.max_epochs = 10
-        self.batch_size = 128
-        self.shuffle = 'batch'
-
-    def update(self, params):
-        params = dict(params)
-        if 'seq' in params:
-            self.seq.update(params['seq'])
-            del params['seq']
-        if 'cpg' in params:
-            self.cpg.update(params['cpg'])
-            del params['cpg']
-        self.__dict__.update(params)
-        self.set_targets(self.num_targets)
-
-    def set_targets(self, num_targets):
-        self.num_targets = num_targets
-        self.cpg.dim[1] = self.num_targets
-
-    def __str__(self):
-        s = 'Seq module:\n' + str(self.seq)
-        s += '\n\nCpG module:\n' + str(self.cpg)
-        p = {k: v for k, v in vars(self).items() if not k in ['cpg', 'seq']}
-        s += '\n\nGlobal module:\n' + str(p)
-        return s
 
 
 def label(prefix, x):
@@ -115,22 +39,17 @@ def add_seq_conv(model, params, prefix='s'):
     model.add_node(input=lab('c1'), name=lab('p1'), layer=layer)
     # flatten
     model.add_node(input=lab('p1'), name=lab('f1'), layer=kcore.Flatten())
-    model.add_node(
-    input=lab('f1'),
-    name=lab('f1d'),
-    layer=kcore.Dropout(
-        params.dropout))
+    layer = kcore.Dropout(params.dropout)
+    model.add_node(input=lab('f1'), name=lab('f1d'), layer=layer)
     # hidden
-    nconv = (params.dim[0] // params.pool_len) * params.num_filters
-    layer = kcore.Dense(nconv, params.num_hidden,
-                    activation='relu',
-                    init='glorot_uniform')
-    model.add_node(input=lab('f1d'), name=lab('h1'), layer=layer)
-    model.add_node(
-    input=lab('h1'),
-    name=lab('h1d'),
-    layer=kcore.Dropout(
-        params.dropout))
+    #  nconv = (params.dim[0] // params.pool_len) * params.num_filters
+    if params.num_hidden:
+        layer = kcore.Dense(nconv, params.num_hidden,
+                            activation='relu',
+                            init='glorot_uniform')
+        model.add_node(input=lab('f1d'), name=lab('h1'), layer=layer)
+        layer = kcore.Dropout(params.dropout)
+        model.add_node(input=lab('h1'), name=lab('h1d'), layer=layer)
 
 
 def add_cpg_conv(model, params, prefix='c'):
@@ -150,31 +69,26 @@ def add_cpg_conv(model, params, prefix='c'):
     model.add_node(input=lab('c1'), name=lab('p1'), layer=layer)
     # flatten
     model.add_node(input=lab('p1'), name=lab('f1'), layer=kcore.Flatten())
-    model.add_node(
-    input=lab('f1'),
-    name=lab('f1d'),
-    layer=kcore.Dropout(
-        params.dropout))
+    layer = kcore.Dropout(params.dropout)
+    model.add_node(input='f1', name=lab('f1d'), layer=layer)
     # hidden
-    nconv = params.dim[1] * (params.dim[0] //
-                             params.pool_len) * params.num_filters
-    layer = kcore.Dense(nconv, params.num_hidden,
-                    activation='relu',
-                    init='glorot_uniform')
-    model.add_node(input=lab('f1d'), name=lab('h1'), layer=layer)
-    model.add_node(
-    input=lab('h1'),
-    name=lab('h1d'),
-    layer=kcore.Dropout(
-        params.dropout))
+    #  nconv = params.dim[1] * (params.dim[0] //
+                             #  params.pool_len) * params.num_filters
+    if params.num_hidden:
+        layer = kcore.Dense(params.num_hidden,
+                            activation='relu',
+                            init='glorot_uniform')
+        model.add_node(input=lab('f1d'), name=lab('h1'), layer=layer)
+        layer = kcore.Dropout(params.dropout)
+        model.add_node(input='f1', name=lab('f1d'), layer=layer)
 
 
-def add_out(model, params, prefix):
+def add_target(model, params, prefix):
     def lab(x):
         return label(prefix, x)
 
     prev_names = [label('s', 'h1d'), label('c', 'h1d')]
-    prev_dim = params.seq.num_hidden + params.cpg.num_hidden
+    #  prev_dim = params.seq.num_hidden + params.cpg.num_hidden
     if params.num_hidden:
         layer = kcore.Dense(prev_dim, params.num_hidden,
                             activation='relu',
@@ -187,14 +101,17 @@ def add_out(model, params, prefix):
         prev_names = [lab('h1d')]
         prev_dim = params.num_hidden
 
-    layer = kcore.Dense(prev_dim, 1,
-                        activation='sigmoid',
-                        init='glorot_uniform')
+    layer = kcore.Dense(1, activation='sigmoid', init='glorot_uniform')
     if len(prev_names) == 1:
         model.add_node(input=prev_names[0], name=lab('z'), layer=layer)
     else:
         model.add_node(inputs=prev_names, name=lab('z'), layer=layer)
     model.add_output(input=lab('z'), name=lab('y'))
+
+
+
+
+
 
 
 def build_model(params):
