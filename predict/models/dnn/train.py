@@ -17,118 +17,6 @@ from callbacks import LearningRateScheduler, PerformanceLogger
 
 
 
-
-def label(prefix, x):
-    return '%s_%s' % (prefix, x)
-
-
-def add_seq_conv(model, params, prefix='s'):
-    def lab(x):
-        return '%s_%s' % (prefix, x)
-
-    model.add_input(name=lab('x'), ndim=3)
-    # conv
-    layer = kconv.Convolution1D(4, params.num_filters,
-                            params.filter_len,
-                            activation='relu',
-                            init='glorot_uniform',
-                            border_mode='same')
-    model.add_node(input=lab('x'), name=lab('c1'), layer=layer)
-    # pool
-    layer = kconv.MaxPooling1D(pool_length=params.pool_len)
-    model.add_node(input=lab('c1'), name=lab('p1'), layer=layer)
-    # flatten
-    model.add_node(input=lab('p1'), name=lab('f1'), layer=kcore.Flatten())
-    layer = kcore.Dropout(params.dropout)
-    model.add_node(input=lab('f1'), name=lab('f1d'), layer=layer)
-    # hidden
-    #  nconv = (params.dim[0] // params.pool_len) * params.num_filters
-    if params.num_hidden:
-        layer = kcore.Dense(nconv, params.num_hidden,
-                            activation='relu',
-                            init='glorot_uniform')
-        model.add_node(input=lab('f1d'), name=lab('h1'), layer=layer)
-        layer = kcore.Dropout(params.dropout)
-        model.add_node(input=lab('h1'), name=lab('h1d'), layer=layer)
-
-
-def add_cpg_conv(model, params, prefix='c'):
-    def lab(x):
-        return '%s_%s' % (prefix, x)
-
-    model.add_input(name=lab('x'), ndim=4)
-    # conv
-    layer = kconv.Convolution2D(params.num_filters, 2,
-                            params.filter_len, 1,
-                            activation='relu',
-                            init='glorot_uniform',
-                            border_mode='same')
-    model.add_node(input=lab('x'), name=lab('c1'), layer=layer)
-    # pool
-    layer = kconv.MaxPooling2D(poolsize=(1, params.pool_len))
-    model.add_node(input=lab('c1'), name=lab('p1'), layer=layer)
-    # flatten
-    model.add_node(input=lab('p1'), name=lab('f1'), layer=kcore.Flatten())
-    layer = kcore.Dropout(params.dropout)
-    model.add_node(input='f1', name=lab('f1d'), layer=layer)
-    # hidden
-    #  nconv = params.dim[1] * (params.dim[0] //
-                             #  params.pool_len) * params.num_filters
-    if params.num_hidden:
-        layer = kcore.Dense(params.num_hidden,
-                            activation='relu',
-                            init='glorot_uniform')
-        model.add_node(input=lab('f1d'), name=lab('h1'), layer=layer)
-        layer = kcore.Dropout(params.dropout)
-        model.add_node(input='f1', name=lab('f1d'), layer=layer)
-
-
-def add_target(model, params, prefix):
-    def lab(x):
-        return label(prefix, x)
-
-    prev_names = [label('s', 'h1d'), label('c', 'h1d')]
-    #  prev_dim = params.seq.num_hidden + params.cpg.num_hidden
-    if params.num_hidden:
-        layer = kcore.Dense(prev_dim, params.num_hidden,
-                            activation='relu',
-                            init='glorot_uniform')
-        model.add_node(inputs=prev_names,
-                       name=lab('h1'),
-                       layer=layer)
-        layer = kcore.Dropout(params.dropout)
-        model.add_node(input=lab('h1'), name=lab('h1d'), layer=layer)
-        prev_names = [lab('h1d')]
-        prev_dim = params.num_hidden
-
-    layer = kcore.Dense(1, activation='sigmoid', init='glorot_uniform')
-    if len(prev_names) == 1:
-        model.add_node(input=prev_names[0], name=lab('z'), layer=layer)
-    else:
-        model.add_node(inputs=prev_names, name=lab('z'), layer=layer)
-    model.add_output(input=lab('z'), name=lab('y'))
-
-
-
-
-
-
-
-def build_model(params):
-    model = kmodels.Graph()
-    add_seq_conv(model, params.seq, 's')
-    add_cpg_conv(model, params.cpg, 'c')
-    units = []
-    for i in range(params.num_targets):
-        u = 'u%d' % (i)
-        units.append(u)
-        add_out(model, params, u)
-    loss = {label(u, 'y'): 'binary_crossentropy' for u in units}
-    opt = kopt.Adam(params.lr)
-    model.compile(loss=loss, optimizer=opt)
-    return model
-
-
 def sample_weights(y, outputs):
     w = dict()
     for o in outputs:
@@ -197,7 +85,7 @@ class App(object):
     def main(self, name, opts):
         logging.basicConfig(filename=opts.log_file,
                             format='%(levelname)s (%(asctime)s): %(message)s')
-        log=logging.getLogger(name)
+        log = logging.getLogger(name)
         if opts.verbose:
             log.setLevel(logging.DEBUG)
         else:
@@ -234,7 +122,7 @@ class App(object):
             log.info('Build model from file')
             model = load_model(opts.model_file)
         else:
-            log.info('Build model')
+            g.info('Build model')
             model = build_model(model_params)
             with open(pt.join(opts.out_dir, 'model.json'), 'w') as f:
                 f.write(model.to_json())
