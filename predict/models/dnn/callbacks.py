@@ -1,6 +1,7 @@
 from keras.callbacks import Callback
 import pandas as pd
 import numpy as np
+from time import time
 
 
 class LearningRateScheduler(Callback):
@@ -96,3 +97,69 @@ class PerformanceLogger(Callback):
         e = self.epoch_frame()
         c = pd.merge(b, e, on='epoch')
         return c
+
+
+class ProgressLogger(Callback):
+
+    def __init__(self,
+                 batch_logs=['loss', 'acc'],
+                 epoch_logs=['val_loss', 'val_acc'],
+                 interval=0.1,
+                 logger=print):
+        if batch_logs is None:
+            batch_logs = []
+        if epoch_logs is None:
+            epoch_logs = []
+        self.batch_logs = batch_logs
+        self.epoch_logs = epoch_logs
+        self.interval = interval
+        self.logger = logger
+        self._line = '-' * 80
+
+    def _log(self, x):
+        self.logger(x)
+
+    def on_train_begin(self, logs={}):
+        self._time_start = time()
+        s = 'Epochs: %d\nSamples: %d\nBatch size: %d' % (
+            self.params['nb_epoch'],
+            self.params['nb_sample'],
+            self.params['batch_size']
+        )
+        self._log(s)
+
+    def on_epoch_begin(self, epoch, logs={}):
+        self._nb_batch = self.params['nb_sample'] // self.params['batch_size']
+        self._batch = 0
+        self._interval = round(self._nb_batch * self.interval)
+        s = 'Epoch %d/%d' % (epoch + 1, self.params['nb_epoch'])
+        self._log(self._line)
+        self._log(s)
+        self._log(self._line)
+
+    def on_batch_end(self, batch, logs={}):
+        self._batch += 1
+        mins = (time() - self._time_start) / 60
+        if self._batch == 1 or self._batch % self._interval == 0:
+            t = len(str(self._nb_batch))
+            s = '%5.1f%%\t(%' + str(t) + 'd/%d)\t%7.2f min'
+            s = s % (
+                self._batch / self._nb_batch * 100,
+                self._batch,
+                self._nb_batch,
+                mins
+            )
+            for k in self.batch_logs:
+                if k in logs.keys():
+                    s += '\t%s=%.3f' % (k, logs[k])
+            self._log(s)
+
+    def on_epoch_end(self, batch, logs={}):
+        s = ''
+        for k in self.epoch_logs:
+            if k in logs:
+                s += '\t%5s=%.3f' % (k, logs[k])
+        s = s.strip()
+        if len(s):
+            self._log(self._line)
+            self._log(s)

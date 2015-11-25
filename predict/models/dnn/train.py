@@ -4,16 +4,17 @@ import argparse
 import sys
 import logging
 import os.path as pt
-from keras.callbacks import EarlyStopping, ModelCheckpoint
 import pandas as pd
 import numpy as np
 import h5py as h5
 import yaml
 import random
+from keras.callbacks import EarlyStopping, ModelCheckpoint
 
 from predict.evaluation import eval_to_str
 from utils import evaluate_all, load_model, MASK
-from callbacks import LearningRateScheduler, PerformanceLogger
+from callbacks import LearningRateScheduler, PerformanceLogger, ProgressLogger
+import model as mod
 
 
 
@@ -100,19 +101,16 @@ class App(object):
         pd.set_option('display.width', 150)
 
         f = h5.File(opts.train_file)
-        num_targets = f['/labels/targets'].shape[0]
+        targets = [x.decode() for x in f['/labels/targets']]
         seq_len = f['/data/s_x'].shape[1]
-        knn = f['/data/c_x'].shape[3]
+        cpg_len = f['/data/c_x'].shape[3]
         f.close()
 
-        model_params = NetParams()
+        model_params = mod.Params()
         if opts.model_params:
             with open(opts.model_params, 'r') as f:
                 configs = yaml.load(f.read())
                 model_params.update(configs)
-                model_params.seq.dim = [seq_len]
-                model_params.cpg.dim[0] = knn
-                model_params.set_targets(num_targets)
 
         print('Model parameters:')
         print(model_params)
@@ -122,8 +120,8 @@ class App(object):
             log.info('Build model from file')
             model = load_model(opts.model_file)
         else:
-            g.info('Build model')
-            model = build_model(model_params)
+            log.info('Build model')
+            model = mod.build(model_params, targets, seq_len, cpg_len)
             with open(pt.join(opts.out_dir, 'model.json'), 'w') as f:
                 f.write(model.to_json())
 
@@ -132,6 +130,7 @@ class App(object):
         model_weights_best = pt.join(opts.out_dir, 'model_weights_best.h5')
 
         cb = []
+        cb.append(ProgressLogger())
         cb.append(ModelCheckpoint(model_weights_last, save_best_only=False))
         cb.append(ModelCheckpoint(model_weights_best,
                                   save_best_only=True, verbose=1))
@@ -168,7 +167,7 @@ class App(object):
                   shuffle=model_params.shuffle,
                   nb_epoch=model_params.max_epochs,
                   callbacks=cb,
-                  verbose=opts.verbose_fit,
+                  verbose=0,
                   sample_weight=sample_weights_train,
                   sample_weight_val=sample_weights_val)
 
@@ -176,7 +175,7 @@ class App(object):
             model.load_weights(model_weights_best)
 
         t = perf_logs_str(perf_logger.frame())
-        print('Learning curve:')
+        print('\n\nLearning curve:')
         print(t)
         with open(pt.join(opts.out_dir, 'lc.csv'), 'w') as f:
             f.write(t)

@@ -37,4 +37,5 @@ docs/build/*
 MANIFEST
 
 *.h5
-/tests/data/
+data/
+**/tests/train/**

@@ -59,6 +59,9 @@ class TargetParams(object):
         self.drop_out = 0.2
         self.batch_norm = False
 
+    def update(self, params):
+        self.__dict__.update(params)
+
     def __str__(self):
         params = vars(self)
         s = ''
@@ -84,11 +87,12 @@ class Params(object):
 
     def update(self, params):
         params = dict(params)
-        for k in ['seq', 'cpg', 'target']:
-            if k in params:
-                vars(self)[k].update(params[k])
-                del params[k]
         self.__dict__.update(params)
+        for k in ['seq', 'cpg', 'target']:
+            if k in params.keys() and isinstance(params[k], dict):
+                t = k.capitalize() + 'Params'
+                vars(self)[k] = globals()[t]()
+                vars(self)[k].update(params[k])
 
     def __str__(self):
         s = 'Seq model:\n'

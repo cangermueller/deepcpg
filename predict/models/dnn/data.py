@@ -100,16 +100,16 @@ def read_knn_all(paths, *args, **kwargs):
     return d
 
 
-def encode_seqs(seqs):
+def encode_seqs(seqs, dim=4):
+    """Special nucleotides will be encoded as [0, 0, 0, 0]."""
     n = seqs.shape[0]
     l = seqs.shape[1]
-    enc_seqs = np.zeros((n, l, 4), dtype='float16')
-    for i in range(n):
-        seq = seqs[i]
-        enc_seq = enc_seqs[i]
-        special = seq == 4
-        enc_seq[special, :] = 0.25
-        enc_seq[~special, seq[~special]] = 1
+    #  t = seqs >= dim
+    #  seqs[t] = np.random.randint(0, dim, t.sum())
+    enc_seqs = np.zeros((n, l, dim), dtype='int8')
+    for i in range(dim):
+        t = seqs == i
+        enc_seqs[t, i] = 1
     return enc_seqs
 
 
@@ -134,6 +134,16 @@ def read_seq(path, chromo, pos=None, seq_len=None):
         s = s[t]
         assert s.shape[0] == len(pos)
     return s
+
+
+def chunk_size(shape, chunk_size):
+    if chunk_size:
+        c = list(shape)
+        c[0] = chunk_size
+        c = tuple(c)
+        return c
+    else:
+        return None
 
 
 class App(object):
@@ -166,7 +176,7 @@ class App(object):
             default=['1'])
         p.add_argument(
             '--knn',
-            help='Max # knn',
+            help='Max # CpGs',
             type=int)
         p.add_argument(
             '--seq_len',
@@ -181,6 +191,10 @@ class App(object):
             help='Max # records to read',
             type=int,
             default=10**7)
+        p.add_argument(
+            '--hdf_chunk_size',
+            help='HDF chunk size',
+            type=int)
         p.add_argument(
             '--max_samples',
             help='Limit # samples',
@@ -234,9 +248,12 @@ class App(object):
         labels = dict()
         lfiles = []
         ltargets = []
+        ltargetsy = []
         for i, data_file in enumerate(opts.data_files):
             lfiles.append(pt.splitext(pt.basename(data_file))[0])
-            ltargets.append('u%d_y' % (i))
+            t = 'u%d' % (i)
+            ltargets.append(t)
+            ltargetsy.append('%s_y' % (t))
         labels = dict(files=lfiles, targets=ltargets)
         for k, v in labels.items():
             f['/labels/%s' % (k)] = [x.encode() for x in v]
@@ -261,16 +278,22 @@ class App(object):
 
         fd = f.create_group('data')
 
-        for t in ltargets:
-            fd.create_dataset(t, shape=(N,), dtype='float16')
+        for t in ltargetsy:
+            s = (N,)
+            fd.create_dataset(t, shape=s, dtype='float16',
+                              chunks=chunk_size(s, opts.hdf_chunk_size))
 
+        s = (N, 2, len(opts.data_files), knn)
         fd.create_dataset('c_x',
-                         shape=(N, 2, len(opts.data_files), knn),
-                         dtype='float16')
+                          shape=s,
+                          chunks=chunk_size(s, opts.hdf_chunk_size),
+                          dtype='float16')
 
+        s = (N, seq_len, 4)
         fd.create_dataset('s_x',
-                         shape=(N, seq_len, 4),
-                         dtype='float16')
+                          shape=s,
+                          chunks=chunk_size(s, opts.hdf_chunk_size),
+                          dtype='int8')
 
         # Write data
         idx = 0
@@ -281,9 +304,8 @@ class App(object):
             end = idx + chromos_len[chromo]
 
             log.info('Read CpG sites')
-            for target, data_file in zip(ltargets, opts.data_files):
-                d = read_cpg(data_file, chromo, cpos)
-                fd[target][start:end] = d
+            for target, data_file in zip(ltargetsy, opts.data_files):
+                fd[target][start:end] = read_cpg(data_file, chromo, cpos)
 
             log.info('Read KNN')
             for i in range(0, len(cpos), opts.chunk_size):
