@@ -12,7 +12,7 @@ import random
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 
 from predict.evaluation import eval_to_str
-from utils import evaluate_all, load_model, MASK
+from utils import evaluate_all, load_model, MASK, open_hdf
 from callbacks import LearningRateScheduler, PerformanceLogger, ProgressLogger
 import model as mod
 
@@ -65,10 +65,14 @@ class App(object):
             '--model_weights',
             help='Model weights')
         p.add_argument(
-            '--verbose_fit',
-            help='Fit verbosity level',
+            '--max_mem',
+            help='Maximum memory load',
             type=int,
-            default=2)
+            default=14000)
+        p.add_argument(
+            '--max_samples',
+            help='Maximum # samples',
+            type=int)
         p.add_argument(
             '--seed',
             help='Seed of rng',
@@ -148,16 +152,20 @@ class App(object):
         cb.append(perf_logger)
 
         def read_data(path):
-            f = h5.File(path)
+            f = open_hdf(path, cache_size=opts.max_mem)
             g = f['data']
             d = {k: g[k] for k in g.keys()}
-            return d
+            if opts.max_samples:
+                for k in d.keys():
+                    d[k] = d[k][:opts.max_samples]
+            return (f, d)
 
-        train_data = read_data(opts.train_file)
+        train_file, train_data = read_data(opts.train_file)
         if opts.val_file is None:
             val_data = train_data
+            val_file = None
         else:
-            val_data = read_data(opts.val_file)
+            val_file, val_data = read_data(opts.val_file)
 
         sample_weights_train = sample_weights(train_data, model.output_order)
         sample_weights_val = sample_weights(val_data, model.output_order)
@@ -191,6 +199,10 @@ class App(object):
         print(t)
         with open(pt.join(opts.out_dir, 'perf_val.csv'), 'w') as f:
             f.write(t)
+
+        train_file.close()
+        if val_file:
+            val_file.close()
 
         log.info('Done!')
 

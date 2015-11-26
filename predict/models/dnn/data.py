@@ -139,11 +139,30 @@ def read_seq(path, chromo, pos=None, seq_len=None):
 def chunk_size(shape, chunk_size):
     if chunk_size:
         c = list(shape)
-        c[0] = chunk_size
+        c[0] = min(chunk_size, c[0])
         c = tuple(c)
         return c
     else:
         return None
+
+
+def approx_chunk_size(mem, nb_target, nb_knn=None, seq_len=None):
+    s = nb_target
+    if nb_knn:
+        s += 2 * nb_target * nb_knn * 2
+    if seq_len:
+        s += seq_len * 4
+    return mem // s
+
+
+def approx_mem(chunk_size, nb_target, nb_knn=None, seq_len=None):
+    mem = 0
+    mem += chunk_size * nb_target
+    if nb_knn:
+        mem += chunk_size * 2 * nb_target * nb_knn * 2
+    if seq_len:
+        mem += chunk_size * seq_len * 4
+    return mem
 
 
 class App(object):
@@ -187,18 +206,27 @@ class App(object):
             help='Name of knn group in HDF file',
             default='knn_shared')
         p.add_argument(
-            '--chunk_size',
-            help='Max # records to read',
+            '--chunk_in',
+            help='Input chunk size',
             type=int,
             default=10**7)
         p.add_argument(
-            '--hdf_chunk_size',
-            help='HDF chunk size',
+            '--chunk_out',
+            help='Output (HDF) chunk size',
             type=int)
+        p.add_argument(
+            '--max_mem',
+            help='Maximum memory load -> will adapt chunk_out',
+            type=int,
+            default=13000)
         p.add_argument(
             '--max_samples',
             help='Limit # samples',
             type=int)
+        p.add_argument(
+            '--shuffle',
+            help='Shuffle sequences',
+            action='store_true')
         p.add_argument(
             '--seed',
             help='Seed of rng',
@@ -226,16 +254,20 @@ class App(object):
         if opts.seed is not None:
             np.random.seed(opts.seed)
 
-        # Get KNN
-        knn = opts.knn
-        if knn is None:
+
+        # Get parameters
+        nb_target = len(opts.data_files)
+
+        # KNN
+        nb_knn = opts.knn
+        if nb_knn is None:
             f = h5.File(opts.data_files[0])
-            knn = f[
+            nb_knn = f[
                 '%s/%s/knn' %
                 (opts.knn_group, opts.chromos[0])].shape[1]
             f.close()
 
-        # Get sequence length
+        # Sequence length
         if opts.seq_file is not None:
             seq_len = opts.seq_len
             if seq_len is None:
@@ -270,63 +302,97 @@ class App(object):
         posc = np.hstack([pos[x] for x in chromos])
 
         # Write positions
-        g = f.create_group('pos')
+        fp = f.create_group('pos')
         N = len(posc)
-        g['pos'] = posc
-        g['chromos'] = [x.encode() for x in chromos]
-        g['chromos_len'] = [chromos_len[x] for x in chromos]
+
+        fp.create_dataset('pos', shape=(N,), dtype='int32')
+        fp['chromos'] = [x.encode() for x in chromos]
+        fp['chromos_len'] = [chromos_len[x] for x in chromos]
 
         fd = f.create_group('data')
 
+        chunk_out = opts.chunk_out
+        if not chunk_out and opts.max_mem and nb_knn > 0:
+            chunk_out = approx_chunk_size(opts.max_mem * 10**6, nb_target,
+                                          nb_knn, seq_len)
+        if chunk_out:
+            log.info('Using chunk size of %d (%.2f MB)' % (
+                chunk_out,
+                approx_mem(chunk_out, nb_target, nb_knn, seq_len) / 10**6
+            ))
+
         for t in ltargetsy:
             s = (N,)
-            fd.create_dataset(t, shape=s, dtype='float16',
-                              chunks=chunk_size(s, opts.hdf_chunk_size))
+            fd.create_dataset(t, shape=s, dtype='int8',
+                              chunks=chunk_size(s, chunk_out))
 
-        s = (N, 2, len(opts.data_files), knn)
-        fd.create_dataset('c_x',
-                          shape=s,
-                          chunks=chunk_size(s, opts.hdf_chunk_size),
-                          dtype='float16')
+        if nb_knn > 0:
+            s = (N, 2, nb_target, nb_knn)
+            fd.create_dataset('c_x',
+                            shape=s,
+                            chunks=chunk_size(s, chunk_out),
+                            dtype='float16')
 
-        s = (N, seq_len, 4)
-        fd.create_dataset('s_x',
-                          shape=s,
-                          chunks=chunk_size(s, opts.hdf_chunk_size),
-                          dtype='int8')
+        if opts.seq_file:
+            s = (N, seq_len, 4)
+            fd.create_dataset('s_x',
+                              shape=s,
+                              chunks=chunk_size(s, chunk_out),
+                              dtype='int8')
 
         # Write data
         idx = 0
         for chromo in chromos:
             log.info('Chromosome %s' % (chromo))
             cpos = pos[chromo]
-            start = idx
-            end = idx + chromos_len[chromo]
+            s = idx
+            e = idx + chromos_len[chromo]
+            shuffle = np.arange(chromos_len[chromo])
+            if opts.shuffle:
+                np.random.shuffle(shuffle)
+
+            fp['pos'][s:e] = cpos[shuffle.argsort()]
 
             log.info('Read CpG sites')
             for target, data_file in zip(ltargetsy, opts.data_files):
-                fd[target][start:end] = read_cpg(data_file, chromo, cpos)
+                t = read_cpg(data_file, chromo, cpos)
+                fd[target][s:e] = t[shuffle.argsort()]
 
-            log.info('Read KNN')
-            for i in range(0, len(cpos), opts.chunk_size):
-                j = i + opts.chunk_size
-                t = read_knn_all(opts.data_files,
-                                 chromo=chromo,
-                                 pos=cpos[i:j],
-                                 knn_group=opts.knn_group,
-                                 knn=knn)
-                fd['c_x'][start+i:start+i+t.shape[0]] = t
+            if nb_knn > 0:
+                log.info('Read KNN')
+                for i in range(0, len(cpos), opts.chunk_in):
+                    j = i + opts.chunk_in
+                    t = read_knn_all(opts.data_files,
+                                    chromo=chromo,
+                                    pos=cpos[i:j],
+                                    knn_group=opts.knn_group,
+                                    knn=nb_knn)
+                    j = i + t.shape[0]
+                    k = shuffle[i:j]
+                    fd['c_x'][list(s + np.sort(k))] = t[k.argsort()]
 
             if opts.seq_file is not None:
                 log.info('Read seq')
                 t = read_seq(opts.seq_file, chromo, cpos, seq_len=seq_len)
-                for i in range(0, t.shape[0], opts.chunk_size):
-                    j = i + opts.chunk_size
+                for i in range(0, t.shape[0], opts.chunk_in):
+                    j = i + opts.chunk_in
                     tt = encode_seqs(t[i:j])
-                    fd['s_x'][start+i:start+i+tt.shape[0]] = tt
-            idx = end
+                    j = i + tt.shape[0]
+                    k = shuffle[i:j]
+                    fd['s_x'][list(s + np.sort(k))] = tt[k.argsort()]
 
+            idx = e
+
+        assert np.all(fp['pos'].value > 0)
+        if not opts.shuffle:
+            i = 0
+            for chromo in chromos:
+                j = i + chromos_len[chromo]
+                cpos = fp['pos'][i:j]
+                assert np.all(cpos[:-1] < cpos[1:])
+                i = j
         f.close()
+
 
         log.info('Done!')
 
