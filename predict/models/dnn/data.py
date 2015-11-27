@@ -146,20 +146,20 @@ def chunk_size(shape, chunk_size):
         return None
 
 
-def approx_chunk_size(mem, nb_target, nb_knn=None, seq_len=None):
-    s = nb_target
+def approx_chunk_size(mem, nb_unit, nb_knn=None, seq_len=None):
+    s = nb_unit
     if nb_knn:
-        s += 2 * nb_target * nb_knn * 2
+        s += 2 * nb_unit * nb_knn * 2
     if seq_len:
         s += seq_len * 4
     return mem // s
 
 
-def approx_mem(chunk_size, nb_target, nb_knn=None, seq_len=None):
+def approx_mem(chunk_size, nb_unit, nb_knn=None, seq_len=None):
     mem = 0
-    mem += chunk_size * nb_target
+    mem += chunk_size * nb_unit
     if nb_knn:
-        mem += chunk_size * 2 * nb_target * nb_knn * 2
+        mem += chunk_size * 2 * nb_unit * nb_knn * 2
     if seq_len:
         mem += chunk_size * seq_len * 4
     return mem
@@ -263,7 +263,7 @@ class App(object):
             target_files = opts.data_files
 
         # Get parameters
-        nb_target = len(target_files)
+        nb_unit = len(opts.data_files)
 
         # KNN
         nb_knn = opts.knn
@@ -308,9 +308,10 @@ class App(object):
             pos[chromo] = cpos
         posc = np.hstack([pos[x] for x in chromos])
 
-        # Write positions
+        # Initialize datasets
         fp = f.create_group('pos')
         N = len(posc)
+        log.info('%d samples' % (N))
 
         fp.create_dataset('pos', shape=(N,), dtype='int32')
         fp['chromos'] = [x.encode() for x in chromos]
@@ -320,12 +321,12 @@ class App(object):
 
         chunk_out = opts.chunk_out
         if not chunk_out and opts.max_mem and nb_knn > 0:
-            chunk_out = approx_chunk_size(opts.max_mem * 10**6, nb_target,
+            chunk_out = approx_chunk_size(opts.max_mem * 10**6, nb_unit,
                                           nb_knn, seq_len)
         if chunk_out:
             log.info('Using chunk size of %d (%.2f MB)' % (
                 chunk_out,
-                approx_mem(chunk_out, nb_target, nb_knn, seq_len) / 10**6
+                approx_mem(chunk_out, nb_unit, nb_knn, seq_len) / 10**6
             ))
 
         for t in ltargetsy:
@@ -334,7 +335,7 @@ class App(object):
                               chunks=chunk_size(s, chunk_out))
 
         if nb_knn > 0:
-            s = (N, 2, nb_target, nb_knn)
+            s = (N, 2, nb_unit, nb_knn)
             fd.create_dataset('c_x',
                             shape=s,
                             chunks=chunk_size(s, chunk_out),
@@ -356,6 +357,7 @@ class App(object):
             e = idx + chromos_len[chromo]
             shuffle = np.arange(chromos_len[chromo])
             if opts.shuffle:
+                assert opts.chunk_in >= len(shuffle)
                 np.random.shuffle(shuffle)
 
             fp['pos'][s:e] = cpos[shuffle.argsort()]
@@ -363,30 +365,48 @@ class App(object):
             log.info('Read target CpG sites')
             for target, target_file in zip(ltargetsy, target_files):
                 t = read_cpg(target_file, chromo, cpos)
+                if len(target_files) == 1:
+                    assert np.all((t == 0) | (t == 1))
                 fd[target][s:e] = t[shuffle.argsort()]
 
             if nb_knn > 0:
-                log.info('Read KNN')
+                chunk = 0
+                nb_chunk_in = int(np.ceil(len(cpos) / opts.chunk_in))
                 for i in range(0, len(cpos), opts.chunk_in):
+                    chunk += 1
+                    log.info('Read KNN (%d/%d)' % (chunk, nb_chunk_in))
                     j = i + opts.chunk_in
-                    t = read_knn_all(opts.data_files,
+                    d = read_knn_all(opts.data_files,
                                     chromo=chromo,
                                     pos=cpos[i:j],
                                     knn_group=opts.knn_group,
                                     knn=nb_knn)
-                    j = i + t.shape[0]
+                    j = i + d.shape[0]
                     k = shuffle[i:j]
-                    fd['c_x'][list(s + np.sort(k))] = t[k.argsort()]
+                    log.info('Write KNN (%d/%d)' % (chunk, nb_chunk_in))
+                    t = list(s + np.sort(k))
+                    t = np.array(t)
+                    assert t.min() == s + i
+                    assert t.max() == s + j - 1
+                    fd['c_x'][s+i:s+j] = d[k.argsort()]
 
             if opts.seq_file is not None:
                 log.info('Read seq')
-                t = read_seq(opts.seq_file, chromo, cpos, seq_len=seq_len)
-                for i in range(0, t.shape[0], opts.chunk_in):
+                ds = read_seq(opts.seq_file, chromo, cpos, seq_len=seq_len)
+                chunk = 0
+                nb_chunk_in = int(np.ceil(ds.shape[0] / opts.chunk_in))
+                for i in range(0, ds.shape[0], opts.chunk_in):
+                    chunk += 1
+                    log.info('Write seq (%d/%d)' % (chunk, nb_chunk_in))
                     j = i + opts.chunk_in
-                    tt = encode_seqs(t[i:j])
-                    j = i + tt.shape[0]
+                    d = encode_seqs(ds[i:j])
+                    j = i + d.shape[0]
                     k = shuffle[i:j]
-                    fd['s_x'][list(s + np.sort(k))] = tt[k.argsort()]
+                    t = list(s + np.sort(k))
+                    t = np.array(t)
+                    assert t.min() == s + i
+                    assert t.max() == s + j - 1
+                    fd['s_x'][s+i:s+j] = d[k.argsort()]
 
             idx = e
 

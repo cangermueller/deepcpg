@@ -203,7 +203,11 @@ def target_layers(params):
     return layers
 
 
-def build(params, targets, seq_len=None, cpg_len=None, compile=True):
+def build(params, targets, seq_len=None, cpg_len=None, compile=True,
+          nb_unit=None):
+    if nb_unit is None:
+        nb_unit = len(targets)
+
     model = kmodels.Graph()
     prev_nodes = []
     if params.seq:
@@ -227,7 +231,7 @@ def build(params, targets, seq_len=None, cpg_len=None, compile=True):
 
         layers = cpg_layers(params.cpg)
         prev_node = label('x')
-        model.add_input(prev_node, input_shape=(2, len(targets), cpg_len))
+        model.add_input(prev_node, input_shape=(2, nb_unit, cpg_len))
         for layer in layers:
             cur_node = label(layer[0])
             model.add_node(input=prev_node, name=cur_node, layer=layer[1])

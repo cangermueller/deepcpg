@@ -12,7 +12,7 @@ import random
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 
 from predict.evaluation import eval_to_str
-from utils import evaluate_all, load_model, MASK, open_hdf
+from utils import evaluate_all, load_model, MASK, open_hdf, read_labels
 from callbacks import LearningRateScheduler, PerformanceLogger, ProgressLogger
 import model as mod
 
@@ -108,6 +108,7 @@ class App(object):
         targets = [x.decode() for x in f['/labels/targets']]
         seq_len = f['/data/s_x'].shape[1]
         cpg_len = f['/data/c_x'].shape[3]
+        nb_unit = f['/data/c_x'].shape[2]
         f.close()
 
         model_params = mod.Params()
@@ -125,7 +126,8 @@ class App(object):
             model = load_model(opts.model_file)
         else:
             log.info('Build model')
-            model = mod.build(model_params, targets, seq_len, cpg_len)
+            model = mod.build(model_params, targets, seq_len, cpg_len,
+                              nb_unit=nb_unit)
             with open(pt.join(opts.out_dir, 'model.json'), 'w') as f:
                 f.write(model.to_json())
 
@@ -188,6 +190,7 @@ class App(object):
         with open(pt.join(opts.out_dir, 'lc.csv'), 'w') as f:
             f.write(t)
 
+
         t = perf_logs_str(perf_logger.batch_frame())
         with open(pt.join(opts.out_dir, 'lc_batch.csv'), 'w') as f:
             f.write(t)
@@ -195,6 +198,16 @@ class App(object):
         print('\nValidation set performance:')
         z = model.predict(val_data)
         p = evaluate_all(val_data, z)
+
+        targets = p.index.values
+        targets = [x.replace('_y', '') for x in targets]
+        labels = read_labels(opts.train_file)
+        labels = {x[0]: x[1] for x in zip(labels['targets'], labels['files'])}
+        targets = {labels[x] for x in targets}
+        p.index = targets
+        p.index.name = 'target'
+        p.reset_index(inplace=True)
+
         t = eval_to_str(p)
         print(t)
         with open(pt.join(opts.out_dir, 'perf_val.csv'), 'w') as f:
