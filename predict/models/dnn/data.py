@@ -183,6 +183,10 @@ class App(object):
             help='HDF path to data files',
             nargs='+')
         p.add_argument(
+            '--target_files',
+            help='Data files to be considered as targets',
+            nargs='+')
+        p.add_argument(
             '--seq_file',
             help='HDF path to seq file')
         p.add_argument(
@@ -254,14 +258,17 @@ class App(object):
         if opts.seed is not None:
             np.random.seed(opts.seed)
 
+        target_files = opts.target_files
+        if opts.target_files is None:
+            target_files = opts.data_files
 
         # Get parameters
-        nb_target = len(opts.data_files)
+        nb_target = len(target_files)
 
         # KNN
         nb_knn = opts.knn
         if nb_knn is None:
-            f = h5.File(opts.data_files[0])
+            f = h5.File(target_files[0])
             nb_knn = f[
                 '%s/%s/knn' %
                 (opts.knn_group, opts.chromos[0])].shape[1]
@@ -281,8 +288,8 @@ class App(object):
         lfiles = []
         ltargets = []
         ltargetsy = []
-        for i, data_file in enumerate(opts.data_files):
-            lfiles.append(pt.splitext(pt.basename(data_file))[0])
+        for i, target_file in enumerate(target_files):
+            lfiles.append(pt.splitext(pt.basename(target_file))[0])
             t = 'u%d' % (i)
             ltargets.append(t)
             ltargetsy.append('%s_y' % (t))
@@ -295,7 +302,7 @@ class App(object):
         pos = dict()
         chromos_len = dict()
         for chromo in chromos:
-            cpos = read_pos_all(opts.data_files, chromo,
+            cpos = read_pos_all(target_files, chromo,
                                max_samples=opts.max_samples)
             chromos_len[chromo] = len(cpos)
             pos[chromo] = cpos
@@ -353,9 +360,9 @@ class App(object):
 
             fp['pos'][s:e] = cpos[shuffle.argsort()]
 
-            log.info('Read CpG sites')
-            for target, data_file in zip(ltargetsy, opts.data_files):
-                t = read_cpg(data_file, chromo, cpos)
+            log.info('Read target CpG sites')
+            for target, target_file in zip(ltargetsy, target_files):
+                t = read_cpg(target_file, chromo, cpos)
                 fd[target][s:e] = t[shuffle.argsort()]
 
             if nb_knn > 0:
