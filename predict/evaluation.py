@@ -49,6 +49,14 @@ def mcc(y, z, r=True):
         z = np.round(z)
     return skm.matthews_corrcoef(y, z)
 
+def nll(y, z):
+    eps = 1e-6
+    y = y.ravel()
+    z = z.ravel()
+    t = y * np.log2(np.maximum(z, eps))
+    t += (1 - y) * np.log2(np.maximum(1 - z, eps))
+    t = t.sum() / len(t)
+    return -t
 
 eval_annos = ['misc_Active_enhancers', 'misc_CGI', 'misc_CGI_shelf',
               'misc_CGI_shore', 'misc_Exons', 'misc_H3K27ac', 'misc_H3K27me3',
@@ -62,6 +70,7 @@ eval_funs = [('auc', auc),
              ('tpr', tpr),
              ('tnr', tnr),
              ('mcc', mcc),
+             ('nll', nll),
              ('rrmse', rrmse),
              ('cor', cor)]
 

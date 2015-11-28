@@ -1,3 +1,5 @@
+import yaml
+
 import keras.models as kmodels
 from keras.layers import core as kcore
 from keras.layers import convolutional as kconv
@@ -9,10 +11,10 @@ class CpgParams(object):
 
     def __init__(self):
         self.activation = 'relu'
-        self.num_filters = 4
+        self.nb_filter = 4
         self.filter_len = 4
         self.pool_len = 2
-        self.num_hidden = 32
+        self.nb_hidden = 32
         self.drop_in = 0.0
         self.drop_out = 0.2
         self.batch_norm = False
@@ -32,10 +34,10 @@ class SeqParams(object):
 
     def __init__(self):
         self.activation = 'relu'
-        self.num_filters = 4
+        self.nb_filter = 4
         self.filter_len = 8
         self.pool_len = 4
-        self.num_hidden = 32
+        self.nb_hidden = 32
         self.drop_in = 0.0
         self.drop_out = 0.2
         self.batch_norm = False
@@ -55,7 +57,7 @@ class TargetParams(object):
 
     def __init__(self):
         self.activation = 'relu'
-        self.num_hidden = 16
+        self.nb_hidden = 16
         self.drop_out = 0.2
         self.batch_norm = False
 
@@ -84,6 +86,14 @@ class Params(object):
         self.early_stop = 3
         self.batch_size = 128
         self.shuffle = 'batch'
+
+    @staticmethod
+    def from_yaml(path):
+        p = Params()
+        with open(path, 'r') as f:
+            t = yaml.load(f.read())
+            p.update(t)
+        return p
 
     def update(self, params):
         params = dict(params)
@@ -118,7 +128,7 @@ def seq_layers(params):
     if params.drop_in:
         layer = kcore.Dropout(params.drop_in)
         layers.append(('xd', layer))
-    layer = kconv.Convolution1D(nb_filter=params.num_filters,
+    layer = kconv.Convolution1D(nb_filter=params.nb_filter,
                                 filter_length=params.filter_len,
                                 activation=params.activation,
                                 init='glorot_uniform',
@@ -131,8 +141,8 @@ def seq_layers(params):
     if params.drop_out:
         layer = kcore.Dropout(params.drop_out)
         layers.append(('f1d', layer))
-    if params.num_hidden:
-        layer = kcore.Dense(output_dim=params.num_hidden,
+    if params.nb_hidden:
+        layer = kcore.Dense(output_dim=params.nb_hidden,
                             init='glorot_uniform',
                             activation=params.activation)
         layers.append(('h1', layer))
@@ -152,7 +162,7 @@ def cpg_layers(params):
     if params.drop_in:
         layer = kcore.Dropout(params.drop_in)
         layers.append(('xd', layer))
-    layer = kconv.Convolution2D(nb_filter=params.num_filters,
+    layer = kconv.Convolution2D(nb_filter=params.nb_filter,
                                 nb_row=1,
                                 nb_col=params.filter_len,
                                 activation=params.activation,
@@ -166,8 +176,8 @@ def cpg_layers(params):
     if params.drop_out:
         layer = kcore.Dropout(params.drop_out)
         layers.append(('f1d', layer))
-    if params.num_hidden:
-        layer = kcore.Dense(params.num_hidden,
+    if params.nb_hidden:
+        layer = kcore.Dense(params.nb_hidden,
                             init='glorot_uniform')
         layers.append(('h1', layer))
         if params.batch_norm:
@@ -183,8 +193,8 @@ def cpg_layers(params):
 
 def target_layers(params):
     layers = []
-    if params.num_hidden:
-        layer = kcore.Dense(params.num_hidden,
+    if params.nb_hidden:
+        layer = kcore.Dense(params.nb_hidden,
                             init='glorot_uniform',
                             activation='relu')
         layers.append(('h1', layer))

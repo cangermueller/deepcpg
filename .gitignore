@@ -38,4 +38,5 @@ MANIFEST
 
 *.h5
 data/
-**/tests/train/**
+/predict/models/dnn/tests/pipe
+/predict/models/dnn/tests/data

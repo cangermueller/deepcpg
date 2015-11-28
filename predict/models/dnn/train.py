@@ -13,6 +13,7 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint
 
 from predict.evaluation import eval_to_str
 from utils import evaluate_all, load_model, MASK, open_hdf, read_labels
+from utils import write_z, map_targets
 from callbacks import LearningRateScheduler, PerformanceLogger, ProgressLogger
 import model as mod
 
@@ -28,9 +29,8 @@ def sample_weights(y, outputs):
     return w
 
 def perf_logs_str(logs):
-    t = logs.to_csv(None, sep='\t', float_format='%.3f', index=False)
+    t = logs.to_csv(None, sep='\t', float_format='%.4f', index=False)
     return t
-
 
 
 class App(object):
@@ -104,8 +104,10 @@ class App(object):
 
         pd.set_option('display.width', 150)
 
+        labels = read_labels(opts.train_file)
+        targets = labels['targets']
+
         f = h5.File(opts.train_file)
-        targets = [x.decode() for x in f['/labels/targets']]
         seq_len = f['/data/s_x'].shape[1]
         cpg_len = f['/data/c_x'].shape[3]
         nb_unit = f['/data/c_x'].shape[2]
@@ -157,6 +159,9 @@ class App(object):
             f = open_hdf(path, cache_size=opts.max_mem)
             g = f['data']
             d = {k: g[k] for k in g.keys()}
+            g = f['pos']
+            for k in g.keys():
+                d[k] = g[k]
             if opts.max_samples:
                 for k in d.keys():
                     d[k] = d[k][:opts.max_samples]
@@ -190,28 +195,23 @@ class App(object):
         with open(pt.join(opts.out_dir, 'lc.csv'), 'w') as f:
             f.write(t)
 
-
         t = perf_logs_str(perf_logger.batch_frame())
         with open(pt.join(opts.out_dir, 'lc_batch.csv'), 'w') as f:
             f.write(t)
 
         print('\nValidation set performance:')
         z = model.predict(val_data)
-        p = evaluate_all(val_data, z)
+        write_z(val_data, z, labels, pt.join(opts.out_dir, 'z_val.h5'))
 
-        targets = p.index.values
-        targets = [x.replace('_y', '') for x in targets]
-        labels = read_labels(opts.train_file)
-        labels = {x[0]: x[1] for x in zip(labels['targets'], labels['files'])}
-        targets = {labels[x] for x in targets}
-        p.index = targets
+        p = evaluate_all(val_data, z)
+        loss = model.evaluate(val_data)
+        p['loss'] = loss
+        p.index = map_targets(p.index.values, labels)
         p.index.name = 'target'
         p.reset_index(inplace=True)
-
-        t = eval_to_str(p)
-        print(t)
+        print(p.to_string(index=False))
         with open(pt.join(opts.out_dir, 'perf_val.csv'), 'w') as f:
-            f.write(t)
+            f.write(p.to_csv(None, sep='\t', index=False))
 
         train_file.close()
         if val_file:

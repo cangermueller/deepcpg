@@ -47,11 +47,42 @@ def read_labels(path):
     return l
 
 
-def read_chromos(path):
-    f = h5.File(path)
-    chromos = sorted([x for x in f.keys() if x != 'labels'])
+def map_targets(targets, labels):
+    targets = [x.replace('_y', '') for x in targets]
+    labels = {x[0]: x[1] for x in zip(labels['targets'], labels['files'])}
+    targets = {labels[x] for x in targets}
+    return targets
+
+
+def write_z(data, z, labels, out_file):
+    target_map = {x[0] + '_y': x[1] for x in zip(labels['targets'], labels['files'])}
+
+    f = h5.File(out_file, 'w')
+    for target in z.keys():
+        d = dict()
+        d['z'] = z[target]
+        d['y'] = data[target][:]
+        d['pos'] = data['pos'][:]
+        d['chromo'] = data['chromo'][:]
+        t = d['y'] != MASK
+        for k in d.keys():
+            d[k] = d[k][t]
+
+        gt = f.create_group(target_map[target])
+        for chromo in np.unique(d['chromo']):
+            t = d['chromo'] == chromo
+            dc = {k: d[k][t] for k in d.keys()}
+            t = np.argsort(dc['pos'])
+            for k in dc.keys():
+                dc[k] = dc[k][t]
+            t = dc['pos']
+            assert np.all(t[:-1] < t[1:])
+
+            gtc = gt.create_group(chromo)
+            for k in dc.keys():
+                gtc[k] = dc[k]
     f.close()
-    return chromos
+
 
 def open_hdf(filename, acc='r', cache_size=None):
     if cache_size:

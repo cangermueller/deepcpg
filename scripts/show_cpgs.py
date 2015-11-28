@@ -76,7 +76,7 @@ class App(object):
         if pt.isdir(opts.dataset):
             ddir = opts.dataset
         else:
-            ddir = pt.join(pt.join(os.getenv('Bdata'), opts.dataset))
+            ddir = pt.join(pt.join(os.getenv('Pdata'), opts.dataset))
 
         sample = pt.splitext(pt.basename(opts.sample))[0]
         sample += '.bed'

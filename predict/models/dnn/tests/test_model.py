@@ -7,17 +7,17 @@ def test_params():
     seq = {
         'drop_in': 0.1,
         'drop_out': 0.0,
-        'num_hidden': 0,
+        'nb_hidden': 0,
         'batch_norm': True,
     }
     cpg = {
         'drop_in': 0.0,
         'drop_out': 0.5,
-        'num_hidden': 10,
+        'nb_hidden': 10,
         'batch_norm': False
     }
     target = {
-        'num_hidden': 10,
+        'nb_hidden': 10,
         'drop_out': 0.5,
         'batch_norm': True
     }
@@ -51,15 +51,15 @@ def test_seq():
     p.seq = SeqParams()
     pc = p.seq
     pc.activation = 'sigmoid'
-    pc.num_hidden = 5
+    pc.nb_hidden = 5
     pc.drop_in = 0.5
     pc.drop_out = 0.1
     pc.batch_norm = True
-    pc.num_filters = 1
+    pc.nb_filter = 1
     pc.filter_len = 2
     pc.pool_len = 4
 
-    p.target.num_hidden = 0
+    p.target.nb_hidden = 0
     m = build(p, ['u0', 'u1'], seq_len=10, compile=False)
     assert 'u0_y' in m.output_order
     assert 'u1_y' in m.output_order
@@ -70,7 +70,7 @@ def test_seq():
     assert m.nodes['s_h1a'].activation is sigmoid
     t = m.nodes['s_c1']
     assert t.filter_length == pc.filter_len
-    assert t.nb_filter == pc.num_filters
+    assert t.nb_filter == pc.nb_filter
 
 
 def test_cpg():
@@ -80,15 +80,15 @@ def test_cpg():
     p.cpg = CpgParams()
     pc = p.cpg
     pc.activation = 'sigmoid'
-    pc.num_hidden = 5
+    pc.nb_hidden = 5
     pc.drop_in = 0.5
     pc.drop_out = 0.1
     pc.batch_norm = True
-    pc.num_filters = 1
+    pc.nb_filter = 1
     pc.filter_len = 2
     pc.pool_len = 4
 
-    p.target.num_hidden = 0
+    p.target.nb_hidden = 0
 
     m = build(p, ['u0', 'u1'], cpg_len=10, compile=False)
     assert 'u0_y' in m.output_order
@@ -99,7 +99,7 @@ def test_cpg():
     assert m.nodes['c_xd'].p == pc.drop_in
     assert m.nodes['c_h1a'].activation is sigmoid
     t = m.nodes['c_c1']
-    assert t.nb_filter == pc.num_filters
+    assert t.nb_filter == pc.nb_filter
     assert t.nb_row == 1
     assert t.nb_col == pc.filter_len
 
@@ -107,26 +107,26 @@ def test_cpg():
 def test_joint():
     p = Params()
     p.seq = SeqParams()
-    p.seq.num_hidden = 2
+    p.seq.nb_hidden = 2
     p.seq.activation = 'relu'
     p.seq.drop_in = 0.1
     p.seq.drop_out = 0.5
     p.seq.batch_norm = False
     p.seq.filter_len = 3
-    p.seq.num_filter = 1
+    p.seq.nb_filter = 1
 
     p.cpg = CpgParams()
-    p.cpg.num_hidden = 3
+    p.cpg.nb_hidden = 3
     p.cpg.activation = 'sigmoid'
     p.cpg.drop_in = 0.0
     p.cpg.drop_out = 0.0
     p.cpg.batch_norm = True
     p.cpg.filter_len = 4
-    p.cpg.num_filter = 2
+    p.cpg.nb_filter = 2
 
     p.target = TargetParams()
     p.target.activation = 'sigmoid'
-    p.target.num_hidden = 2
+    p.target.nb_hidden = 2
     p.target.drop_out = 0.0
     p.target.batch_norm = True
 
@@ -150,14 +150,14 @@ def test_joint():
     assert n['s_f1d'].p == p.seq.drop_out
     assert n['s_h1d'].p == p.seq.drop_out
     assert n['s_c1'].activation is relu
-    assert n['s_c1'].nb_filter is p.seq.num_filters
+    assert n['s_c1'].nb_filter is p.seq.nb_filter
     assert n['s_c1'].filter_length is p.seq.filter_len
     assert n['s_h1a'].activation is relu
 
     assert 'c_xd' not in n.keys()
     assert 'c_h1d' not in n.keys()
     assert n['c_c1'].activation is sigmoid
-    assert n['c_c1'].nb_filter is p.cpg.num_filters
+    assert n['c_c1'].nb_filter is p.cpg.nb_filter
     assert n['c_c1'].nb_row == 1
     assert n['c_c1'].nb_col is p.cpg.filter_len
     assert n['c_h1a'].activation is sigmoid

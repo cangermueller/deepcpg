@@ -281,6 +281,8 @@ class App(object):
                 f = h5.File(opts.seq_file)
                 seq_len = f['/%s/seq' % opts.chromos[0]].shape[1]
                 f.close()
+        else:
+            seq_len = None
 
         # Write target labels
         f = h5.File(opts.out_file, 'w')
@@ -314,8 +316,7 @@ class App(object):
         log.info('%d samples' % (N))
 
         fp.create_dataset('pos', shape=(N,), dtype='int32')
-        fp['chromos'] = [x.encode() for x in chromos]
-        fp['chromos_len'] = [chromos_len[x] for x in chromos]
+        fp.create_dataset('chromo', shape=(N,), dtype='S2', compression='gzip')
 
         fd = f.create_group('data')
 
@@ -353,14 +354,16 @@ class App(object):
         for chromo in chromos:
             log.info('Chromosome %s' % (chromo))
             cpos = pos[chromo]
+            Nc = chromos_len[chromo]
             s = idx
-            e = idx + chromos_len[chromo]
-            shuffle = np.arange(chromos_len[chromo])
+            e = idx + Nc
+            shuffle = np.arange(Nc)
             if opts.shuffle:
                 assert opts.chunk_in >= len(shuffle)
                 np.random.shuffle(shuffle)
 
             fp['pos'][s:e] = cpos[shuffle.argsort()]
+            fp['chromo'][s:e] = chromo.encode()
 
             log.info('Read target CpG sites')
             for target, target_file in zip(ltargetsy, target_files):
