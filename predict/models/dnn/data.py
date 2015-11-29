@@ -146,13 +146,20 @@ def chunk_size(shape, chunk_size):
         return None
 
 
-def approx_chunk_size(mem, nb_unit, nb_knn=None, seq_len=None):
+def approx_chunk_size(mem, nb_unit, nb_knn=None, seq_len=None,
+                      max_mem=4*10**9):
     s = nb_unit
+    max_ = [max_mem // nb_unit]
     if nb_knn:
-        s += 2 * nb_unit * nb_knn * 2
+        t = 2 * nb_unit * nb_knn * 2
+        max_.append(max_mem // t)
+        s += t
     if seq_len:
-        s += seq_len * 4
-    return mem // s
+        t = seq_len * 4
+        max_.append(max_mem // t)
+        s += t
+    max_.append(mem // s)
+    return np.min(max_)
 
 
 def approx_mem(chunk_size, nb_unit, nb_knn=None, seq_len=None):

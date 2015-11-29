@@ -141,3 +141,51 @@ class DataReader(object):
 
     def next(self):
         return self.__next__()
+
+class ArrayView(object):
+
+    def __init__(self, data, start=0, end=None):
+        self.start = start
+        if end is None:
+            end = data.shape[0]
+        self.end = end
+        self.data = data
+
+    def __len__(self):
+        return self.end - self.start
+
+    def __len__(self):
+        return self.end - self.start
+
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            start = key.start
+            if start is None:
+                start = 0
+            stop = key.stop
+            if stop is None:
+                stop = self.end - self.start
+            if stop + start <= self.end:
+                idx = slice(start+self.start, stop + self.start)
+            else:
+                raise IndexError
+        elif isinstance(key, int):
+            if key + self.start < self.end:
+                idx = key+self.start
+            else:
+                raise IndexError
+        elif isinstance(key, np.ndarray):
+            if np.max(key) + self.start < self.end:
+                idx = (self.start + key).tolist()
+            else:
+                raise IndexError
+        elif isinstance(key, list):
+            if max(key) + self.start < self.end:
+                idx = [x + self.start for x in key]
+            else:
+                raise IndexError
+        return self.data[idx]
+
+    @property
+    def shape(self):
+        return tuple([len(self)] + list(self.data.shape[1:]))

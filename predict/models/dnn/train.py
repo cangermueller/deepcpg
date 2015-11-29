@@ -11,10 +11,10 @@ import yaml
 import random
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 
-from predict.evaluation import eval_to_str
 from utils import evaluate_all, load_model, MASK, open_hdf, read_labels
-from utils import write_z, map_targets
+from utils import write_z, map_targets, ArrayView
 from callbacks import LearningRateScheduler, PerformanceLogger, ProgressLogger
+from callbacks import DataJumper
 import model as mod
 
 
@@ -70,8 +70,8 @@ class App(object):
             type=int,
             default=14000)
         p.add_argument(
-            '--max_samples',
-            help='Maximum # samples',
+            '--nb_sample',
+            help='Maximum # training samples',
             type=int)
         p.add_argument(
             '--seed',
@@ -157,15 +157,14 @@ class App(object):
 
         def read_data(path):
             f = open_hdf(path, cache_size=opts.max_mem)
-            g = f['data']
-            d = {k: g[k] for k in g.keys()}
-            g = f['pos']
-            for k in g.keys():
-                d[k] = g[k]
-            if opts.max_samples:
-                for k in d.keys():
-                    d[k] = d[k][:opts.max_samples]
-            return (f, d)
+            data = dict()
+            for k, v in f['data'].items():
+                data[k] = v
+            for k, v in f['pos'].items():
+                data[k] = v
+            for k, v in data.items():
+                data[k] = ArrayView(v, end=opts.nb_sample)
+            return (f, data)
 
         train_file, train_data = read_data(opts.train_file)
         if opts.val_file is None:
@@ -173,6 +172,10 @@ class App(object):
             val_file = None
         else:
             val_file, val_data = read_data(opts.val_file)
+        print('%d training samples' % (list(train_data.values())[0].shape[0]))
+        print('%d validation samples' % (list(val_data.values())[0].shape[0]))
+
+        #  cb.append(DataJumper(train_data, opts.nb_sample, verbose=1))
 
         sample_weights_train = sample_weights(train_data, model.output_order)
         sample_weights_val = sample_weights(val_data, model.output_order)

@@ -131,7 +131,7 @@ class ProgressLogger(Callback):
     def on_epoch_begin(self, epoch, logs={}):
         self._nb_batch = self.params['nb_sample'] // self.params['batch_size']
         self._batch = 0
-        self._interval = round(self._nb_batch * self.interval)
+        self._interval = max(1, round(self._nb_batch * self.interval))
         s = 'Epoch %d/%d' % (epoch + 1, self.params['nb_epoch'])
         self._log(self._line)
         self._log(s)
@@ -163,3 +163,23 @@ class ProgressLogger(Callback):
         if len(s):
             self._log(self._line)
             self._log(s)
+
+
+class DataJumper(Callback):
+
+    def __init__(self, data, nb_sample=None, verbose=0):
+        self.data = data
+        self._n = list(self.data.values())[0].shape[0]
+        if nb_sample is None:
+            nb_sample = self._n
+        self.nb_sample = nb_sample
+
+        self.verbose = verbose
+
+    def on_epoch_begin(self, epoch, logs={}):
+        i = np.random.randint(self._n - self.nb_sample)
+        if self.verbose:
+            print('Start index: %d' % (i))
+        for v in self.data.values:
+            v.start = i
+            v.end = i + self.nb_sample
