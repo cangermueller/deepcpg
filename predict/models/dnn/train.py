@@ -9,6 +9,7 @@ import numpy as np
 import h5py as h5
 import yaml
 import random
+import pickle
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 
 from utils import evaluate_all, load_model, MASK, open_hdf, read_labels
@@ -191,6 +192,9 @@ class App(object):
 
         if pt.isfile(model_weights_best):
             model.load_weights(model_weights_best)
+
+        with open(pt.join(opts.out_dir, 'model.pkl'), 'wb') as f:
+            pickle.dump(model)
 
         t = perf_logs_str(perf_logger.frame())
         print('\n\nLearning curve:')
