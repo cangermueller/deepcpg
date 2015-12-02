@@ -11,22 +11,25 @@ import yaml
 import random
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 
-from utils import evaluate_all, load_model, MASK, open_hdf, read_labels
-from utils import write_z, map_targets, ArrayView
-from callbacks import LearningRateScheduler, PerformanceLogger, ProgressLogger
-from callbacks import DataJumper
-import model as mod
+from predict.models.dnn.utils import evaluate_all, load_model, MASK, open_hdf, read_labels
+from predict.models.dnn.utils import write_z, map_targets, ArrayView
+from predict.models.dnn.callbacks import LearningRateScheduler, PerformanceLogger, ProgressLogger
+from predict.models.dnn.callbacks import DataJumper
+import predict.models.dnn.model as mod
 
 
 
-def sample_weights(y, outputs):
-    w = dict()
-    for o in outputs:
-        yo = y[o]
-        wo = np.zeros(yo.shape[0], dtype='float32')
-        wo[yo[:] != MASK] = 1
-        w[o] = wo
-    return w
+def sample_weights(y, weight_classes=False):
+    y = y[:]
+    class_weights = {-1: 0, 0: 1, 1: 1}
+    if weight_classes:
+        t = y[y != MASK].mean()
+        class_weights[0] = t
+        class_weights[1] = 1 - t
+    sample_weights = np.zeros(y.shape, dtype='float16')
+    for k, v in class_weights.items():
+        sample_weights[y == k] = v
+    return sample_weights
 
 def perf_logs_str(logs):
     t = logs.to_csv(None, sep='\t', float_format='%.4f', index=False)
@@ -59,8 +62,9 @@ class App(object):
             '--model_params',
             help='Model parameters file')
         p.add_argument(
-            '--model_file',
-            help='JSON model description')
+            '--retrain',
+            help='Restart training from JSON, weights file',
+            nargs=2)
         p.add_argument(
             '--model_weights',
             help='Model weights')
@@ -73,6 +77,14 @@ class App(object):
             '--nb_sample',
             help='Maximum # training samples',
             type=int)
+        p.add_argument(
+            '--nb_epoch',
+            help='Maximum # training epochs',
+            type=int)
+        p.add_argument(
+            '--weight_classes',
+            help='Weight classes by frequency',
+            action='store_true')
         p.add_argument(
             '--seed',
             help='Seed of rng',
@@ -121,17 +133,18 @@ class App(object):
 
         print('Model parameters:')
         print(model_params)
+        model_params.to_yaml(pt.join(opts.out_dir, 'model_params.yaml'))
         print()
 
-        if opts.model_file:
-            log.info('Build model from file')
-            model = load_model(opts.model_file)
-        else:
+        if opts.retrain is None:
             log.info('Build model')
             model = mod.build(model_params, targets, seq_len, cpg_len,
                               nb_unit=nb_unit)
-            with open(pt.join(opts.out_dir, 'model.json'), 'w') as f:
-                f.write(model.to_json())
+        else:
+            log.info('Retrain %s' % (opts.retrain[0]))
+            model = load_model(opts.retrain[0], opts.retrain[1])
+        with open(pt.join(opts.out_dir, 'model.json'), 'w') as f:
+            f.write(model.to_json())
 
         log.info('Fit model')
         model_weights_last = pt.join(opts.out_dir, 'model_weights_last.h5')
@@ -162,32 +175,60 @@ class App(object):
                 data[k] = v
             for k, v in f['pos'].items():
                 data[k] = v
-            for k, v in data.items():
-                data[k] = ArrayView(v, end=opts.nb_sample)
             return (f, data)
 
+        weight_classes = opts.weight_classes
+        if not weight_classes:
+            weight_classes = model_params.weight_classes
+
         train_file, train_data = read_data(opts.train_file)
+        train_weights = dict()
+        for k in model.output_order:
+            train_weights[k] = sample_weights(train_data[k],
+                                              weight_classes)
+
         if opts.val_file is None:
             val_data = train_data
+            val_weights = train_weights
             val_file = None
         else:
             val_file, val_data = read_data(opts.val_file)
+            val_weights = dict()
+            for k in model.output_order:
+                val_weights[k] = sample_weights(val_data[k],
+                                                weight_classes)
+
+        def to_view(d):
+            for k in d.keys():
+                d[k] = ArrayView(d[k])
+
+        to_view(train_data)
+        to_view(train_weights)
+        views = list(train_data.values()) + list(train_weights.values())
+        cb.append(DataJumper(views, nb_sample=opts.nb_sample, verbose=1, jump=True))
+
+        if val_data is not train_data:
+            to_view(val_data)
+            to_view(val_weights)
+            views = list(val_data.values()) + list(val_weights.values())
+            cb.append(DataJumper(views, nb_sample=opts.nb_sample, verbose=1,
+                                 jump=False))
+
         print('%d training samples' % (list(train_data.values())[0].shape[0]))
         print('%d validation samples' % (list(val_data.values())[0].shape[0]))
 
-        #  cb.append(DataJumper(train_data, opts.nb_sample, verbose=1))
-
-        sample_weights_train = sample_weights(train_data, model.output_order)
-        sample_weights_val = sample_weights(val_data, model.output_order)
-
-        model.fit(train_data, validation_data=val_data,
+        nb_epoch = opts.nb_epoch
+        if nb_epoch is None:
+            nb_epoch = model_params.nb_epoch
+        model.fit(data=train_data,
+                  sample_weight=train_weights,
+                  val_data=val_data,
+                  val_sample_weight=val_weights,
                   batch_size=model_params.batch_size,
                   shuffle=model_params.shuffle,
-                  nb_epoch=model_params.max_epochs,
+                  nb_epoch=nb_epoch,
                   callbacks=cb,
-                  verbose=0,
-                  sample_weight=sample_weights_train,
-                  sample_weight_val=sample_weights_val)
+                  verbose=0)
 
         if pt.isfile(model_weights_best):
             model.load_weights(model_weights_best)
@@ -207,7 +248,7 @@ class App(object):
         write_z(val_data, z, labels, pt.join(opts.out_dir, 'z_val.h5'))
 
         p = evaluate_all(val_data, z)
-        loss = model.evaluate(val_data)
+        loss = model.evaluate(val_data, sample_weight=val_weights)
         p['loss'] = loss
         p.index = map_targets(p.index.values, labels)
         p.index.name = 'target'

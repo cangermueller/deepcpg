@@ -48,7 +48,7 @@ class App(object):
         p.add_argument(
             '-o', '--out_file',
             help='SQL output file',
-            default='eval.sql')
+            default='perf.sql')
         p.add_argument(
             '--sql_meta',
             help='Meta columns in SQL table',

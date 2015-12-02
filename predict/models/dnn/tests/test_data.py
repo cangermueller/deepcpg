@@ -56,7 +56,7 @@ def test_data():
 
 
     # Targets sample 1
-    o = d['u0_y'][i - delta: i + delta + 1]
+    o = d['u0_y'][i - delta: i + delta + 1].ravel()
     e = np.array([1, -1,  0,  0,  1,  1, -1, -1, -1,  0, -1])
     npt.assert_array_equal(o, e)
 
@@ -125,7 +125,7 @@ def test_data_shuffled():
     i = i[0]
 
     # Targets sample 1
-    o = d['u0_y'][i - delta: i + delta + 1]
+    o = d['u0_y'][i - delta: i + delta + 1].ravel()
     e = np.array([1, -1,  0,  0,  1,  1, -1, -1, -1,  0, -1])
     npt.assert_array_equal(o, e)
 

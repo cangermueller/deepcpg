@@ -167,19 +167,30 @@ class ProgressLogger(Callback):
 
 class DataJumper(Callback):
 
-    def __init__(self, data, nb_sample=None, verbose=0):
+    def __init__(self, data, nb_sample=None, verbose=0, start=0, stop=None,
+                 jump=True):
         self.data = data
-        self._n = list(self.data.values())[0].shape[0]
+        self._n = self.data[0].shape[0]
         if nb_sample is None:
             nb_sample = self._n
+        else:
+            nb_sample = min(self._n, nb_sample)
         self.nb_sample = nb_sample
-
         self.verbose = verbose
+        if stop is None:
+            stop = start + self.nb_sample
+        for d in data:
+            d.start = start
+            d.stop = stop
+        self.jump = jump
+
 
     def on_epoch_begin(self, epoch, logs={}):
+        if not self.jump or self._n == self.nb_sample:
+            return
         i = np.random.randint(self._n - self.nb_sample)
         if self.verbose:
             print('Start index: %d' % (i))
-        for v in self.data.values:
-            v.start = i
-            v.end = i + self.nb_sample
+        for d in self.data:
+            d.start = i
+            d.stop = i + self.nb_sample

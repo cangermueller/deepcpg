@@ -3,6 +3,7 @@
 import argparse
 import sys
 import logging
+import os
 import os.path as pt
 import h5py as h5
 import pandas as pd
@@ -31,14 +32,18 @@ def to_sql(sql_path, data, table, meta):
     con.close()
 
 
-def read_test(test_file, chromos=None):
+def read_test(test_file, target=None, chromos=None):
     f = h5.File(test_file)
+    if target is not None:
+        g = f[target]
+    else:
+        g = f
     if chromos is None:
-        chromos = list(f.keys())
+        chromos = list(g.keys())
     d = dict(pos=[], y=[], z=[])
     for chromo in chromos:
         for k in d.keys():
-            d[k].append(f[pt.join(chromo, k)].value)
+            d[k].append(g[chromo][k].value)
     f.close()
     for k in ['y', 'z']:
         d[k] = np.hstack(d[k])
@@ -201,36 +206,27 @@ class App(object):
             help='Write log messages to file')
         return p
 
-    def main(self, name, opts):
-        logging.basicConfig(filename=opts.log_file,
-                            format='%(levelname)s (%(asctime)s): %(message)s')
-        log = logging.getLogger(name)
-        if opts.verbose:
-            log.setLevel(logging.DEBUG)
-        else:
-            log.setLevel(logging.INFO)
-        log.debug(opts)
+    def evaluate(self, sql_meta=dict(), target=None):
+        log = self.log
+        opts = self.opts
 
+        if target is not None:
+            sql_meta['target'] = target
         out_dir = opts.out_dir
-        if out_dir is None:
-            out_dir = pt.dirname(opts.test_file)
+        if out_dir is not None:
+            out_dir = opts.out_dir
+            if target is not None:
+                out_dir = pt.join(out_dir, target)
+                os.makedirs(out_dir, exist_ok=True)
 
-        if opts.sql_file is not None:
-            sql_meta = dict()
-            sql_meta['path'] = pt.realpath(opts.test_file)
-            if opts.sql_meta is not None:
-                for meta in opts.sql_meta:
-                    k, v = meta.split('=')
-                    sql_meta[k] = v
-
-        log.info('Read')
-        chromos, cpos, y, z = read_test(opts.test_file, opts.chromos)
-
+        chromos, cpos, y, z = read_test(opts.test_file,
+                                       target=target, chromos=opts.chromos)
         log.info('Evaluate global performance')
         p = evaluate(y, z)
         print('Global performance:')
         print(eval_to_str(p))
-        write_output(p, 'global', out_dir)
+        if out_dir is not None:
+            write_output(p, 'global', out_dir)
         if opts.sql_file:
             to_sql(opts.sql_file, p, 'global', sql_meta)
 
@@ -240,7 +236,8 @@ class App(object):
                             annos=opts.annos)
             print('Annotation-specific performance:')
             print(eval_to_str(pa))
-            write_output(pa, 'annos', out_dir)
+            if out_dir is not None:
+                write_output(pa, 'annos', out_dir)
             if opts.sql_file:
                 to_sql(opts.sql_file, pa, 'annos', sql_meta)
 
@@ -251,9 +248,42 @@ class App(object):
                             nbins=opts.stats_bins)
             print('Statistics-based performance:')
             print(eval_to_str(ps))
-            write_output(ps, 'stats', out_dir)
+            if out_dir is not None:
+                write_output(ps, 'stats', out_dir)
             if opts.sql_file:
                 to_sql(opts.sql_file, ps, 'stats', sql_meta)
+
+    def main(self, name, opts):
+        logging.basicConfig(filename=opts.log_file,
+                            format='%(levelname)s (%(asctime)s): %(message)s')
+        log = logging.getLogger(name)
+        if opts.verbose:
+            log.setLevel(logging.DEBUG)
+        else:
+            log.setLevel(logging.INFO)
+        log.debug(opts)
+
+        self.log = log
+        self.opts = opts
+
+        sql_meta = dict()
+        if opts.sql_file is not None:
+            sql_meta['path'] = pt.realpath(opts.test_file)
+            if opts.sql_meta is not None:
+                for meta in opts.sql_meta:
+                    k, v = meta.split('=')
+                    sql_meta[k] = v
+
+        log.info('Read')
+        f = h5.File(opts.test_file, 'r')
+        if list(f.keys())[0].isdigit():
+            self.evaluate(sql_meta)
+        else:
+            targets = list(f.keys())
+            log.info('Found %d targets' % (len(targets)))
+            for target in targets:
+                log.info(target)
+                self.evaluate(sql_meta, target)
 
         log.info('Done!')
 

@@ -6,6 +6,7 @@ from keras.layers import core as kcore
 from keras.layers import convolutional as kconv
 from keras.layers import normalization as knorm
 import keras.optimizers as kopt
+import re
 
 
 class CpgParams(object):
@@ -89,10 +90,11 @@ class Params(object):
         self.optimizer = 'Adam'
         self.optimizer_params = {'lr': 0.001}
         self.lr_decay = 0.5
-        self.max_epochs = 10
+        self.nb_epoch = 10
         self.early_stop = 3
         self.batch_size = 128
         self.shuffle = 'batch'
+        self.weight_classes = False
 
     def validate(self):
         for k in ['seq', 'cpg', 'target']:
@@ -112,6 +114,13 @@ class Params(object):
             t = yaml.load(f.read())
             p.update(t)
         return p
+
+    def to_yaml(self, path):
+        dparam = self.__dict__
+        with open(path, 'w') as f:
+            t = yaml.dump(dparam, default_flow_style=False)
+            t = re.subn('!![^\s]+', '', t)[0]
+            f.write(t)
 
     def update(self, params):
         params = dict(params)
@@ -196,7 +205,25 @@ class ParamSampler(object):
         return param
 
 
-
+def standardize_weights(y, sample_weight=None, class_weight=None):
+    if sample_weight is not None:
+        return sample_weight
+    elif isinstance(class_weight, dict):
+        if len(y.shape) > 3:
+            raise Exception('class_weight not supported for 4+ dimensional targets.')
+        yshape = y.shape
+        # for time-distributed data, collapse time and sample
+        y = np.reshape(y, (-1, yshape[-1]))
+        if y.shape[1] > 1:
+            y_classes = y.argmax(axis=1)
+        elif y.shape[1] == 1:
+            y_classes = np.reshape(y, y.shape[0])
+        else:
+            y_classes = y
+        class_weights = np.asarray([class_weight[cls] for cls in y_classes])
+        return np.reshape(class_weights, yshape[:-1] + (1,))  # uncollapse initial dimensions
+    else:
+        return np.ones(y.shape[:-1] + (1,))
 
 
 def seq_layers(params):
@@ -294,7 +321,7 @@ def build(params, targets, seq_len=None, cpg_len=None, compile=True,
     if nb_unit is None:
         nb_unit = len(targets)
 
-    model = kmodels.Graph()
+    model = kmodels.CpgGraph()
     prev_nodes = []
     if params.seq:
         assert seq_len is not None, 'seq_len required!'
