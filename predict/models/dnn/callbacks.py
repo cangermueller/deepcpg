@@ -210,3 +210,23 @@ class DataJumper(Callback):
         for d in self.data:
             d.start = i
             d.stop = i + self.nb_sample
+
+
+class Timer(Callback):
+
+    def __init__(self, max_time=None, verbose=1):
+        """max_time in seconds."""
+        self.max_time = max_time
+        self.verbose = verbose
+
+    def on_train_begin(self, logs={}):
+        self._time_start = time()
+
+    def on_epoch_end(self, batch, logs={}):
+        if self.max_time is None:
+            return
+        elapsed = time() - self._time_start
+        if elapsed > self.max_time:
+            if self.verbose:
+                print('Stop training after %.2fh' % (elapsed / 3600))
+            self.model.stop_training = True

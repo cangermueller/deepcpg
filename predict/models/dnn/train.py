@@ -14,7 +14,7 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint
 from predict.models.dnn.utils import evaluate_all, load_model, MASK, open_hdf, read_labels
 from predict.models.dnn.utils import write_z, map_targets, ArrayView
 from predict.models.dnn.callbacks import DataJumper
-from predict.models.dnn.callbacks import LearningRateScheduler, PerformanceLogger, ProgressLogger
+from predict.models.dnn.callbacks import LearningRateScheduler, PerformanceLogger, ProgressLogger, Timer
 import predict.models.dnn.model as mod
 
 
@@ -97,6 +97,10 @@ class App(object):
             help='Maximum # training samples per epoch',
             type=int)
         p.add_argument(
+            '--max_time',
+            help='Maximum training time in hours',
+            type=float)
+        p.add_argument(
             '--max_mem',
             help='Maximum memory load',
             type=int,
@@ -173,7 +177,7 @@ class App(object):
         batch_size = opts.batch_size
         if batch_size is None:
             if 'c_x' in model.input_order and 's_x' in model.input_order:
-                batch_size = 768
+                batch_size = 128
             elif 's_x' in model.input_order:
                 batch_size = 1024
             else:
@@ -197,6 +201,9 @@ class App(object):
 
         cb.append(LearningRateScheduler(lr_schedule,
                                         patience=opts.early_stop - 1))
+
+        if opts.max_time is not None:
+            cb.append(Timer(opts.max_time * 3600 * 0.8))
 
         def save_lc():
             log = {'lc.csv': perf_logger.frame(),

@@ -1,0 +1,195 @@
+---
+title: Evaluation
+output:
+  html_document:
+    toc: yes
+---
+
+```{r, include=F}
+library(knitr)
+opts_chunk$set(echo=F, warning=F, message=F)
+```
+
+```{r, include=F}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(RSQLite)
+library(xtable)
+library(grid)
+```
+
+```{r}
+options(xtable.type='html')
+```
+
+```{r}
+dat <- list()
+opts <- list()
+opts$db_file <- './perf_test.sql'
+opts$models <- c('win_avg', 'rf', 'dnn_cs016')
+```
+
+```{r}
+theme_pub <- function() {
+  p <- theme(
+    axis.text=element_text(size=rel(1.0), color='black'),
+    axis.title=element_text(size=rel(1.5)),
+    axis.title.y=element_text(vjust=1.0),
+    axis.title.x=element_text(vjust=-0.5),
+    legend.position='top',
+    legend.text=element_text(size=rel(1.0)),
+    legend.title=element_text(size=rel(1.0)),
+    legend.key=element_rect(fill='transparent'),
+    panel.border=element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    axis.line = element_line(colour="black", size=1),
+    axis.ticks.length = unit(.3, 'cm'),
+    axis.ticks.margin = unit(.3, 'cm')
+    )
+  return (p)
+}
+
+get_query <- function(query) {
+  driver <- dbDriver('SQLite')
+  con <- dbConnect(driver, opts$db_file)
+  d <- dbGetQuery(con, query)
+  dbDisconnect(con)
+  return (d)
+}
+
+query_db <- function(table, models=NULL) {
+  driver <- dbDriver('SQLite')
+  con <- dbConnect(driver, opts$db_file)
+  h <- sprintf('SELECT * FROM %s', table)
+  if (is.null(models)) {
+    d <- dbGetQuery(con, h)
+  } else {
+    h <- sprintf('%s WHERE model IN (:x)', h)
+    p <- data.frame(x=models)
+    d <- dbGetPreparedQuery(con, h, p)
+  }
+  dbDisconnect(con)
+  if ('target' %in% names(d)) {
+    d <- d[grepl('2i', as.vector(d$target)),]
+    d <- d %>% mutate(cell_type=factor(grepl('2i', target), levels=c(T, F), labels=c('2i', 'Serum')))
+    d <- d %>% mutate(target=factor(target))
+  }
+  d <- d %>% mutate(model=factor(model))
+  d <- d %>% tbl_df
+  return (d)
+}
+```
+
+```{r include=F}
+dat$global <- query_db('global', opts$models)
+nb_model <- length(unique(dat$global$model))
+stats <- dat$global %>% group_by(model) %>%
+  summarise_each(funs(mean), auc, acc, mcc, tpr, tnr) %>%
+  ungroup %>%
+  arrange(desc(auc))
+models <- stats
+models <- as.vector(models$model)
+dat$global <- dat$global %>% filter(model %in% models) %>% droplevels %>%
+  mutate(model=factor(model, levels=models))
+```
+
+# Global performance
+
+```{r results='asis'}
+xtable(stats, digit=3)
+```
+
+```{r}
+m <- models %>% head(10)
+```
+
+```{r fig.height=20, fig.width=10}
+d <- dat$global %>%
+  filter(model %in% m) %>% droplevels %>%
+  mutate(model=factor(model, levels=m))
+d <- d %>% select(-c(cell_type, path, id, trial, eval))
+d <- d %>% gather(metric, value, -c(model, target))
+ggplot(d, aes(x=model, y=value)) +
+  geom_boxplot(aes(fill=model), alpha=1.0, outlier.size=0) +
+  geom_jitter(position=position_jitter(width=0.1, height=0)) +
+  xlab('') + ylab('') +
+  theme_pub() +
+  theme(legend.position='right') +
+  theme(axis.text.x=element_text(angle=40, hjust=1)) +
+  facet_wrap(~metric, ncol=1, scales='free')
+```
+
+```{r}
+m <- models %>% head(9)
+```
+
+```{r fig.width=10, fig.height=ceiling(length(m) / 2) * 3}
+m <- m[m == 'rf' || grepl('^dnn_', m)]
+d <- dat$global %>% filter(model %in% m) %>% droplevels %>%
+  mutate(model=factor(model, levels=m))
+d <- d %>% select(model, target, auc) %>% spread(model, auc) %>%
+  gather(model, auc, -c(target, rf))
+lim <- c(min(d$auc), max(d$auc))
+ggplot(d, aes(x=rf, y=auc)) +
+  geom_abline(slope=1, color='darkgrey', linetype='dashed') +
+  geom_point() +
+  facet_wrap(~model, ncol=2, scales='free') +
+  xlab('RF') + ylab('Model') +
+  # xlim(lim) + ylim(lim) +
+  theme_pub()
+
+```
+
+# Genomic contexts
+
+```{r include=F}
+d <- query_db('annos', opts$models)
+d <- d %>% mutate(anno=sub('loc_', '', anno))
+dat$annos <- d
+```
+
+```{r}
+m <- models %>% head(5)
+```
+
+```{r fig.width=8, fig.height=length(m)*4}
+d <- dat$annos %>% filter(model %in% m) %>% droplevels %>%
+  mutate(model=factor(model, levels=m))
+h <- d %>% group_by(anno) %>% summarise(auc=mean(auc)) %>% arrange(desc(auc)) %>% select(anno) %>% unlist
+d <- d %>% mutate(anno=factor(anno, levels=rev(h)))
+ggplot(d, aes(x=anno, y=auc, fill=model)) +
+  geom_boxplot() +
+  theme_pub() +
+  ylab('AUC') +
+  coord_flip()
+```
+
+
+# Statistics
+
+```{r include=F}
+d <- query_db('stats', opts$models)
+d <- d %>%
+  mutate(bin=gsub('\\[', '', gsub('\\]', '', gsub('[()]', '', bin)))) %>%
+  separate(bin, c('bin_lo', 'bin_up'), ', ') %>%
+  mutate(bin_lo=as.numeric(bin_lo), bin_up=as.numeric(bin_up),
+      bin_mid=0.5*(bin_lo + bin_up))
+h <- d$stat
+h <- sub('win_(.+)', '\\1 (win)', h)
+d <- d %>% mutate(stat=factor(h, levels=sort(unique(h))))
+dat$stats <- d
+```
+
+```{r fig.width=10, fig.height=25}
+m <- models %>% head(5)
+d <- dat$stats %>% filter(model %in% m) %>% droplevels %>%
+  mutate(model=factor(model, levels=m))
+ggplot(d, aes(x=bin_mid, y=auc, color=model)) +
+  geom_smooth(se=F, size=1.2) +
+  facet_wrap(~stat, scales='free', ncol=1) +
+  xlab('') + ylab('AUC') +
+  theme_pub() + theme(legend.position='right')
+```
