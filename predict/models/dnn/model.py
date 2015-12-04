@@ -305,6 +305,7 @@ def target_layers(params):
     layers = []
     if params.nb_hidden:
         layer = kcore.Dense(params.nb_hidden,
+                            activation='linear',
                             init='glorot_uniform')
         layers.append(('h1', layer))
         if params.batch_norm:
