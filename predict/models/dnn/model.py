@@ -1,7 +1,7 @@
 import yaml
 import numpy as np
 
-import keras.models as kmodels
+from keras.models import CpgGraph
 from keras.layers import core as kcore
 from keras.layers import convolutional as kconv
 from keras.layers import normalization as knorm
@@ -231,10 +231,14 @@ def seq_layers(params):
         layers.append(('xd', layer))
     layer = kconv.Convolution1D(nb_filter=params.nb_filter,
                                 filter_length=params.filter_len,
-                                activation=params.activation,
+                                activation='linear',
                                 init='glorot_uniform',
                                 border_mode='same')
     layers.append(('c1', layer))
+    if params.batch_norm:
+        layer = knorm.BatchNormalization()
+        layers.append(('c1b', layer))
+    layers.append(('c1a', kcore.Activation(params.activation)))
     layer = kconv.MaxPooling1D(pool_length=params.pool_len)
     layers.append(('p1', layer))
     layer = kcore.Flatten()
@@ -244,8 +248,8 @@ def seq_layers(params):
         layers.append(('f1d', layer))
     if params.nb_hidden:
         layer = kcore.Dense(output_dim=params.nb_hidden,
-                            init='glorot_uniform',
-                            activation=params.activation)
+                            activation='linear',
+                            init='glorot_uniform')
         layers.append(('h1', layer))
         if params.batch_norm:
             layer = knorm.BatchNormalization()
@@ -266,10 +270,14 @@ def cpg_layers(params):
     layer = kconv.Convolution2D(nb_filter=params.nb_filter,
                                 nb_row=1,
                                 nb_col=params.filter_len,
-                                activation=params.activation,
+                                activation='linear',
                                 init='glorot_uniform',
                                 border_mode='same')
     layers.append(('c1', layer))
+    if params.batch_norm:
+        layer = knorm.BatchNormalization()
+        layers.append(('c1b', layer))
+    layers.append(('c1a', kcore.Activation(params.activation)))
     layer = kconv.MaxPooling2D(pool_size=(1, params.pool_len))
     layers.append(('p1', layer))
     layer = kcore.Flatten()
@@ -279,6 +287,7 @@ def cpg_layers(params):
         layers.append(('f1d', layer))
     if params.nb_hidden:
         layer = kcore.Dense(params.nb_hidden,
+                            activation='linear',
                             init='glorot_uniform')
         layers.append(('h1', layer))
         if params.batch_norm:
@@ -296,8 +305,8 @@ def target_layers(params):
     layers = []
     if params.nb_hidden:
         layer = kcore.Dense(params.nb_hidden,
-                            init='glorot_uniform',
-                            activation='relu')
+                            activation='linear',
+                            init='glorot_uniform')
         layers.append(('h1', layer))
         if params.batch_norm:
             layer = knorm.BatchNormalization()
@@ -319,7 +328,7 @@ def build(params, targets, seq_len=None, cpg_len=None, compile=True,
     if nb_unit is None:
         nb_unit = len(targets)
 
-    model = kmodels.CpgGraph()
+    model = CpgGraph()
     prev_nodes = []
     if params.seq:
         assert seq_len is not None, 'seq_len required!'

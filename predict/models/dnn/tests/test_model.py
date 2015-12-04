@@ -1,5 +1,5 @@
 from predict.models.dnn.model import *
-from keras.activations import sigmoid, relu
+import keras.activations as kact
 import scipy.stats as sps
 
 
@@ -130,17 +130,27 @@ def test_seq():
     pc.pool_len = 4
 
     p.target.nb_hidden = 0
+    p.target.batch_norm = True
+
     m = build(p, ['u0', 'u1'], seq_len=10, compile=False)
+
+    assert 's_x' in m.input_order
     assert 'u0_y' in m.output_order
     assert 'u1_y' in m.output_order
-    assert 's_x' in m.input_order
-    assert 's_h1b' in m.nodes.keys()
-    assert m.nodes['s_h1d'].p == pc.drop_out
+    assert 's_c1b' in m.nodes
+    assert 's_h1b' in m.nodes
     assert m.nodes['s_xd'].p == pc.drop_in
-    assert m.nodes['s_h1a'].activation is sigmoid
+    assert m.nodes['s_f1d'].p == pc.drop_out
+    assert m.nodes['s_h1d'].p == pc.drop_out
+    assert m.nodes['s_c1'].activation is kact.linear
+    assert m.nodes['s_c1a'].activation is kact.sigmoid
+    assert m.nodes['s_h1'].activation is kact.linear
+    assert m.nodes['s_h1'].output_dim == pc.nb_hidden
+    assert m.nodes['s_h1a'].activation is kact.sigmoid
     t = m.nodes['s_c1']
     assert t.filter_length == pc.filter_len
     assert t.nb_filter == pc.nb_filter
+    assert 't_h1b' not in m.nodes
 
 
 def test_cpg():
@@ -158,20 +168,31 @@ def test_cpg():
     pc.filter_len = 2
     pc.pool_len = 4
 
-    p.target.nb_hidden = 0
+    p.target.nb_hidden = 2
+    p.target.batch_norm = True
 
     m = build(p, ['u0', 'u1'], cpg_len=10, compile=False)
+
+    assert 'c_x' in m.input_order
     assert 'u0_y' in m.output_order
     assert 'u1_y' in m.output_order
-    assert 'c_x' in m.input_order
-    assert 'c_h1b' in m.nodes.keys()
-    assert m.nodes['c_h1d'].p == pc.drop_out
+    assert 'c_c1b' in m.nodes
+    assert 'c_h1b' in m.nodes
     assert m.nodes['c_xd'].p == pc.drop_in
-    assert m.nodes['c_h1a'].activation is sigmoid
+    assert m.nodes['c_f1d'].p == pc.drop_out
+    assert m.nodes['c_h1d'].p == pc.drop_out
+    assert m.nodes['c_c1a'].activation is kact.sigmoid
+    assert m.nodes['c_c1'].activation is kact.linear
+    assert m.nodes['c_h1'].activation is kact.linear
+    assert m.nodes['c_h1'].output_dim == pc.nb_hidden
+    assert m.nodes['c_h1a'].activation is kact.sigmoid
     t = m.nodes['c_c1']
     assert t.nb_filter == pc.nb_filter
     assert t.nb_row == 1
     assert t.nb_col == pc.filter_len
+
+    assert 'u0_h1b' in m.nodes
+    assert 'u1_h1b' in m.nodes
 
 
 def test_joint():
@@ -195,8 +216,8 @@ def test_joint():
     p.cpg.nb_filter = 2
 
     p.target = TargetParams()
-    p.target.activation = 'sigmoid'
-    p.target.nb_hidden = 2
+    p.target.activation = 'tanh'
+    p.target.nb_hidden = 5
     p.target.drop_out = 0.0
     p.target.batch_norm = True
 
@@ -208,29 +229,43 @@ def test_joint():
 
     n = m.nodes
 
+    assert 's_c1b' not in n
+    assert 's_h1b' not in n
+    assert n['s_xd'].p == p.seq.drop_in
+    assert n['s_f1d'].p == p.seq.drop_out
+    assert n['s_h1d'].p == p.seq.drop_out
+    assert 's_h1b' not in n
+    assert n['s_c1'].nb_filter is p.seq.nb_filter
+    assert n['s_c1'].filter_length is p.seq.filter_len
+    assert n['s_c1a'].activation is kact.relu
+    assert n['s_c1'].activation is kact.linear
+    assert n['s_h1'].activation is kact.linear
+    assert n['s_h1'].output_dim == p.seq.nb_hidden
+    assert n['s_h1a'].activation is kact.relu
+
+    assert 'c_xd' not in n
+    assert 'c_h1d' not in n
+    assert 'c_c1b' in n
+    assert 'c_h1b' in n
+    assert n['c_c1a'].activation is kact.sigmoid
+    assert n['c_c1'].activation is kact.linear
+    assert n['c_c1'].nb_filter is p.cpg.nb_filter
+    assert n['c_c1'].nb_row == 1
+    assert n['c_c1'].nb_col is p.cpg.filter_len
+    assert n['c_h1'].output_dim == p.cpg.nb_hidden
+    assert n['c_h1'].activation is kact.linear
+    assert n['c_h1a'].activation is kact.sigmoid
+
     for target in targets:
         def label(x):
             return '%s_%s' % (target, x)
         assert label('y') in m.output_order
-        assert n[label('o')].activation is sigmoid
+        assert n[label('h1')].output_dim == p.target.nb_hidden
+        assert n[label('h1')].activation is kact.linear
+        assert n[label('h1a')].activation is kact.tanh
+        assert n[label('o')].activation is kact.sigmoid
         assert label('h1d') not in n.keys()
-        assert label('h1b') in n.keys()
-
-    assert n['s_xd'].p == p.seq.drop_in
-    assert n['s_f1d'].p == p.seq.drop_out
-    assert n['s_h1d'].p == p.seq.drop_out
-    assert n['s_c1'].activation is relu
-    assert n['s_c1'].nb_filter is p.seq.nb_filter
-    assert n['s_c1'].filter_length is p.seq.filter_len
-    assert n['s_h1a'].activation is relu
-
-    assert 'c_xd' not in n.keys()
-    assert 'c_h1d' not in n.keys()
-    assert n['c_c1'].activation is sigmoid
-    assert n['c_c1'].nb_filter is p.cpg.nb_filter
-    assert n['c_c1'].nb_row == 1
-    assert n['c_c1'].nb_col is p.cpg.filter_len
-    assert n['c_h1a'].activation is sigmoid
+        assert label('h1b') in n
 
     #  assert isinstance(m.optimizer, SGD)
     #  assert round(float(m.optimizer.lr.get_value()), 3) == p.optimizer_params['lr']
