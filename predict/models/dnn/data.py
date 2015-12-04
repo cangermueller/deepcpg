@@ -338,7 +338,7 @@ class App(object):
             ))
 
         for t in ltargetsy:
-            s = (N,)
+            s = (N, 1)
             fd.create_dataset(t, shape=s, dtype='int8',
                               chunks=chunk_size(s, chunk_out))
 
@@ -377,7 +377,7 @@ class App(object):
                 t = read_cpg(target_file, chromo, cpos)
                 if len(target_files) == 1:
                     assert np.all((t == 0) | (t == 1))
-                fd[target][s:e] = t[shuffle.argsort()]
+                fd[target][s:e, 0] = t[shuffle.argsort()]
 
             if nb_knn > 0:
                 chunk = 0

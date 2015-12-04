@@ -79,13 +79,9 @@ class App(object):
             temp = yaml.load(f.read())
         eval_dict(temp)
         for i, param in enumerate(ParamSampler(temp, opts.nb_sample)):
-            dparam = param.__dict__
             t = '%s%03d.yaml' % (opts.out_base, opts.offset + i)
             log.info(t)
-            with open(t, 'w') as f:
-                t = yaml.dump(dparam, default_flow_style=False)
-                t = re.subn('!![^\s]+', '', t)[0]
-                f.write(t)
+            param.to_yaml(t)
 
         return 0
 

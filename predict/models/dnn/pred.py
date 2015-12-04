@@ -6,9 +6,11 @@ import logging
 import os.path as pt
 import pandas as pd
 import numpy as np
+import h5py as h5
 
-from predict.models.dnn.utils import read_labels, open_hdf, load_model, write_z, ArrayView
-
+from predict.models.dnn.utils import read_labels, open_hdf, load_model, ArrayView
+from utils import MASK
+from utils import write_z2 as write_z
 
 class App(object):
 
@@ -37,13 +39,23 @@ class App(object):
             '-o', '--out_file',
             help='Output file')
         p.add_argument(
-            '--batch_size',
-            help='Batch size',
-            type=int,
-            default=1024)
+            '--chromo',
+            help='Chromosome')
+        p.add_argument(
+            '--start',
+            help='Start position',
+            type=int)
+        p.add_argument(
+            '--end',
+            help='End position',
+            type=int)
         p.add_argument(
             '--nb_sample',
             help='Maximum # training samples',
+            type=int)
+        p.add_argument(
+            '--nb_dropout',
+            help='Number of dropout samples',
             type=int)
         p.add_argument(
             '--max_mem',
@@ -78,9 +90,6 @@ class App(object):
             np.random.seed(opts.seed)
         pd.set_option('display.width', 150)
 
-        log.info('Load model')
-        model = load_model(opts.model_file, opts.model_weights_file)
-
         log.info('Load data')
         def read_data(path):
             f = open_hdf(path, cache_size=opts.max_mem)
@@ -94,12 +103,31 @@ class App(object):
         labels = read_labels(opts.data_file)
         data_file, data = read_data(opts.data_file)
 
+        if opts.chromo is not None:
+            sel = data['chromo'].value == str(opts.chromo).encode()
+            if opts.start is not None:
+                sel &= data['pos'].value >= opts.start
+            if opts.end is not None:
+                sel &= data['pos'].value <= opts.end
+            if sel.sum() == 0:
+                log.warn('No samples satisfy filter!')
+                return 0
+            log.info('Selecting %d samples' % (sel.sum()))
+            for k in data.keys():
+                if len(data[k].shape) > 1:
+                    data[k] = data[k][sel, :]
+                else:
+                    data[k] = data[k][sel]
+
         def to_view(d):
             for k in d.keys():
                 d[k] = ArrayView(d[k], stop=opts.nb_sample)
 
         to_view(data)
         log.info('%d samples' % (list(data.values())[0].shape[0]))
+
+        log.info('Load model')
+        model = load_model(opts.model_file, opts.model_weights_file)
 
         def progress(batch, nb_batch):
             batch += 1
@@ -108,21 +136,25 @@ class App(object):
                 print('%5d / %d (%.1f%%)' % (batch, nb_batch,
                                              batch / nb_batch * 100))
 
-        batch_size = opts.batch_size
-        if batch_size is None:
-            if 'c_x' in model.input_order and 's_x' in model.input_order:
-                batch_size = 768
-            elif 's_x' in model.input_order:
-                batch_size = 1024
-            else:
-                batch_size = 2048
+        def predict(dropout=False):
+            z = model.predict(data, verbose=opts.verbose,
+                            callbacks=[progress], dropout=dropout)
+            return z
 
-        log.info('Predict')
-        z = model.predict(data, verbose=opts.verbose,
-                          callbacks=[progress],
-                          batch_size=opts.batch_size)
-        log.info('Write')
-        write_z(data, z, labels, opts.out_file)
+        if opts.nb_dropout:
+            log.info('Using dropout')
+            model.compile(loss=model.loss, optimizer=model.optimizer,
+                          dropout=True)
+            for i in range(opts.nb_dropout):
+                log.info('Predict (%d / %d)' % (i + 1, opts.nb_dropout))
+                z = predict(dropout=True)
+                write_z(data, z, labels, opts.out_file,
+                        unlabeled=True, name='z%d' % (i))
+        else:
+            log.info('Predict')
+            z = predict()
+            write_z(data, z, labels, opts.out_file,
+                    unlabeled=True, name='z')
 
         data_file.close()
         log.info('Done!')

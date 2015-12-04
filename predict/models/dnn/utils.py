@@ -49,8 +49,8 @@ def read_labels(path):
 
 def map_targets(targets, labels):
     targets = [x.replace('_y', '') for x in targets]
-    labels = {x[0]: x[1] for x in zip(labels['targets'], labels['files'])}
-    targets = {labels[x] for x in targets}
+    targets_map = {x[0]: x[1] for x in zip(labels['targets'], labels['files'])}
+    targets = [targets_map[x] for x in targets]
     return targets
 
 
@@ -60,8 +60,8 @@ def write_z(data, z, labels, out_file):
     f = h5.File(out_file, 'w')
     for target in z.keys():
         d = dict()
-        d['z'] = z[target]
-        d['y'] = data[target][:]
+        d['z'] = np.ravel(z[target])
+        d['y'] = np.ravel(data[target][:])
         d['pos'] = data['pos'][:]
         d['chromo'] = data['chromo'][:]
         t = d['y'] != MASK
@@ -82,6 +82,49 @@ def write_z(data, z, labels, out_file):
             for k in dc.keys():
                 gtc[k] = dc[k]
     f.close()
+
+
+def write_z2(data, z, labels, out_file, unlabeled=False, name='z'):
+    target_map = {x[0] + '_y': x[1] for x in zip(labels['targets'], labels['files'])}
+
+    f = h5.File(out_file, 'a')
+    for target in z.keys():
+        d = dict()
+        d[name] = np.ravel(z[target])
+        d['y'] = np.ravel(data[target][:])
+        d['pos'] = data['pos'][:]
+        d['chromo'] = data['chromo'][:]
+        if not unlabeled:
+            t = d['y'] != MASK
+            for k in d.keys():
+                d[k] = d[k][t]
+
+        t = target_map[target]
+        if t in f:
+            gt = f[t]
+        else:
+            gt = f.create_group(t)
+        for chromo in np.unique(d['chromo']):
+            t = d['chromo'] == chromo
+            dc = {k: d[k][t] for k in d.keys()}
+            t = np.argsort(dc['pos'])
+            for k in dc.keys():
+                dc[k] = dc[k][t]
+            t = dc['pos']
+            assert np.all(t[:-1] < t[1:])
+
+            if chromo in gt:
+                gtc = gt[chromo]
+            else:
+                gtc = gt.create_group(chromo)
+            for k in dc.keys():
+                if k not in gtc:
+                    gtc[k] = dc[k]
+    f.close()
+
+
+
+
 
 
 def open_hdf(filename, acc='r', cache_size=None):
@@ -142,20 +185,20 @@ class DataReader(object):
     def next(self):
         return self.__next__()
 
+
 class ArrayView(object):
 
-    def __init__(self, data, start=0, end=None):
+    def __init__(self, data, start=0, stop=None):
         self.start = start
-        if end is None:
-            end = data.shape[0]
-        self.end = end
+        if stop is None:
+            stop = data.shape[0]
+        else:
+            stop = min(stop, data.shape[0])
+        self.stop = stop
         self.data = data
 
     def __len__(self):
-        return self.end - self.start
-
-    def __len__(self):
-        return self.end - self.start
+        return self.stop - self.start
 
     def __getitem__(self, key):
         if isinstance(key, slice):
@@ -164,24 +207,25 @@ class ArrayView(object):
                 start = 0
             stop = key.stop
             if stop is None:
-                stop = self.end - self.start
-            if stop + start <= self.end:
-                idx = slice(start+self.start, stop + self.start)
+                stop = self.stop - self.start
+            if self.start + stop <= self.stop:
+                idx = slice(self.start + start,
+                            self.start + stop)
             else:
                 raise IndexError
         elif isinstance(key, int):
-            if key + self.start < self.end:
-                idx = key+self.start
+            if self.start + key < self.stop:
+                idx = self.start + key
             else:
                 raise IndexError
         elif isinstance(key, np.ndarray):
-            if np.max(key) + self.start < self.end:
+            if self.start + np.max(key) < self.stop:
                 idx = (self.start + key).tolist()
             else:
                 raise IndexError
         elif isinstance(key, list):
-            if max(key) + self.start < self.end:
-                idx = [x + self.start for x in key]
+            if self.start + max(key) < self.stop:
+                idx = [self.start + x for x in key]
             else:
                 raise IndexError
         return self.data[idx]

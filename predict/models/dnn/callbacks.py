@@ -35,13 +35,15 @@ class LearningRateScheduler(Callback):
 
 class PerformanceLogger(Callback):
 
-    def __init__(self, batch_logs=['loss', 'acc'], epoch_logs=['val_loss', 'val_acc']):
+    def __init__(self, batch_logs=['loss', 'acc'],
+                 epoch_logs=['val_loss', 'val_acc'], callbacks=[]):
         if batch_logs is None:
             batch_logs = []
         if epoch_logs is None:
             epoch_logs = []
         self.batch_logs = batch_logs
         self.epoch_logs = epoch_logs
+        self.callbacks = callbacks
 
     def on_train_begin(self, logs={}):
         self._batch_logs = []
@@ -57,6 +59,8 @@ class PerformanceLogger(Callback):
     def on_epoch_end(self, batch, logs={}):
         l = {k: v for k, v in logs.items() if k in self.epoch_logs}
         self._epoch_logs.append(l)
+        for cb in self.callbacks:
+            cb()
 
     def _list_to_frame(self, l, keys):
         keys = [k for k in keys if k in l[0].keys()]
@@ -129,33 +133,45 @@ class ProgressLogger(Callback):
         self._log(s)
 
     def on_epoch_begin(self, epoch, logs={}):
-        self._nb_batch = self.params['nb_sample'] // self.params['batch_size']
+        self._nb_batch = int(np.ceil(self.params['nb_sample'] / self.params['batch_size']))
         self._batch = 0
         self._interval = max(1, round(self._nb_batch * self.interval))
         s = 'Epoch %d/%d' % (epoch + 1, self.params['nb_epoch'])
         self._log(self._line)
         self._log(s)
         self._log(self._line)
+        self._seen = 0
+        self._totals = dict()
 
     def on_batch_end(self, batch, logs={}):
         self._batch += 1
-        mins = (time() - self._time_start) / 60
+        batch_size = logs.get('size', 0)
+        self._seen += batch_size
+
+        for k, v in logs.items():
+            if k in self.batch_logs:
+                if k not in self._totals.keys():
+                    self._totals[k] = 0
+                self._totals[k] += v * batch_size
+
         if self._batch == 1 or self._batch % self._interval == 0:
+            mins = (time() - self._time_start) / 60
             t = len(str(self._nb_batch))
             s = '%5.1f%%\t(%' + str(t) + 'd/%d)\t%7.2f min'
             s = s % (
-                self._batch / self._nb_batch * 100,
+                self._batch / (self._nb_batch + 1e-5) * 100,
                 self._batch,
                 self._nb_batch,
                 mins
             )
-            for k in self.batch_logs:
-                if k in logs.keys():
-                    s += '\t%s=%.3f' % (k, logs[k])
+            for k, v in self._totals.items():
+                s += '\t%s=%.3f' % (k, v / max(self._seen, 1e-5))
             self._log(s)
 
     def on_epoch_end(self, batch, logs={}):
         s = ''
+        for k, v in self._totals.items():
+            s += '\t%s=%.3f' % (k, v / max(self._seen, 1e-5))
         for k in self.epoch_logs:
             if k in logs:
                 s += '\t%5s=%.3f' % (k, logs[k])
@@ -167,19 +183,30 @@ class ProgressLogger(Callback):
 
 class DataJumper(Callback):
 
-    def __init__(self, data, nb_sample=None, verbose=0):
+    def __init__(self, data, nb_sample=None, verbose=0, start=0, stop=None,
+                 jump=True):
         self.data = data
-        self._n = list(self.data.values())[0].shape[0]
+        self._n = self.data[0].shape[0]
         if nb_sample is None:
             nb_sample = self._n
+        else:
+            nb_sample = min(self._n, nb_sample)
         self.nb_sample = nb_sample
-
         self.verbose = verbose
+        if stop is None:
+            stop = start + self.nb_sample
+        for d in data:
+            d.start = start
+            d.stop = stop
+        self.jump = jump
+
 
     def on_epoch_begin(self, epoch, logs={}):
+        if not self.jump or self._n == self.nb_sample:
+            return
         i = np.random.randint(self._n - self.nb_sample)
         if self.verbose:
             print('Start index: %d' % (i))
-        for v in self.data.values:
-            v.start = i
-            v.end = i + self.nb_sample
+        for d in self.data:
+            d.start = i
+            d.stop = i + self.nb_sample
