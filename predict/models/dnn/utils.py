@@ -84,6 +84,49 @@ def write_z(data, z, labels, out_file):
     f.close()
 
 
+def write_z2(data, z, labels, out_file, unlabeled=False, name='z'):
+    target_map = {x[0] + '_y': x[1] for x in zip(labels['targets'], labels['files'])}
+
+    f = h5.File(out_file, 'a')
+    for target in z.keys():
+        d = dict()
+        d[name] = np.ravel(z[target])
+        d['y'] = np.ravel(data[target][:])
+        d['pos'] = data['pos'][:]
+        d['chromo'] = data['chromo'][:]
+        if not unlabeled:
+            t = d['y'] != MASK
+            for k in d.keys():
+                d[k] = d[k][t]
+
+        t = target_map[target]
+        if t in f:
+            gt = f[t]
+        else:
+            gt = f.create_group(t)
+        for chromo in np.unique(d['chromo']):
+            t = d['chromo'] == chromo
+            dc = {k: d[k][t] for k in d.keys()}
+            t = np.argsort(dc['pos'])
+            for k in dc.keys():
+                dc[k] = dc[k][t]
+            t = dc['pos']
+            assert np.all(t[:-1] < t[1:])
+
+            if chromo in gt:
+                gtc = gt[chromo]
+            else:
+                gtc = gt.create_group(chromo)
+            for k in dc.keys():
+                if k not in gtc:
+                    gtc[k] = dc[k]
+    f.close()
+
+
+
+
+
+
 def open_hdf(filename, acc='r', cache_size=None):
     if cache_size:
         propfaid = h5.h5p.create(h5.h5p.FILE_ACCESS)

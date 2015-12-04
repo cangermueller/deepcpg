@@ -28,6 +28,12 @@ def to_sql(sql_path, data, table, meta):
         con.execute('DELETE FROM %s WHERE id = "%s"' % (table, id_))
     except sql.OperationalError:
         pass
+    cols = pd.read_sql('SELECT * FROM %s LIMIT 1' % (table), con)
+    if len(cols):
+        t = sorted(set(data.columns) - set(cols.columns))
+        if len(t):
+            print('Ignoring columns %s' % (' '.join(t)))
+            data = data.loc[:, cols.columns]
     data.to_sql(table, con, if_exists='append', index=False)
     con.close()
 

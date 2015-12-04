@@ -28,7 +28,8 @@ def test_params():
         'seq': seq,
         'target': target,
         'optimizer': 'RMSprop',
-        'optimizer_params': {'lr': 0.5}
+        'optimizer_params': {'lr': 0.5},
+        'foo': 'bar'
     })
     for k, v in seq.items():
         assert vars(p.seq)[k] == v
@@ -38,9 +39,21 @@ def test_params():
         assert vars(p.target)[k] == v
     assert p.optimizer == 'RMSprop'
     assert p.optimizer_params['lr'] == 0.5
+    assert 'foo' not in vars(p)
 
     p.update({'cpg': False, 'seq': False})
     assert p.cpg == False
+    assert p.seq == False
+
+    p.update({'cpg': cpg, 'seq': False})
+    for k, v in cpg.items():
+        assert vars(p.cpg)[k] == v
+    assert p.seq == False
+
+    p = Params()
+    p.update({'cpg': cpg, 'seq': False})
+    for k, v in cpg.items():
+        assert vars(p.cpg)[k] == v
     assert p.seq == False
 
 def test_params_validate():

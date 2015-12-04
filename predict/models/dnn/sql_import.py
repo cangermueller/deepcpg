@@ -8,7 +8,7 @@ import pandas as pd
 import sqlite3 as sql
 import hashlib
 
-from predict.models.dnn.model import Params
+from model import Params
 
 
 def to_sql(sql_path, data, table, meta):
@@ -28,7 +28,6 @@ def to_sql(sql_path, data, table, meta):
         pass
     data.to_sql(table, con, if_exists='append', index=False)
     con.close()
-
 
 def to_field(v):
     if isinstance(v, dict):
@@ -67,15 +66,19 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Add model config files to SQL database')
+            description='Import stuff to SQL database')
         p.add_argument(
-            'model_files',
-            help='Model files',
+            '--sql_file',
+            help='SQL output file',
+            default='db.sql')
+        p.add_argument(
+            '--lc_files',
+            help='Import learning curves',
             nargs='+')
         p.add_argument(
-            '-o', '--out_file',
-            help='SQL output file',
-            default='perf.sql')
+            '--model_files',
+            help='Import model parameters',
+            nargs='+')
         p.add_argument(
             '--sql_meta',
             help='Meta columns in SQL table',
@@ -109,26 +112,38 @@ class App(object):
             for meta in opts.sql_meta:
                 k, v = meta.split('=')
                 sql_meta[k] = v
+        if 'model' in sql_meta:
+            model = sql_meta['model']
+        else:
+            model = None
 
-        for model_file in opts.model_files:
-            log.info(model_file)
-            params = Params.from_yaml(model_file)
-            d = model_to_tables(params)
-            sql_meta['model'] = pt.splitext(pt.basename(model_file))[0]
-            sql_meta['path'] = model_file
-            for k, v in d.items():
-                if v is None:
-                    continue
-                name = k
-                if name != 'model':
-                    name = 'model_' + name
-                v = pd.DataFrame(v, columns=sorted(v.keys()), index=[0])
-                to_sql(opts.out_file, v, name, sql_meta)
+        if opts.lc_files is not None:
+            log.info('Import learning curves')
+            for fname in opts.lc_files:
+                log.info(fname)
+                sql_meta['path'] = pt.realpath(fname)
+                if model is None:
+                    sql_meta['model'] =  pt.basename(pt.dirname(fname))
+                d = pd.read_table(fname)
+                to_sql(opts.sql_file, d, 'lc', sql_meta)
 
-        con = sql.connect(opts.out_file)
-        d = pd.read_sql('SELECT * FROM model ORDER BY model', con)
-        con.close()
-        print(d.to_string(index=False))
+        if opts.model_files is not None:
+            log.info('Import model parameters')
+            for fname in opts.model_files:
+                log.info(fname)
+                sql_meta['path'] = pt.realpath(fname)
+                if model is None:
+                    sql_meta['model'] =  pt.splitext(pt.basename(fname))[0]
+                params = Params.from_yaml(fname)
+                d = model_to_tables(params)
+                for k, v in d.items():
+                    if v is None:
+                        continue
+                    name = k
+                    if name != 'model':
+                        name = 'model_' + name
+                    v = pd.DataFrame(v, columns=sorted(v.keys()), index=[0])
+                    to_sql(opts.sql_file, v, name, sql_meta)
 
         return 0
 

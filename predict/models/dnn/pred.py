@@ -10,47 +10,7 @@ import h5py as h5
 
 from predict.models.dnn.utils import read_labels, open_hdf, load_model, ArrayView
 from utils import MASK
-
-def write_z(data, z, labels, out_file, name='z', masked=True):
-    target_map = {x[0] + '_y': x[1] for x in zip(labels['targets'], labels['files'])}
-
-    f = h5.File(out_file, 'a')
-    for target in z.keys():
-        d = dict()
-        d['z'] = np.ravel(z[target])
-        d['y'] = np.ravel(data[target][:])
-        d['pos'] = data['pos'][:]
-        d['chromo'] = data['chromo'][:]
-        if not masked:
-            t = d['y'] != MASK
-            for k in d.keys():
-                d[k] = d[k][t]
-
-        t = target_map[target]
-        if t in f:
-            gt = f[t]
-        else:
-            gt = f.create_group(t)
-        for chromo in np.unique(d['chromo']):
-            t = d['chromo'] == chromo
-            dc = {k: d[k][t] for k in d.keys()}
-            t = np.argsort(dc['pos'])
-            for k in dc.keys():
-                dc[k] = dc[k][t]
-            t = dc['pos']
-            assert np.all(t[:-1] < t[1:])
-
-            if chromo in gt:
-                gtc = gt[chromo]
-            else:
-                gtc = gt.create_group(chromo)
-            for k in dc.keys():
-                if k not in gtc:
-                    gtc[k] = dc[k]
-    f.close()
-
-
-
+from utils import write_z2 as write_z
 
 class App(object):
 
@@ -80,8 +40,7 @@ class App(object):
             help='Output file')
         p.add_argument(
             '--chromo',
-            help='Chromosome',
-            type=int)
+            help='Chromosome')
         p.add_argument(
             '--start',
             help='Start position',
@@ -89,6 +48,10 @@ class App(object):
         p.add_argument(
             '--end',
             help='End position',
+            type=int)
+        p.add_argument(
+            '--nb_sample',
+            help='Maximum # training samples',
             type=int)
         p.add_argument(
             '--nb_dropout',
@@ -127,9 +90,6 @@ class App(object):
             np.random.seed(opts.seed)
         pd.set_option('display.width', 150)
 
-        log.info('Load model')
-        model = load_model(opts.model_file, opts.model_weights_file)
-
         log.info('Load data')
         def read_data(path):
             f = open_hdf(path, cache_size=opts.max_mem)
@@ -144,24 +104,34 @@ class App(object):
         data_file, data = read_data(opts.data_file)
 
         if opts.chromo is not None:
-            sel = data['chromo'] == opts.chromo.encode()
+            sel = data['chromo'].value == str(opts.chromo).encode()
             if opts.start is not None:
-                sel &= data['pos'] >= opts.start
+                sel &= data['pos'].value >= opts.start
             if opts.end is not None:
-                sel &= data['pos'] <= opts.end
+                sel &= data['pos'].value <= opts.end
+            if sel.sum() == 0:
+                log.warn('No samples satisfy filter!')
+                return 0
+            log.info('Selecting %d samples' % (sel.sum()))
             for k in data.keys():
-                data[k] = data[k][sel]
+                if len(data[k].shape) > 1:
+                    data[k] = data[k][sel, :]
+                else:
+                    data[k] = data[k][sel]
 
         def to_view(d):
             for k in d.keys():
                 d[k] = ArrayView(d[k], stop=opts.nb_sample)
 
         to_view(data)
-        log.info('%s samples' % (list(data.values())[0].shape[0]))
+        log.info('%d samples' % (list(data.values())[0].shape[0]))
+
+        log.info('Load model')
+        model = load_model(opts.model_file, opts.model_weights_file)
 
         def progress(batch, nb_batch):
             batch += 1
-            c = nb_batch // 50
+            c = max(1, int(np.ceil(nb_batch / 50)))
             if batch == 1 or batch == nb_batch or batch % c == 0:
                 print('%5d / %d (%.1f%%)' % (batch, nb_batch,
                                              batch / nb_batch * 100))
@@ -176,13 +146,15 @@ class App(object):
             model.compile(loss=model.loss, optimizer=model.optimizer,
                           dropout=True)
             for i in range(opts.nb_dropout):
-                log.info('Predict %d' % (i))
+                log.info('Predict (%d / %d)' % (i + 1, opts.nb_dropout))
                 z = predict(dropout=True)
-                write_z(data, z, labels, opts.out_file, label='z%d' % (i))
+                write_z(data, z, labels, opts.out_file,
+                        unlabeled=True, name='z%d' % (i))
         else:
             log.info('Predict')
             z = predict()
-            write_z(data, z, labels, opts.out_file)
+            write_z(data, z, labels, opts.out_file,
+                    unlabeled=True, name='z')
 
         data_file.close()
         log.info('Done!')

@@ -89,12 +89,6 @@ class Params(object):
 
         self.optimizer = 'Adam'
         self.optimizer_params = {'lr': 0.001}
-        self.lr_decay = 0.5
-        self.nb_epoch = 10
-        self.early_stop = 3
-        self.batch_size = 128
-        self.shuffle = 'batch'
-        self.weight_classes = False
 
     def validate(self):
         for k in ['seq', 'cpg', 'target']:
@@ -123,13 +117,17 @@ class Params(object):
             f.write(t)
 
     def update(self, params):
-        params = dict(params)
-        self.__dict__.update(params)
-        for k in ['seq', 'cpg', 'target']:
-            if k in params.keys() and isinstance(params[k], dict):
-                t = k.capitalize() + 'Params'
-                vars(self)[k] = globals()[t]()
-                vars(self)[k].update(params[k])
+        vself = vars(self)
+        for k, v in dict(params).items():
+            if k in ['seq', 'cpg', 'target']:
+                if isinstance(v, dict):
+                    t = k.capitalize() + 'Params'
+                    vself[k] = globals()[t]()
+                    vself[k].update(params[k])
+                else:
+                    vself[k] = v
+            elif k in vself.keys():
+                vself[k] = v
 
     def __str__(self):
         s = 'Seq model:\n'

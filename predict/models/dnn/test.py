@@ -37,6 +37,11 @@ class App(object):
             '-o', '--out_file',
             help='Output file')
         p.add_argument(
+            '--batch_size',
+            help='Batch size',
+            type=int,
+            default=1024)
+        p.add_argument(
             '--nb_sample',
             help='Maximum # training samples',
             type=int)
@@ -94,17 +99,28 @@ class App(object):
                 d[k] = ArrayView(d[k], stop=opts.nb_sample)
 
         to_view(data)
+        log.info('%d samples' % (list(data.values())[0].shape[0]))
 
         def progress(batch, nb_batch):
             batch += 1
-            c = nb_batch // 50
+            c = max(1, int(np.ceil(nb_batch / 50)))
             if batch == 1 or batch == nb_batch or batch % c == 0:
                 print('%5d / %d (%.1f%%)' % (batch, nb_batch,
                                              batch / nb_batch * 100))
 
+        batch_size = opts.batch_size
+        if batch_size is None:
+            if 'c_x' in model.input_order and 's_x' in model.input_order:
+                batch_size = 768
+            elif 's_x' in model.input_order:
+                batch_size = 1024
+            else:
+                batch_size = 2048
+
         log.info('Predict')
         z = model.predict(data, verbose=opts.verbose,
-                          callbacks=[progress])
+                          callbacks=[progress],
+                          batch_size=opts.batch_size)
         log.info('Write')
         write_z(data, z, labels, opts.out_file)
 
