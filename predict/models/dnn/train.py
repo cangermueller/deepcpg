@@ -18,7 +18,7 @@ from predict.models.dnn.callbacks import LearningRateScheduler, PerformanceLogge
 import predict.models.dnn.model as mod
 
 
-def sample_weights(y, weight_classes=False):
+def get_sample_weights(y, weight_classes=False):
     y = y[:]
     class_weights = {-1: 0, 0: 1, 1: 1}
     if weight_classes:
@@ -106,6 +106,10 @@ class App(object):
             type=int,
             default=14000)
         p.add_argument(
+            '--no_jump',
+            help='Do not jump in training set',
+            action='store_true')
+        p.add_argument(
             '--seed',
             help='Seed of rng',
             type=int,
@@ -118,6 +122,34 @@ class App(object):
             '--log_file',
             help='Write log messages to file')
         return p
+
+    def adjust_batch_size(self, model, data, sample_weights):
+        configs = [
+            (1024, 0.0001),
+            (768, 0.000125),
+            (512, 0.00025),
+            (256, 0.0005),
+            (128, 0.001),
+            (64, 0.002),
+            (32, 0.004)
+        ]
+        idx = None
+        for i in range(len(configs)):
+            batch_size = configs[i][0]
+            self.log.info('Try batch size %d' % (batch_size))
+            batch_data = {k: v[:batch_size] for k, v in data.items()}
+            batch_weights = {k: v[:batch_size] for k, v in sample_weights.items()}
+            try:
+                model.train_on_batch(batch_data,
+                                     sample_weight=batch_weights)
+                idx = i
+                break
+            except:
+                self.log.info('Batch size %d failed!' % (batch_size))
+        if idx is None:
+            return (None, None)
+        else:
+            return (configs[idx])
 
     def main(self, name, opts):
         logging.basicConfig(filename=opts.log_file,
@@ -132,8 +164,11 @@ class App(object):
         if opts.seed is not None:
             np.random.seed(opts.seed)
             random.seed(opts.seed)
+        sys.setrecursionlimit(10**6)
 
         pd.set_option('display.width', 150)
+        self.log = log
+        self.opts = opts
 
         # Initialize variables
         labels = read_labels(opts.train_file)
@@ -155,6 +190,9 @@ class App(object):
                 model_params = mod.Params()
             model = mod.build(model_params, targets, seq_len, cpg_len,
                               nb_unit=nb_unit)
+            log.info('Pickle model')
+            with open(pt.join(opts.out_dir, 'model.pkl'), 'wb') as f:
+                pickle.dump(model, f)
         else:
             log.info('Retrain %s' % (opts.retrain[0]))
             if len(opts.retrain) == 2:
@@ -173,15 +211,6 @@ class App(object):
             print()
 
         log.info('Setup training')
-
-        batch_size = opts.batch_size
-        if batch_size is None:
-            if 'c_x' in model.input_order and 's_x' in model.input_order:
-                batch_size = 128
-            elif 's_x' in model.input_order:
-                batch_size = 1024
-            else:
-                batch_size = 2048
 
         model_weights_last = pt.join(opts.out_dir, 'model_weights_last.h5')
         model_weights_best = pt.join(opts.out_dir, 'model_weights_best.h5')
@@ -228,8 +257,8 @@ class App(object):
         train_file, train_data = read_data(opts.train_file)
         train_weights = dict()
         for k in model.output_order:
-            train_weights[k] = sample_weights(train_data[k],
-                                              opts.weight_classes)
+            train_weights[k] = get_sample_weights(train_data[k],
+                                                  opts.weight_classes)
 
         if opts.val_file is None:
             val_data = train_data
@@ -239,8 +268,8 @@ class App(object):
             val_file, val_data = read_data(opts.val_file)
             val_weights = dict()
             for k in model.output_order:
-                val_weights[k] = sample_weights(val_data[k],
-                                                opts.weight_classes)
+                val_weights[k] = get_sample_weights(val_data[k],
+                                                    opts.weight_classes)
 
         def to_view(d):
             for k in d.keys():
@@ -250,7 +279,7 @@ class App(object):
         to_view(train_weights)
         views = list(train_data.values()) + list(train_weights.values())
         cb.append(DataJumper(views, nb_sample=opts.nb_sample, verbose=1,
-                             jump=True))
+                             jump=not opts.no_jump))
 
         if val_data is not train_data:
             to_view(val_data)
@@ -262,6 +291,22 @@ class App(object):
         print('%d training samples' % (list(train_data.values())[0].shape[0]))
         print('%d validation samples' % (list(val_data.values())[0].shape[0]))
 
+        batch_size = opts.batch_size
+        if batch_size is None:
+            log.info('Adjust batch size')
+            batch_size, lr = self.adjust_batch_size(model,
+                                                    train_data,
+                                                    train_weights)
+            if batch_size is None:
+                log.error('GPU memory to small')
+                return 1
+            log.info('Use batch size %d' % (batch_size))
+            log.info('Use batch lr %f' % (lr))
+            model.optimizer.lr.set_value(lr)
+
+        def logger(x):
+            log.debug(x)
+
         log.info('Train model')
         model.fit(data=train_data,
                   sample_weight=train_weights,
@@ -271,14 +316,14 @@ class App(object):
                   shuffle=opts.shuffle,
                   nb_epoch=opts.nb_epoch,
                   callbacks=cb,
-                  verbose=0)
+                  verbose=0,
+                  logger=logger)
 
         # Use best weights on validation set
         if pt.isfile(model_weights_best):
             model.load_weights(model_weights_best)
 
         log.info('Pickle model')
-        sys.setrecursionlimit(10**6)
         with open(pt.join(opts.out_dir, 'model.pkl'), 'wb') as f:
             pickle.dump(model, f)
 
@@ -295,6 +340,7 @@ class App(object):
         p.index = map_targets(p.index.values, labels)
         p.index.name = 'target'
         p.reset_index(inplace=True)
+        p.sort_values('target', inplace=True)
         print(p.to_string(index=False))
         with open(pt.join(opts.out_dir, 'perf_val.csv'), 'w') as f:
             f.write(p.to_csv(None, sep='\t', index=False))

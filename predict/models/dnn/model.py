@@ -224,22 +224,19 @@ def standardize_weights(y, sample_weight=None, class_weight=None):
         return np.ones(y.shape[:-1] + (1,))
 
 
-def seq_layers(params):
+def cpg_layers(params):
     layers = []
     if params.drop_in:
         layer = kcore.Dropout(params.drop_in)
         layers.append(('xd', layer))
-    layer = kconv.Convolution1D(nb_filter=params.nb_filter,
-                                filter_length=params.filter_len,
-                                activation='linear',
+    layer = kconv.Convolution2D(nb_filter=params.nb_filter,
+                                nb_row=1,
+                                nb_col=params.filter_len,
+                                activation=params.activation,
                                 init='glorot_uniform',
                                 border_mode='same')
     layers.append(('c1', layer))
-    if params.batch_norm:
-        layer = knorm.BatchNormalization()
-        layers.append(('c1b', layer))
-    layers.append(('c1a', kcore.Activation(params.activation)))
-    layer = kconv.MaxPooling1D(pool_length=params.pool_len)
+    layer = kconv.MaxPooling2D(pool_size=(1, params.pool_len))
     layers.append(('p1', layer))
     layer = kcore.Flatten()
     layers.append(('f1', layer))
@@ -247,7 +244,7 @@ def seq_layers(params):
         layer = kcore.Dropout(params.drop_out)
         layers.append(('f1d', layer))
     if params.nb_hidden:
-        layer = kcore.Dense(output_dim=params.nb_hidden,
+        layer = kcore.Dense(params.nb_hidden,
                             activation='linear',
                             init='glorot_uniform')
         layers.append(('h1', layer))
@@ -262,23 +259,18 @@ def seq_layers(params):
     return layers
 
 
-def cpg_layers(params):
+def seq_layers(params):
     layers = []
     if params.drop_in:
         layer = kcore.Dropout(params.drop_in)
         layers.append(('xd', layer))
-    layer = kconv.Convolution2D(nb_filter=params.nb_filter,
-                                nb_row=1,
-                                nb_col=params.filter_len,
-                                activation='linear',
+    layer = kconv.Convolution1D(nb_filter=params.nb_filter,
+                                filter_length=params.filter_len,
+                                activation=params.activation,
                                 init='glorot_uniform',
                                 border_mode='same')
     layers.append(('c1', layer))
-    if params.batch_norm:
-        layer = knorm.BatchNormalization()
-        layers.append(('c1b', layer))
-    layers.append(('c1a', kcore.Activation(params.activation)))
-    layer = kconv.MaxPooling2D(pool_size=(1, params.pool_len))
+    layer = kconv.MaxPooling1D(pool_length=params.pool_len)
     layers.append(('p1', layer))
     layer = kcore.Flatten()
     layers.append(('f1', layer))
@@ -286,7 +278,7 @@ def cpg_layers(params):
         layer = kcore.Dropout(params.drop_out)
         layers.append(('f1d', layer))
     if params.nb_hidden:
-        layer = kcore.Dense(params.nb_hidden,
+        layer = kcore.Dense(output_dim=params.nb_hidden,
                             activation='linear',
                             init='glorot_uniform')
         layers.append(('h1', layer))
