@@ -40,3 +40,4 @@ MANIFEST
 data/
 /predict/models/dnn/tests/pipe
 /predict/models/dnn/tests/data
+/predict/models/dnn/tests/train
