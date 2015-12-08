@@ -69,7 +69,7 @@ class App(object):
             '--nb_epoch',
             help='Maximum # training epochs',
             type=int,
-            default=10)
+            default=100)
         p.add_argument(
             '--batch_size',
             help='Batch size',

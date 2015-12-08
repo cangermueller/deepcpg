@@ -47,18 +47,21 @@ def read_annos(annos_file, chromo, name, pos=None, binary=True):
         a = a.astype('int8')
     return (p, a)
 
-def read_annos_matrix(annos_file, chromo, pos, annos=None):
+def read_annos_matrix(annos_file, chromo, pos, annos=None, annos_excl=None):
     if annos is None:
         f = h5.File(annos_file)
         if annos is None:
             annos = sorted(list(f[chromo].keys()))
+    if annos_excl is not None:
+        annos = list(filter(lambda x: x not in annos_excl, annos))
     d = [read_annos(annos_file, chromo, x, pos) for x in annos]
     p = d[0][0]
     A = np.vstack([x[1] for x in d]).T
     assert len(p) == A.shape[0]
     return (A, annos)
 
-def read_chromo(data_file, chromo, knn, knn_group, annos_file=None, max_samples=None):
+def read_chromo(data_file, chromo, knn, knn_group, annos_file=None,
+                max_samples=None, annos_excl=None):
     f = h5.File(data_file)
     pos = f[pt.join('cpg', chromo, 'pos')]
     y = f[pt.join('cpg', chromo, 'cpg')]
@@ -72,7 +75,8 @@ def read_chromo(data_file, chromo, knn, knn_group, annos_file=None, max_samples=
 
     X, cols = read_knn(data_file, chromo, pos, knn=knn, knn_group=knn_group)
     if annos_file:
-        A, Acols = read_annos_matrix(annos_file, chromo, pos)
+        A, Acols = read_annos_matrix(annos_file, chromo, pos,
+                                     annos_excl=annos_excl)
         X = np.hstack((X, A))
         cols.extend(Acols)
     cols = [x.encode() for x in cols]
@@ -98,6 +102,11 @@ class App(object):
         p.add_argument(
             '--annos_file',
             help='HDF path to annotation file')
+        p.add_argument(
+            '--annos_excl',
+            help='Annotations to be excluded',
+            nargs='+'
+        )
         p.add_argument(
             '-o', '--out_file',
             help='Output file')
@@ -156,7 +165,8 @@ class App(object):
                              annos_file=opts.annos_file,
                              max_samples=opts.max_samples,
                              knn=opts.knn,
-                             knn_group=opts.knn_group)
+                             knn_group=opts.knn_group,
+                             annos_excl=opts.annos_excl)
             chromos_len.append(len(dc['y']))
             for k, v in dc.items():
                 if k not in d.keys():
