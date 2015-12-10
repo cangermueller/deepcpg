@@ -2,6 +2,33 @@ from keras.callbacks import Callback
 import pandas as pd
 import numpy as np
 from time import time
+import warnings
+
+
+class EarlyStopping(Callback):
+    def __init__(self, monitor='val_loss', patience=0, verbose=0):
+        super(Callback, self).__init__()
+
+        self.monitor = monitor
+        self.patience = patience
+        self.verbose = verbose
+        self.prev_score = np.inf
+        self.counter = 0
+
+    def on_epoch_end(self, epoch, logs={}):
+        score = logs.get(self.monitor)
+        if score is None:
+            warnings.warn("Early stopping requires %s!" % (self.monitor), RuntimeWarning)
+
+        if score < self.prev_score:
+            self.counter = 0
+        else:
+            self.counter += 1
+            if self.counter > self.patience:
+                if self.verbose > 0:
+                    print("Epoch %d: early stopping" % (epoch))
+                self.model.stop_training = True
+        self.prev_score = score
 
 
 class LearningRateScheduler(Callback):
@@ -19,7 +46,7 @@ class LearningRateScheduler(Callback):
 
     def on_epoch_end(self, epoch, logs={}):
         score = logs.get(self.monitor)
-        if score <= self.prev_score:
+        if score < self.prev_score:
             self.counter = 0
             if score <= self.best_score:
                 self.best_score = score
