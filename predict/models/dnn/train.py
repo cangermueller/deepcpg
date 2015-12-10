@@ -9,12 +9,12 @@ import numpy as np
 import h5py as h5
 import random
 import pickle
-from keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras.callbacks import ModelCheckpoint
 
 from predict.models.dnn.utils import evaluate_all, load_model, MASK, open_hdf, read_labels
 from predict.models.dnn.utils import write_z, map_targets, ArrayView
 from predict.models.dnn.callbacks import DataJumper
-from predict.models.dnn.callbacks import LearningRateScheduler, PerformanceLogger, ProgressLogger, Timer
+from predict.models.dnn.callbacks import LearningRateScheduler, EarlyStopping, PerformanceLogger, ProgressLogger, Timer
 import predict.models.dnn.model as mod
 
 
@@ -226,10 +226,10 @@ class App(object):
             old_lr = model.optimizer.lr.get_value()
             new_lr = old_lr * opts.lr_decay
             model.optimizer.lr.set_value(new_lr)
-            print('Learning rate dropped from %.4f to %.4f' % (old_lr, new_lr))
+            print('Learning rate dropped from %g to %g' % (old_lr, new_lr))
 
         cb.append(LearningRateScheduler(lr_schedule,
-                                        patience=opts.early_stop - 1))
+                                        patience=opts.early_stop-1))
 
         if opts.max_time is not None:
             cb.append(Timer(opts.max_time * 3600 * 0.8))

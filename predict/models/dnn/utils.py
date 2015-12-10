@@ -8,11 +8,11 @@ from predict.evaluation import evaluate
 MASK = -1
 
 
-def load_model(json_file, weights_file=None):
+def load_model(json_file, weights_file=None, compile=True):
     import keras.models as kmodels
     with open(json_file, 'r') as f:
         model = f.read()
-    model = kmodels.model_from_json(model)
+    model = kmodels.model_from_json(model, compile=compile)
     model.load_weights(weights_file)
     return model
 
@@ -54,37 +54,7 @@ def map_targets(targets, labels):
     return targets
 
 
-def write_z(data, z, labels, out_file):
-    target_map = {x[0] + '_y': x[1] for x in zip(labels['targets'], labels['files'])}
-
-    f = h5.File(out_file, 'w')
-    for target in z.keys():
-        d = dict()
-        d['z'] = np.ravel(z[target])
-        d['y'] = np.ravel(data[target][:])
-        d['pos'] = data['pos'][:]
-        d['chromo'] = data['chromo'][:]
-        t = d['y'] != MASK
-        for k in d.keys():
-            d[k] = d[k][t]
-
-        gt = f.create_group(target_map[target])
-        for chromo in np.unique(d['chromo']):
-            t = d['chromo'] == chromo
-            dc = {k: d[k][t] for k in d.keys()}
-            t = np.argsort(dc['pos'])
-            for k in dc.keys():
-                dc[k] = dc[k][t]
-            t = dc['pos']
-            assert np.all(t[:-1] < t[1:])
-
-            gtc = gt.create_group(chromo)
-            for k in dc.keys():
-                gtc[k] = dc[k]
-    f.close()
-
-
-def write_z2(data, z, labels, out_file, unlabeled=False, name='z'):
+def write_z(data, z, labels, out_file, unlabeled=False, name='z'):
     target_map = {x[0] + '_y': x[1] for x in zip(labels['targets'], labels['files'])}
 
     f = h5.File(out_file, 'a')
@@ -118,7 +88,7 @@ def write_z2(data, z, labels, out_file, unlabeled=False, name='z'):
             else:
                 gtc = gt.create_group(chromo)
             for k in dc.keys():
-                if k not in gtc:
+                if k not in gtc and k != 'chromo':
                     gtc[k] = dc[k]
     f.close()
 
