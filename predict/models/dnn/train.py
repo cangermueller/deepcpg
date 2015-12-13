@@ -18,6 +18,7 @@ from predict.models.dnn.callbacks import LearningRateScheduler, EarlyStopping, P
 import predict.models.dnn.model as mod
 
 
+
 def get_sample_weights(y, weight_classes=False):
     y = y[:]
     class_weights = {-1: 0, 0: 1, 1: 1}
