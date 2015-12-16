@@ -21,6 +21,7 @@ library(grid)
 
 ```{r}
 options(xtable.type='html')
+
 ```
 
 ```{r}
