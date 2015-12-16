@@ -12,7 +12,7 @@ class EarlyStopping(Callback):
         self.monitor = monitor
         self.patience = patience
         self.verbose = verbose
-        self.prev_score = np.inf
+        self.best_score = np.inf
         self.counter = 0
 
     def on_epoch_end(self, epoch, logs={}):
@@ -20,15 +20,15 @@ class EarlyStopping(Callback):
         if score is None:
             warnings.warn("Early stopping requires %s!" % (self.monitor), RuntimeWarning)
 
-        if score < self.prev_score:
+        if score <= self.best_score:
             self.counter = 0
+            self.best_score = score
         else:
             self.counter += 1
             if self.counter > self.patience:
                 if self.verbose > 0:
                     print("Epoch %d: early stopping" % (epoch))
                 self.model.stop_training = True
-        self.prev_score = score
 
 
 class LearningRateScheduler(Callback):
@@ -40,24 +40,21 @@ class LearningRateScheduler(Callback):
         self.monitor = monitor
 
         self.counter = 0
-        self.prev_score = np.inf
         self.best_score = np.inf
         self.best_weights = None
 
     def on_epoch_end(self, epoch, logs={}):
         score = logs.get(self.monitor)
-        if score < self.prev_score:
+        if score <= self.best_score:
             self.counter = 0
-            if score <= self.best_score:
-                self.best_score = score
-                self.best_weights = self.model.get_weights()
+            self.best_score = score
+            self.best_weights = self.model.get_weights()
         else:
             self.counter += 1
             if self.counter > self.patience:
                 self.callback()
                 self.model.set_weights(self.best_weights)
                 self.counter = 0
-        self.prev_score = score
 
 
 class PerformanceLogger(Callback):

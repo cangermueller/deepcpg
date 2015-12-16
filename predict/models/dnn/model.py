@@ -1,12 +1,14 @@
 import yaml
 import numpy as np
+import re
+import pickle
+import os.path as pt
 
 from keras.models import CpgGraph
 from keras.layers import core as kcore
 from keras.layers import convolutional as kconv
 from keras.layers import normalization as knorm
 import keras.optimizers as kopt
-import re
 
 
 class CpgParams(object):
@@ -378,3 +380,49 @@ def build(params, targets, seq_len=None, cpg_len=None, compile=True,
         model.compile(loss=loss, optimizer=opt)
 
     return model
+
+
+def model_from_json(json_file, weights_file=None, compile=True):
+    import keras.models as kmodels
+    with open(json_file, 'r') as f:
+        model = f.read()
+    model = kmodels.model_from_json(model, compile=compile)
+    model.load_weights(weights_file)
+    return model
+
+
+def model_from_pickle(pickle_file):
+    with open(pickle_file, 'rb') as f:
+        model = pickle.load(f)
+    return model
+
+
+def model_from_list(fnames, *args, **kwargs):
+    if not isinstance(fnames, list):
+        fnames = list(fnames)
+    if len(fnames) == 2:
+        model = model_from_json(fnames[0], fnames[1], *args, **kwargs)
+    else:
+        model = model_from_pickle(fnames[0])
+    return model
+
+
+def copy_weights(src, dst, prefix):
+    n = 0
+    for k, v in src.nodes.items():
+        if k.startswith(prefix) and k in dst.nodes:
+            dst.nodes[k].set_weights(src.nodes[k].get_weights())
+            n += 1
+    return n
+
+
+def model_to_pickle(model, path):
+    with open(path, 'wb') as f:
+        pickle.dump(model, f)
+
+
+def model_to_json(model, json_file, weights_file=None):
+    with open(json_file, 'w') as f:
+        f.write(model.to_json())
+    if weights_file is not None:
+        model.save_weights(weights_file, overwrite=True)
