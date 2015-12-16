@@ -1,0 +1,243 @@
+---
+title: Evaluation
+output:
+  html_document:
+    toc: yes
+---
+
+```{r, include=F}
+library(knitr)
+opts_chunk$set(echo=F, warning=F, message=F)
+```
+
+```{r, include=F}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(RSQLite)
+library(xtable)
+library(grid)
+```
+
+```{r}
+options(xtable.type='html')
+```
+
+```{r}
+dat <- list()
+opts <- list()
+opts$db_file <- './perf_val.sql'
+# opts$models <- c('rf', 'win_avg', 'dnn_mc_cpg_seq_m3')
+opts$models <- NULL
+```
+
+```{r}
+theme_pub <- function() {
+  p <- theme(
+    axis.text=element_text(size=rel(1.0), color='black'),
+    axis.title=element_text(size=rel(1.5)),
+    axis.title.y=element_text(vjust=1.0),
+    axis.title.x=element_text(vjust=-0.5),
+    legend.position='right',
+    legend.text=element_text(size=rel(1.0)),
+    legend.title=element_text(size=rel(1.0)),
+    legend.key=element_rect(fill='transparent'),
+    panel.border=element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    axis.line = element_line(colour="black", size=1),
+    axis.ticks.length = unit(.3, 'cm'),
+    axis.ticks.margin = unit(.3, 'cm')
+    )
+  return (p)
+}
+
+get_query <- function(query) {
+  driver <- dbDriver('SQLite')
+  con <- dbConnect(driver, opts$db_file)
+  d <- dbGetQuery(con, query)
+  dbDisconnect(con)
+  return (d)
+}
+
+query_db <- function(table, models=NULL) {
+  driver <- dbDriver('SQLite')
+  con <- dbConnect(driver, opts$db_file)
+  h <- sprintf('SELECT * FROM %s', table)
+  if (is.null(models)) {
+    d <- dbGetQuery(con, h)
+  } else {
+    h <- sprintf('%s WHERE model IN (:x)', h)
+    p <- data.frame(x=models)
+    d <- dbGetPreparedQuery(con, h, p)
+  }
+  dbDisconnect(con)
+  if ('target' %in% names(d)) {
+    # d <- d[grepl('2i', as.vector(d$target)),]
+    d <- d %>% mutate(cell_type=factor(grepl('2i', target), levels=c(T, F), labels=c('2i', 'Serum')))
+    d <- d %>% mutate(target=factor(target))
+  }
+  d <- d %>% mutate(model=factor(model))
+  d <- d %>% tbl_df
+  return (d)
+}
+```
+
+```{r include=F}
+dat$global <- query_db('global', opts$models)
+```
+
+
+```{r}
+dat$gstats <- dat$global %>% group_by(model) %>%
+  summarise_each(funs(mean), auc, acc, mcc, tpr, tnr) %>%
+  ungroup %>%
+  arrange(desc(auc))
+```
+
+```{r}
+top_n <- function(n, include=c('rf', 'win_avg')) {
+  d <- as.vector(dat$gstats$model) %>% head(n)
+  if (!is.null(include)) {
+    h <- setdiff(include, d)
+    d <- c(d[1:(length(d)-length(h))], h)
+  }
+  return (d)
+}
+```
+
+
+# Global performance
+
+```{r results='asis'}
+xtable(dat$gstats, digit=3)
+```
+
+```{r fig.height=20, fig.width=10}
+m <- top_n(10)
+d <- dat$global %>%
+  filter(model %in% m) %>% droplevels %>%
+  arrange(desc(auc)) %>%
+  mutate(model=factor(model, levels=m))
+d <- d %>% select(-c(path, id, trial, eval))
+d <- d %>% gather(metric, value, -c(model, target, cell_type))
+ggplot(d, aes(x=model, y=value)) +
+  geom_boxplot(aes(fill=model), alpha=1.0, outlier.size=0) +
+  geom_jitter(aes(color=cell_type), position=position_jitter(width=0.1, height=0)) +
+  xlab('') + ylab('') +
+  theme_pub() +
+  theme(legend.position='right') +
+  theme(axis.text.x=element_text(angle=40, hjust=1)) +
+  facet_wrap(~metric, ncol=1, scales='free')
+```
+
+```{r}
+m <- top_n(10)
+```
+
+```{r fig.width=10, fig.height=ceiling(length(m) / 3) * 2.2}
+d <- dat$global %>% filter(model %in% m) %>% droplevels %>%
+  mutate(model=factor(model, levels=m))
+d <- d %>% select(model, target, cell_type, auc)
+d <- d %>% spread(model, auc) %>%
+  gather(model, auc, -c(target, cell_type, rf))
+lim <- c(min(d$auc), max(d$auc))
+ggplot(d, aes(x=rf, y=auc)) +
+  geom_abline(slope=1, color='darkgrey', linetype='dashed') +
+  geom_point(aes(color=cell_type)) +
+  facet_wrap(~model, ncol=3, scales='free') +
+  xlab('RF') + ylab('Model') +
+  # xlim(lim) + ylim(lim) +
+  theme_pub()
+```
+
+# Learning curves
+
+```{r}
+dat$lc <- query_db('lc')
+```
+
+```{r}
+m <- top_n(30, include=NULL)
+```
+
+```{r fig.width=10, fig.height=ceiling(length(m) / 3) * 1.5}
+d <- dat$lc %>% filter(model %in% m) %>% droplevels %>%
+  mutate(model=factor(model, levels=m))
+d <- d %>% select(model, epoch, loss, val_loss) %>%
+  gather(score, value, -c(model, epoch))
+ggplot(d, aes(x=epoch, value)) +
+  geom_line(aes(color=score)) +
+  facet_wrap(~model, ncol=3, scales='free') +
+  xlab('') + ylab('loss') +
+  theme_pub()
+```
+
+# Hyper-parameters
+
+
+```{r}
+prefix <- function(d, pref, excl='model') {
+  n <- names(d)
+  h <- !(n %in% excl)
+  n[h] <- paste(pref, n[h], sep='.')
+  names(d) <- n
+  return (d)
+}
+
+join_list <- function(d) {
+  h <- d[[1]]
+  if (length(h) > 1) {
+    for (i in 2:length(h)) {
+      h <- left_join(h, d[[i]])
+    }
+  }
+  return (h)
+}
+
+dat$tables <- get_query('SELECT name FROM sqlite_master WHERE type = "table"') %>% unlist
+
+d <- list()
+d[[1]] <- get_query('SELECT model, optimizer, optimizer_params FROM model') %>%
+  tbl_df
+d[[2]] <- get_query('SELECT model, nb_hidden, batch_norm FROM model_target') %>%
+  tbl_df %>% prefix('tar')
+if ('model_seq' %in% dat$tables) {
+  d[[length(d) + 1]] <- get_query('SELECT model, nb_hidden, nb_filter, filter_len, pool_len, drop_in, drop_out FROM model_seq') %>%
+    tbl_df %>% prefix('seq')
+}
+if ('model_cpg' %in% dat$tables) {
+  d[[length(d) + 1]] <- get_query('SELECT model, nb_hidden, nb_filter, filter_len, pool_len, drop_in, drop_out FROM model_cpg') %>%
+    tbl_df %>% prefix('cpg')
+}
+dat$params <- join_list(d)
+```
+
+```{r}
+p <- dat$params %>%
+  select(-c(optimizer, optimizer_params), -contains('batch_norm'))
+d <- dat$gstats %>% select(model, auc) %>%
+  mutate(smodel=gsub('^dnn_', '', gsub('_r.*', '', model)))
+d <- d %>% inner_join(p, by=c('smodel'='model')) %>% select(-smodel)
+dat$sparams <- d
+```
+
+```{r fig.width=12, fig.height=20}
+d <- dat$sparams %>% gather(param, value, -c(auc, model))
+d <- d %>% filter(auc > 0.6)
+ggplot(d, aes(x=value, y=auc)) +
+  geom_point(aes(color=model)) +
+  geom_smooth(linewidth=2, method='lm') +
+  facet_wrap(~param, scales='free', ncol=3) +
+  coord_cartesian(ylim=c(0.7, max(d$auc))) +
+  guides(color=F) +
+  xlab('') + ylab('AUC') +
+  theme_pub() +
+  theme(axis.text.x=element_text(angle=30, hjust=1))
+```
+
+```{r results='asis'}
+d <- as.data.frame(dat$sparams)
+xtable(d)
+```
