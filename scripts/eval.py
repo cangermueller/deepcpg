@@ -13,11 +13,25 @@ import sqlite3 as sql
 import hashlib
 
 
-def to_sql(sql_path, data, table, meta):
+def get_id(meta):
     md5 = hashlib.md5()
     for v in sorted(meta.values()):
         md5.update(v.encode())
     id_ = md5.hexdigest()
+    return id_
+
+
+def exits_meta(sql_path, table, meta):
+    id_ = get_id(meta)
+    con = sql.connect(sql_path)
+    cmd = con.execute('SELECT id FROM %s WHERE id = "%s"' % (table, id_))
+    count = len(cmd.fetchall())
+    con.close()
+    return count > 0
+
+
+def to_sql(sql_path, data, table, meta):
+    id_ = get_id(meta)
 
     data = data.copy()
     for k, v in meta.items():
@@ -182,6 +196,10 @@ class App(object):
             '--annos_file',
             help='HDF file with annotations')
         p.add_argument(
+            '--skip',
+            help='Skip evaluation if done before',
+            action='store_true')
+        p.add_argument(
             '--annos',
             help='Annotations to be considered',
             nargs='+')
@@ -227,37 +245,42 @@ class App(object):
 
         chromos, cpos, y, z = read_test(opts.test_file,
                                        target=target, chromos=opts.chromos)
-        log.info('Evaluate global performance')
-        p = evaluate(y, z)
-        print('Global performance:')
-        print(eval_to_str(p))
-        if out_dir is not None:
-            write_output(p, 'global', out_dir)
-        if opts.sql_file:
-            to_sql(opts.sql_file, p, 'global', sql_meta)
+        skip = opts.sql_file is not None and opts.skip
+
+        if not skip or not exits_meta(opts.sql_file, 'global', sql_meta):
+            log.info('Evaluate global performance')
+            p = evaluate(y, z)
+            print('Global performance:')
+            print(eval_to_str(p))
+            if out_dir is not None:
+                write_output(p, 'global', out_dir)
+            if opts.sql_file:
+                to_sql(opts.sql_file, p, 'global', sql_meta)
 
         if opts.annos_file is not None:
-            log.info('Evaluate annotation-specific  performance')
-            pa = eval_annos(y, z, chromos, cpos, opts.annos_file,
-                            annos=opts.annos)
-            print('Annotation-specific performance:')
-            print(eval_to_str(pa))
-            if out_dir is not None:
-                write_output(pa, 'annos', out_dir)
-            if opts.sql_file:
-                to_sql(opts.sql_file, pa, 'annos', sql_meta)
+            if not skip or not exits_meta(opts.sql_file, 'annos', sql_meta):
+                log.info('Evaluate annotation-specific  performance')
+                pa = eval_annos(y, z, chromos, cpos, opts.annos_file,
+                                annos=opts.annos)
+                print('Annotation-specific performance:')
+                print(eval_to_str(pa))
+                if out_dir is not None:
+                    write_output(pa, 'annos', out_dir)
+                if opts.sql_file:
+                    to_sql(opts.sql_file, pa, 'annos', sql_meta)
 
         if opts.stats_file is not None:
-            log.info('Evaluate statistics-based performance')
-            ps = eval_stats(y, z, chromos, cpos, opts.stats_file,
-                            stats=opts.stats,
-                            nbins=opts.stats_bins)
-            print('Statistics-based performance:')
-            print(eval_to_str(ps))
-            if out_dir is not None:
-                write_output(ps, 'stats', out_dir)
-            if opts.sql_file:
-                to_sql(opts.sql_file, ps, 'stats', sql_meta)
+            if not skip or not exits_meta(opts.sql_file, 'stats', sql_meta):
+                log.info('Evaluate statistics-based performance')
+                ps = eval_stats(y, z, chromos, cpos, opts.stats_file,
+                                stats=opts.stats,
+                                nbins=opts.stats_bins)
+                print('Statistics-based performance:')
+                print(eval_to_str(ps))
+                if out_dir is not None:
+                    write_output(ps, 'stats', out_dir)
+                if opts.sql_file:
+                    to_sql(opts.sql_file, ps, 'stats', sql_meta)
 
     def main(self, name, opts):
         logging.basicConfig(filename=opts.log_file,

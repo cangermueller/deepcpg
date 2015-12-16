@@ -20,7 +20,7 @@ def read_file(dnames, fname, exists=False):
     ds = pd.concat(ds)
     return ds
 
-def read_lc(dnames, fname='lc.csv', exists=True):
+def read_lc(dnames, fname='lc.csv', exists=False):
     d = read_file(dnames, fname, exists)
     return d.groupby('model', as_index=False).last()
 
@@ -95,6 +95,11 @@ class App(object):
             np.random.seed(opts.seed)
 
         d = read_lc(opts.train_dirs)
+
+        models = [pt.basename(x) for x in opts.train_dirs]
+        for m in filter(lambda x: not np.any(d.model == x), models):
+            log.warn('%s incomplete!' % m)
+
         d = pd.merge(d, read_perf(opts.train_dirs), on='model', how='left')
         asc = opts.sort.find('loss') == -1
         d.sort_values(opts.sort, inplace=True, ascending=asc)
