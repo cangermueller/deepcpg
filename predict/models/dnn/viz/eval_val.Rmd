@@ -20,8 +20,8 @@ library(grid)
 ```
 
 ```{r}
-options(xtable.type='html')
 
+options(xtable.type='html')
 ```
 
 ```{r}
