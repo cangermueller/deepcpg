@@ -6,7 +6,7 @@ import logging
 import os.path as pt
 import h5py as h5
 
-from predict.models.dnn.utils import load_model
+import predict.models.dnn.model as mod
 
 
 class App(object):
@@ -23,11 +23,9 @@ class App(object):
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
             description='Exports CNN filters to HDF5 file')
         p.add_argument(
-            'model_json',
-            help='Model JSON file')
-        p.add_argument(
-            'model_weights',
-            help='Model weights file')
+            'model',
+            help='Model files',
+            nargs='+')
         p.add_argument(
             '-o', '--out_file',
             help='Output file',
@@ -60,7 +58,7 @@ class App(object):
             log.setLevel(logging.INFO)
         log.debug(opts)
 
-        m = load_model(opts.model_json, opts.model_weights, compile=False)
+        m = mod.model_from_list(opts.model, compile=False)
         f = h5.File(opts.out_file, 'a')
         if opts.out_group is not None:
             if opts.out_group in f:

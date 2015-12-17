@@ -375,9 +375,9 @@ def build(params, targets, seq_len=None, cpg_len=None, compile=True,
         outputs.append(output)
 
     if compile:
-        opt = vars(kopt)[params.optimizer](**params.optimizer_params)
+        optimizer = optimizer_from_params(params)
         loss = {output: 'binary_crossentropy' for output in outputs}
-        model.compile(loss=loss, optimizer=opt)
+        model.compile(loss=loss, optimizer=optimizer)
 
     return model
 
@@ -405,6 +405,18 @@ def model_from_list(fnames, *args, **kwargs):
     else:
         model = model_from_pickle(fnames[0])
     return model
+
+
+def optimizer_from_config(config):
+    loss = config.get('loss')
+    optimizer_params = dict([(k, v) for k, v in config.get('optimizer').items()])
+    optimizer_name = optimizer_params.pop('name')
+    optimizer = kopt.get(optimizer_name, optimizer_params)
+    return optimizer
+
+
+def optimizer_from_params(params):
+   return kopt.get(params.optimizer, params.optimizer_params)
 
 
 def copy_weights(src, dst, prefix):

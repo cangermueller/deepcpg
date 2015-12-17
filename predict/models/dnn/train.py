@@ -8,10 +8,10 @@ import pandas as pd
 import numpy as np
 import h5py as h5
 import random
-import pickle
+import json
 from keras.callbacks import ModelCheckpoint
 
-from predict.models.dnn.utils import evaluate_all, load_model, MASK, open_hdf, read_labels
+from predict.models.dnn.utils import evaluate_all, MASK, open_hdf, read_labels
 from predict.models.dnn.utils import write_z, map_targets, ArrayView
 from predict.models.dnn.callbacks import DataJumper
 from predict.models.dnn.callbacks import LearningRateScheduler, EarlyStopping, PerformanceLogger, ProgressLogger, Timer
@@ -60,11 +60,24 @@ class App(object):
             '-o', '--out_dir',
             help='Output directory')
         p.add_argument(
-            '--model_params',
+            '--params',
             help='Model parameters file')
         p.add_argument(
-            '--retrain',
-            help='Restart training from pickled or json/weights file',
+            '--model',
+            help='Reuse model',
+            nargs='+')
+        p.add_argument(
+            '--cpg_model',
+            help='Reuse weights of cpg module',
+            nargs='+')
+        p.add_argument(
+            '--seq_model',
+            help='Reuse weights of seq module',
+            nargs='+')
+        p.add_argument(
+            '--not_trainable',
+            help='Do not train modules starting with letter',
+            choices=['c', 's'],
             nargs='+')
         p.add_argument(
             '--nb_epoch',
@@ -132,7 +145,8 @@ class App(object):
             (256, 0.0005),
             (128, 0.001),
             (64, 0.002),
-            (32, 0.004)
+            (32, 0.004),
+            (16, 0.005)
         ]
         idx = None
         for i in range(len(configs)):
@@ -182,28 +196,52 @@ class App(object):
         f.close()
 
         # Setup model
-        if opts.model_params:
-            model_params = mod.Params.from_yaml(opts.model_params)
+        if opts.params is not None:
+            model_params = mod.Params.from_yaml(opts.params)
+        else:
+            model_params = None
 
-        if opts.retrain is None:
+        if opts.model is None:
             log.info('Build model')
             if model_params is None:
                 model_params = mod.Params()
             model = mod.build(model_params, targets, seq_len, cpg_len,
-                              nb_unit=nb_unit)
-            log.info('Pickle model')
-            with open(pt.join(opts.out_dir, 'model.pkl'), 'wb') as f:
-                pickle.dump(model, f)
+                              nb_unit=nb_unit, compile=False)
         else:
-            log.info('Retrain %s' % (opts.retrain[0]))
-            if len(opts.retrain) == 2:
-                model = load_model(opts.retrain[0], opts.retrain[1])
-            else:
-                with open(opts.retrain[0], 'rb') as f:
-                    model = pickle.load(f)
+            log.info('Loading model')
+            model = mod.model_from_list(opts.model, compile=False)
 
-        with open(pt.join(opts.out_dir, 'model.json'), 'w') as f:
-            f.write(model.to_json())
+        if opts.cpg_model is not None:
+            log.info('Copy cpg weights')
+            cpg_model = mod.model_from_list(opts.cpg_model, compile=False)
+            t = mod.copy_weights(cpg_model, model, 'c_')
+            log.info('Copied weight from %d nodes' % (t))
+
+        if opts.seq_model is not None:
+            log.info('Copy seq weights')
+            seq_model = mod.model_from_list(opts.seq_model, compile=False)
+            t = mod.copy_weights(seq_model, model, 's_')
+            log.info('Copied weight from %d nodes' % (t))
+
+        if opts.not_trainable is not None:
+            for k, v in model.nodes.items():
+                if k[0] in opts.not_trainable:
+                    log.info("Won't train %s" % (k))
+                    v.trainable = False
+
+        log.info('Compile model')
+        if model_params is None:
+            with open(opts.model[0]) as f:
+                config = json.loads(f.read())
+            optimizer = mod.optimizer_from_config(config)
+        else:
+            optimizer = mod.optimizer_from_params(model_params)
+        loss = {x: 'binary_crossentropy' for x in model.output_order}
+        model.compile(loss=loss, optimizer=optimizer)
+
+        log.info('Save model')
+        mod.model_to_pickle(model, pt.join(opts.out_dir, 'model.pkl'))
+        mod.model_to_json(model, pt.join(opts.out_dir, 'model.json'))
 
         if model_params is not None:
             print('Model parameters:')
@@ -214,7 +252,7 @@ class App(object):
         log.info('Setup training')
 
         model_weights_last = pt.join(opts.out_dir, 'model_weights_last.h5')
-        model_weights_best = pt.join(opts.out_dir, 'model_weights_best.h5')
+        model_weights_best = pt.join(opts.out_dir, 'model_weights.h5')
 
         cb = []
         cb.append(ProgressLogger())
@@ -324,9 +362,8 @@ class App(object):
         if pt.isfile(model_weights_best):
             model.load_weights(model_weights_best)
 
-        log.info('Pickle model')
-        with open(pt.join(opts.out_dir, 'model.pkl'), 'wb') as f:
-            pickle.dump(model, f)
+        log.info('Save model')
+        mod.model_to_pickle(model, pt.join(opts.out_dir, 'model.pkl'))
 
         print('\n\nLearning curve:')
         print(perf_logs_str(perf_logger.frame()))

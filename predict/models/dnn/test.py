@@ -7,7 +7,8 @@ import os.path as pt
 import pandas as pd
 import numpy as np
 
-from predict.models.dnn.utils import read_labels, open_hdf, load_model, write_z, ArrayView
+from predict.models.dnn.utils import read_labels, open_hdf, write_z, ArrayView
+import predict.models.dnn.model as mod
 
 
 class App(object):
@@ -28,11 +29,9 @@ class App(object):
             'data_file',
             help='Data file')
         p.add_argument(
-            'model_file',
-            help='Model json file')
-        p.add_argument(
-            'model_weights_file',
-            help='Model weights file')
+            '--model',
+            help='Model files',
+            nargs='+')
         p.add_argument(
             '-o', '--out_file',
             help='Output file')
@@ -71,7 +70,7 @@ class App(object):
         if opts.verbose:
             log.setLevel(logging.DEBUG)
         else:
-            log.setLevel(logging.INFO)
+           log.setLevel(logging.INFO)
             log.debug(opts)
 
         if opts.seed is not None:
@@ -79,9 +78,10 @@ class App(object):
         pd.set_option('display.width', 150)
 
         log.info('Load model')
-        model = load_model(opts.model_file, opts.model_weights_file)
+        model = mod.model_from_list(opts.model)
 
         log.info('Load data')
+
         def read_data(path):
             f = open_hdf(path, cache_size=opts.max_mem)
             data = dict()
