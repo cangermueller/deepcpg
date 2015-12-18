@@ -94,6 +94,11 @@ class App(object):
             type=int,
             default=3)
         p.add_argument(
+            '--lr_schedule',
+            help='Learning rate scheduler patience',
+            type=int,
+            default=1)
+        p.add_argument(
             '--lr_decay',
             help='Learning schedule decay rate',
             type=float,
@@ -144,9 +149,9 @@ class App(object):
             (512, 0.00025),
             (256, 0.0005),
             (128, 0.001),
-            (64, 0.002),
-            (32, 0.004),
-            (16, 0.005)
+            (64, 0.001),
+            (32, 0.001),
+            (16, 0.001)
         ]
         idx = None
         for i in range(len(configs)):
@@ -268,7 +273,7 @@ class App(object):
             print('Learning rate dropped from %g to %g' % (old_lr, new_lr))
 
         cb.append(LearningRateScheduler(lr_schedule,
-                                        patience=opts.early_stop-1))
+                                        patience=opts.lr_schedule))
 
         if opts.max_time is not None:
             cb.append(Timer(opts.max_time * 3600 * 0.8))
@@ -342,6 +347,7 @@ class App(object):
             log.info('Use batch size %d' % (batch_size))
             log.info('Use batch lr %f' % (lr))
             model.optimizer.lr.set_value(lr)
+        print(model.optimizer.lr.get_value())
 
         def logger(x):
             log.debug(x)

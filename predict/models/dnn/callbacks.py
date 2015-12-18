@@ -149,10 +149,11 @@ class ProgressLogger(Callback):
 
     def on_train_begin(self, logs={}):
         self._time_start = time()
-        s = 'Epochs: %d\nSamples: %d\nBatch size: %d' % (
+        s = 'Epochs: %d\nSamples: %d\nBatch size: %d\nLearning rate: %g\n' % (
             self.params['nb_epoch'],
             self.params['nb_sample'],
-            self.params['batch_size']
+            self.params['batch_size'],
+            self.model.optimizer.lr.get_value()
         )
         self._log(s)
 
