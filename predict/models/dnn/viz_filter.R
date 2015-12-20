@@ -9,7 +9,7 @@ library(rhdf5)
 library(grid)
 library(seqLogo)
 
-lib <- file.path(Sys.getenv('Pd'), 'viz')
+lib <- file.path(Sys.getenv('Pd'), 'R')
 source(file.path(lib, 'filter.R'))
 
 
