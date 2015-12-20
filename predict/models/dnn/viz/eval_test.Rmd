@@ -75,17 +75,11 @@ query_db <- function(table, models=NULL) {
   }
   dbDisconnect(con)
   if ('target' %in% names(d)) {
-    h <- is.na(d$target)
-    if (sum(h) > 0) {
-      d2 <- d[h,]
-      d2$target <- basename(dirname(dirname(d2$path)))
-      d <- rbind.data.frame(d[!h,], d2)
-    }
+    d <- d %>% mutate(cell_type=factor(grepl('2i', target), levels=c(T, F), labels=c('2i', 'Serum')))
+    d <- d %>% mutate(target=factor(target))
     if (!is.null(opts$cell_type)) {
       d <- d[grepl(opts$cell_type, as.vector(d$target)),]
     }
-    d <- d %>% mutate(cell_type=factor(grepl('2i', target), levels=c(T, F), labels=c('2i', 'Serum')))
-    d <- d %>% mutate(target=factor(target))
   }
   d <- d %>% mutate(model=factor(model))
   d <- d %>% tbl_df

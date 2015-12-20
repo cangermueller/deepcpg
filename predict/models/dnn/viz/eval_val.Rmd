@@ -30,6 +30,7 @@ opts <- list()
 opts$db_file <- './perf_val.sql'
 # opts$models <- c('rf', 'win_avg', 'dnn_mc_cpg_seq_m3')
 opts$models <- NULL
+opts$cell_type <- NULL
 ```
 
 ```{r}
@@ -75,9 +76,11 @@ query_db <- function(table, models=NULL) {
   }
   dbDisconnect(con)
   if ('target' %in% names(d)) {
-    # d <- d[grepl('2i', as.vector(d$target)),]
     d <- d %>% mutate(cell_type=factor(grepl('2i', target), levels=c(T, F), labels=c('2i', 'Serum')))
     d <- d %>% mutate(target=factor(target))
+    if (!is.null(opts$cell_type)) {
+      d <- d[grepl(opts$cell_type, as.vector(d$target)),]
+    }
   }
   d <- d %>% mutate(model=factor(model))
   d <- d %>% tbl_df

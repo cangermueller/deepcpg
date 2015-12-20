@@ -1,0 +1,175 @@
+---
+title: Filter importance
+output:
+  html_document:
+    toc: yes
+---
+
+```{r, include=F}
+library(knitr)
+opts_chunk$set(echo=F, warning=F, message=F)
+```
+
+```{r, include=F}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(rhdf5)
+library(grid)
+library(gridExtra)
+library(scales)
+library(xtable)
+source('filter.R')
+library(gplots)
+library(RColorBrewer)
+library(seqLogo)
+```
+
+```{r}
+options(xtable.type='html')
+```
+
+```{r}
+opts <- list()
+opts$imp_file <- './filter_imp.h5'
+opts$filt_file <- './filters.h5'
+opts$filt_name <- 's_c1'
+opts$cache <- T
+dat <- list()
+
+log <- function(x) {
+}
+```
+
+```{r cache=opts$cache}
+log('Read fil imp')
+# targets <- h5ls(opts$imp_file)[1:2]
+# filts <- c('z_f000', 'z_f001', 'z_f002')
+dat$imp <- read_filt_imp(opts$imp_file, targets=NULL, filts=NULL)
+```
+
+
+```{r}
+dat$filt <- read_filt(opts$filt_file, group=paste0('/', opts$filt_name))
+
+filt_motif <- function(d, filt, ...) {
+  d <- filt_pwm(d, filt)
+  return (paste0(rownames(d)[apply(d, 2, which.max)], collapse=''))
+}
+
+dat$motifs <- dat$filt %>% group_by(filt) %>%
+  summarise(motif=filt_motif(dat$filt, filt)) %>%
+  mutate(
+    motif=factor(motif),
+    label=factor(paste(as.vector(filt), as.vector(motif), sep=': '))
+  )
+```
+
+```{r}
+stats <- dat$imp %>% group_by(filt) %>%
+  summarise_each(funs(mean), starts_with('z_')) %>%
+  left_join(dat$motifs) %>%
+  arrange(desc(z_lor)) %>%
+  move_cols(c('filt', 'motif'))
+```
+
+```{r results='asis'}
+d <- stats %>% select(-label)
+print(xtable(d, digits=4), include.rownames=F)
+```
+
+```{r fig.width=8, fig.height=max(5, nrow(stats) * 0.4)}
+d <- stats %>% select(-c(filt, motif)) %>%
+  mutate(label=factor(label, levels=rev(label))) %>% gather(z, value, -label)
+d <- d %>% group_by(z) %>% mutate(value=value/max(value)) %>% ungroup %>%
+  mutate(label=factor(label, level=levels(label)))
+ggplot(d, aes(x=label, y=value)) +
+  geom_bar(aes(fill=z), stat='identity', position='dodge') +
+  theme_pub() +
+  xlab('') + ylab('Importance') +
+  coord_flip() +
+  theme(legend.position='right')
+```
+
+# Sequence Motifs
+
+```{r motifs, results='asis'}
+filts <- as.vector(stats$filt)
+for (f in filts) {
+  d <- filt_pwm(dat$filt, f)
+  seqLogo(d)
+  d <- stats %>% filter(filt==f) %>% select(-label)
+  print(xtable(d, digits=4), include.rownames=F)
+}
+```
+
+# Heatmaps
+
+```{r}
+plot_heat <- function(what='z_lor') {
+  h <- stats %>% arrange_(sprintf('desc(%s)', what))
+  d <- dat$imp %>% mutate(filt=factor(filt, levels=h$filt)) %>%
+    left_join(select(dat$motifs, filt, label))
+  p <- ggplot(d, aes(x=target, y=label)) +
+    geom_tile(aes_string('fill'=what)) +
+    theme_pub() +
+    theme(
+      axis.title.x=element_blank(),
+      axis.title.y=element_blank(),
+      axis.text.x=element_text(angle=30, hjust=1),
+      legend.position='right'
+      )
+  return (p)
+}
+
+plot_heat <- function(what='z_lor') {
+  h <- stats %>% arrange_(sprintf('desc(%s)', what))
+  d <- dat$imp %>%
+    left_join(select(dat$motifs, filt, label)) %>%
+    mutate(label=factor(label, levels=h$label))
+  d <- d %>% select(one_of('label', 'target', what)) %>% rename_('z'=what) %>% spread(target, z) %>% as.data.frame
+  rownames(d) <- as.vector(d$label)
+  d <- d %>% select(-label) %>% as.matrix(d)
+
+  type <- factor(grepl('2i', colnames(d)), levels=c(T, F), labels=c('2i', 'serum'))
+  col_colors <- c('2i'='forestgreen', 'serum'='brown2')
+  col_colors <- col_colors[type]
+
+  colors <- rev(brewer.pal(9, 'Spectral'))
+  colors <- colorRampPalette(colors)(50)
+
+  p <- heatmap.2(d, density.info='none', trace='none', col=colors,
+    Rowv=F, Colv=T, keysize=1.0, dendrogram='column',
+    margins=c(8, 8), #lhei=c(1, 7), lwid=c(1, 5),
+    key.title='', srtCol=45, key.xlab=what, ColSideColors=col_colors)
+}
+```
+
+```{r}
+fig.width <- 12
+fig.height <- max(10, nrow(stats) * 0.25)
+```
+
+## zlor
+
+```{r, fig.width=fig.width, fig.height=fig.height}
+plot_heat('z_lor')
+```
+
+## zlo
+
+```{r, fig.width=fig.width, fig.height=fig.height}
+plot_heat('z_lo')
+```
+
+## zabs
+
+```{r, fig.width=fig.width, fig.height=fig.height}
+plot_heat('z_abs')
+```
+
+## zl2
+
+```{r, fig.width=fig.width, fig.height=fig.height}
+plot_heat('z_l2')
+```
