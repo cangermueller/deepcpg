@@ -6,9 +6,14 @@ import logging
 import os.path as pt
 import numpy as np
 
-from predict.models.dnn.utils import read_labels, open_hdf, ArrayView
+import predict.models.dnn.utils as ut
 import predict.models.dnn.model as mod
-from utils import write_z
+
+
+def slice_center(n, wlen):
+    c = n // 2
+    delta = wlen // 2
+    return slice(c - delta, c + delta + 1)
 
 
 class App(object):
@@ -24,7 +29,7 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Make prediction on data set')
+            description='Make prediction after mutating DNA sequence')
         p.add_argument(
             'data_file',
             help='Data file')
@@ -35,15 +40,6 @@ class App(object):
         p.add_argument(
             '-o', '--out_file',
             help='Output file')
-        p.add_argument(
-            '--conv_layer',
-            help='Convolutional layer',
-            default='s_c1')
-        p.add_argument(
-            '--filters',
-            help='Filters to be tested',
-            type=int,
-            nargs='+')
         p.add_argument(
             '--chromo',
             help='Chromosome')
@@ -59,6 +55,21 @@ class App(object):
             '--nb_sample',
             help='Maximum # training samples',
             type=int)
+        p.add_argument(
+            '--zero_wlen',
+            help='Window length for zeroing out sequence',
+            nargs='+',
+            type=int)
+        p.add_argument(
+            '--rnd_wlen',
+            help='Window length for randomizing sequence',
+            nargs='+',
+            type=int)
+        p.add_argument(
+            '--batch_size',
+            help='Batch size',
+            type=int,
+            default=128)
         p.add_argument(
             '--max_mem',
             help='Maximum memory load',
@@ -92,43 +103,22 @@ class App(object):
             np.random.seed(opts.seed)
 
         log.info('Load data')
-        def read_data(path):
-            f = open_hdf(path, cache_size=opts.max_mem)
-            data = dict()
-            for k, v in f['data'].items():
-                data[k] = v
-            for k, v in f['pos'].items():
-                data[k] = v
-            return (f, data)
-
-        labels = read_labels(opts.data_file)
-        data_file, data = read_data(opts.data_file)
-
+        data_file, data = ut.read_data(opts.data_file, opts.max_mem)
+        labels = ut.read_labels(opts.data_file)
         if opts.chromo is not None:
-            sel = data['chromo'].value == str(opts.chromo).encode()
-            if opts.start is not None:
-                sel &= data['pos'].value >= opts.start
-            if opts.end is not None:
-                sel &= data['pos'].value <= opts.end
-            if sel.sum() == 0:
-                log.warn('No samples satisfy filter!')
+            if ut.select_data(data, opts.chromo, opts.start, opts.end, log) == 0:
+                log.info('No samples satisfy filter')
                 return 0
-            log.info('Select %d samples' % (sel.sum()))
-            for k in data.keys():
-                if len(data[k].shape) > 1:
-                    data[k] = data[k][sel, :]
-                else:
-                    data[k] = data[k][sel]
 
         def to_view(d):
             for k in d.keys():
-                d[k] = ArrayView(d[k], stop=opts.nb_sample)
+                d[k] = ut.ArrayView(d[k], stop=opts.nb_sample)
 
         to_view(data)
         log.info('%d samples' % (list(data.values())[0].shape[0]))
 
         log.info('Load model')
-        model = mod.model_from_list(opts.model, compile=True)
+        model = mod.model_from_list(opts.model)
 
         def progress(batch, nb_batch):
             batch += 1
@@ -137,29 +127,48 @@ class App(object):
                 print('%5d / %d (%.1f%%)' % (batch, nb_batch,
                                              batch / nb_batch * 100))
 
-        def predict(dropout=False, d=data):
-            z = model.predict(d, verbose=opts.verbose,
-                            callbacks=[progress], dropout=dropout)
+        def predict_and_write(name='z'):
+            z = model.predict(data, callbacks=[progress],
+                              batch_size=opts.batch_size)
+            ut.write_z(data, z, labels, opts.out_file, unlabeled=True,
+                       name=name)
             return z
 
         log.info('Predict')
-        z = predict()
-        write_z(data, z, labels, opts.out_file, unlabeled=True, name='z')
+        predict_and_write()
 
-        conv = model.nodes[opts.conv_layer]
-        filters, bias = conv.get_weights()
-        filters_list = opts.filters
-        if filters_list is None:
-            filters_list = range(filters.shape[0])
-        for i in filters_list:
-            log.info('Kill filter %d' % (i))
-            filters_x = filters.copy()
-            filters_x[i] = filters_x[i].mean()
-            conv.set_weights((filters_x, bias))
-            z = predict()
-            write_z(data, z, labels, opts.out_file, unlabeled=True,
-                  name='z_f%03d' % (i))
+        seq = data['s_x'][:]
+        seq_len = seq.shape[1]
 
+        if opts.zero_wlen is not None:
+            for wlen in opts.zero_wlen:
+                log.info('Zeroing out wlen=%d' % (wlen))
+                if wlen == -1:
+                    mseq = np.zeros(seq.shape, dtype='int8')
+                else:
+                    mseq = seq.copy()
+                    mseq[:, slice_center(seq_len, wlen)] = 0
+                data['s_x'] = mseq
+                predict_and_write('z_zero%d' % (wlen))
+
+        if opts.rnd_wlen is not None:
+            for wlen in opts.rnd_wlen:
+                log.info('Randomize wlen=%d' % (wlen))
+                if wlen == -1:
+                    mseq = np.zeros(seq.shape, dtype='int8')
+                    d = mseq
+                else:
+                    mseq = seq.copy()
+                    d = mseq[:, slice_center(seq_len, wlen)]
+                    d[:] = 0
+                h = np.random.randint(0, d.shape[2],
+                                      (d.shape[0], d.shape[1]))
+                for i in range(d.shape[2]):
+                    d[h == i, i] = 1
+                data['s_x'] = mseq
+                predict_and_write('z_rnd%d' % (wlen))
+
+        data['s_x'] = seq
         data_file.close()
         log.info('Done!')
 

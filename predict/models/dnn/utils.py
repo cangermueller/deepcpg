@@ -8,33 +8,12 @@ from predict.evaluation import evaluate
 MASK = -1
 
 
-def load_model(json_file, weights_file=None, compile=True):
-    import keras.models as kmodels
-    with open(json_file, 'r') as f:
-        model = f.read()
-    model = kmodels.model_from_json(model, compile=compile)
-    model.load_weights(weights_file)
-    return model
-
-
 def evaluate_all(y, z):
     keys = sorted(z.keys())
     p = [evaluate(y[k][:], z[k][:]) for k in keys]
     p = pd.concat(p)
     p.index = keys
     return p
-
-
-def read_and_stack(reader, callback):
-    x = []
-    for o in reader:
-        x.append(callback(*o))
-    y = dict()
-    for k in x[0].keys():
-        y[k] = dict()
-        for l in x[0][k].keys():
-            y[k][l] = np.hstack([x[i][k][l] for i in range(len(x))])
-    return y
 
 
 def read_labels(path):
@@ -88,13 +67,11 @@ def write_z(data, z, labels, out_file, unlabeled=False, name='z'):
             else:
                 gtc = gt.create_group(chromo)
             for k in dc.keys():
+                if k == name and k in gtc:
+                    del gtc[k]
                 if k not in gtc and k != 'chromo':
                     gtc[k] = dc[k]
     f.close()
-
-
-
-
 
 
 def open_hdf(filename, acc='r', cache_size=None):
@@ -110,50 +87,32 @@ def open_hdf(filename, acc='r', cache_size=None):
     return _file
 
 
-class DataReader(object):
+def read_data(path, max_mem=None):
+    f = open_hdf(path, cache_size=max_mem)
+    data = dict()
+    for k, v in f['data'].items():
+        data[k] = v
+    for k, v in f['pos'].items():
+        data[k] = v
+    return (f, data)
 
-    def __init__(self, path, chromos=None, shuffle=False, chunk_size=1,
-                 loop=False, max_chunks=None):
-        self.path = path
-        if chromos is None:
-            chromos = read_chromos(self.path)
-        self.chromos = chromos
-        self.shuffle = shuffle
-        self.chunk_size = chunk_size
-        self.loop = loop
-        self.max_chunks = max_chunks
 
-    def __iter__(self):
-        self._iter_chromos = list(reversed(self.chromos))
-        if self.shuffle:
-            random.shuffle(self._iter_chromos)
-        self._iter_idx = []
-        self._n = 0
-        return self
-
-    def __next__(self):
-        if self.max_chunks is not None and self._n == self.max_chunks:
-            raise StopIteration
-        if len(self._iter_idx) == 0:
-            if len(self._iter_chromos) == 0:
-                if self.loop:
-                    iter(self)
-                else:
-                    raise StopIteration
-            self._iter_chromo = self._iter_chromos.pop()
-            f = h5.File(self.path)
-            n = f['/%s/pos' % (self._iter_chromo)].shape[0]
-            f.close()
-            self._iter_idx = list(reversed(range(0, n, self.chunk_size)))
-            if self.shuffle:
-                random.shuffle(self._iter_idx)
-        self._iter_i = self._iter_idx.pop()
-        self._iter_j = self._iter_i + self.chunk_size
-        self._n += 1
-        return (self._iter_chromo, self._iter_i, self._iter_j)
-
-    def next(self):
-        return self.__next__()
+def select_data(data, chromo, start=None, end=None, log=None):
+    sel = data['chromo'].value == str(chromo).encode()
+    if start is not None:
+        sel &= data['pos'].value >= start
+    if end is not None:
+        sel &= data['pos'].value <= end
+    if sel.sum() == 0:
+        return 0
+    if log is not None:
+        log.info('Select %d samples' % (sel.sum()))
+    for k in data.keys():
+        if len(data[k].shape) > 1:
+            data[k] = data[k][sel, :]
+        else:
+            data[k] = data[k][sel]
+    return sel.sum()
 
 
 class ArrayView(object):

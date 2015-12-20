@@ -4,36 +4,11 @@ import argparse
 import sys
 import logging
 import os.path as pt
-import pandas as pd
 import numpy as np
-import h5py as h5
-import theano as th
-import pickle
 
 from predict.models.dnn.utils import read_labels, open_hdf, ArrayView
 import predict.models.dnn.model as mod
 from utils import write_z
-
-
-def write_activations(data, name, out_file):
-    f = h5.File(out_file, 'a')
-    if name in f:
-        del f[name]
-    g = f.create_group(name)
-
-    for chromo in np.unique(data['chromo']):
-        t = data['chromo'] == chromo
-        dc = {k: data[k][t] for k in data.keys()}
-        t = np.argsort(dc['pos'])
-        for k in dc.keys():
-            dc[k] = dc[k][t]
-        t = dc['pos']
-        assert np.all(t[:-1] < t[1:])
-        gc = g.create_group(chromo)
-        for k in dc.keys():
-            if k != 'chromo':
-                gc[k] = dc[k]
-    f.close()
 
 
 class App(object):
@@ -61,6 +36,15 @@ class App(object):
             '-o', '--out_file',
             help='Output file')
         p.add_argument(
+            '--conv_layer',
+            help='Convolutional layer',
+            default='s_c1')
+        p.add_argument(
+            '--filters',
+            help='Filters to be tested',
+            type=int,
+            nargs='+')
+        p.add_argument(
             '--chromo',
             help='Chromosome')
         p.add_argument(
@@ -75,18 +59,6 @@ class App(object):
             '--nb_sample',
             help='Maximum # training samples',
             type=int)
-        p.add_argument(
-            '--nb_dropout',
-            help='Number of dropout samples',
-            type=int)
-        p.add_argument(
-            '--seq_filter',
-            help='Store seq filter activations',
-            action='store_true')
-        p.add_argument(
-            '--mutate',
-            help='Mutate input sequence',
-            action='store_true')
         p.add_argument(
             '--batch_size',
             help='Batch size',
@@ -161,7 +133,7 @@ class App(object):
         log.info('%d samples' % (list(data.values())[0].shape[0]))
 
         log.info('Load model')
-        model = mod.model_from_list(opts.model)
+        model = mod.model_from_list(opts.model, compile=True)
 
         def progress(batch, nb_batch):
             batch += 1
@@ -170,42 +142,28 @@ class App(object):
                 print('%5d / %d (%.1f%%)' % (batch, nb_batch,
                                              batch / nb_batch * 100))
 
-        def predict(dropout=False, d=data):
+        def predict(d=data):
             z = model.predict(d, verbose=opts.verbose,
-                            callbacks=[progress], dropout=dropout)
+                              batch_size=opts.batch_size, callbacks=[progress])
             return z
 
         log.info('Predict')
         z = predict()
         write_z(data, z, labels, opts.out_file, unlabeled=True, name='z')
 
-        if opts.nb_dropout:
-            log.info('Prepare dropout prediction')
-            model.compile(loss=model.loss, optimizer=model.optimizer,
-                          dropout=True)
-            for i in range(opts.nb_dropout):
-                log.info('Predict with dropout (%d / %d)' % (i + 1, opts.nb_dropout))
-                z = predict(dropout=True, batch_size=opts.batch_size)
-                write_z(data, z, labels, opts.out_file,
-                        unlabeled=True, name='z%d' % (i))
-
-        if opts.seq_filter:
-            log.info('Compute sequence filter activations')
-            x = model.get_input(train=False)['s_x']
-            y = model.nodes['s_c1'].get_output(train=False)
-            f = th.function([x], y)
-            fy = f(data['s_x'])
-            d = dict(chromo=data['chromo'][:], pos=data['pos'][:], y=fy)
-            write_activations(d, 's_x', opts.out_file)
-
-        if opts.mutate:
-            log.info('Mutate sequence')
-            datam = data
-            datam['s_x'] = np.zeros(datam['s_x'].shape)
-            z = predict(d=datam)
-            write_z(data, z, labels, opts.out_file, unlabeled=True, name='z_mut')
-
-
+        conv = model.nodes[opts.conv_layer]
+        filters, bias = conv.get_weights()
+        filters_list = opts.filters
+        if filters_list is None:
+            filters_list = range(filters.shape[0])
+        for i in filters_list:
+            log.info('Kill filter %d' % (i))
+            filters_x = filters.copy()
+            filters_x[i] = filters_x[i].mean()
+            conv.set_weights((filters_x, bias))
+            z = predict()
+            write_z(data, z, labels, opts.out_file, unlabeled=True,
+                  name='z_f%03d' % (i))
 
         data_file.close()
         log.info('Done!')

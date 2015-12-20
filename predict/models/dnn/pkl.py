@@ -7,7 +7,7 @@ import os.path as pt
 import numpy as np
 import pickle
 
-from predict.models.dnn.utils import load_model
+import predict.models.dnn.model as mod
 
 class App(object):
 
@@ -23,11 +23,12 @@ class App(object):
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
             description='Inspect model training')
         p.add_argument(
-            'model_json',
-            help='Model json file')
+            'model',
+            help='Model files',
+            nargs='+')
         p.add_argument(
-            'model_weights',
-            help='Model weights file')
+            '-o', '--out_file',
+            help='Output file')
         p.add_argument(
             '--seed',
             help='Seed of rng',
@@ -56,7 +57,7 @@ class App(object):
             np.random.seed(opts.seed)
 
         log.info('Load model')
-        model = load_model(opts.model_json, opts.model_weights)
+        model = mod.model_from_list(opts.model)
 
         sys.setrecursionlimit(10**6)
         log.info('Pickle model')

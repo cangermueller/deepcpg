@@ -347,7 +347,6 @@ class App(object):
             log.info('Use batch size %d' % (batch_size))
             log.info('Use batch lr %f' % (lr))
             model.optimizer.lr.set_value(lr)
-        print(model.optimizer.lr.get_value())
 
         def logger(x):
             log.debug(x)
