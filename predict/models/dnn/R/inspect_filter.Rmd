@@ -35,20 +35,16 @@ options(xtable.type='html')
 ```{r}
 opts <- list()
 opts$imp_file <- './filter_imp.h5'
-opts$filt_file <- './filters.h5'
+opts$filt_file <- './filter.h5'
 opts$filt_name <- 's_c1'
 opts$rank <- 'z_lor'
 opts$cell_colors <- c('2i'='forestgreen', 'serum'='brown2')
 opts$cell_type <- NULL
 opts$cache <- T
 dat <- list()
-
-log <- function(x) {
-}
 ```
 
 ```{r read_filt_imp, cache=opts$cache}
-log('Read fil imp')
 dat$imp <- read_filt_imp(opts$imp_file, targets=NULL, filts=NULL)
 ```
 
