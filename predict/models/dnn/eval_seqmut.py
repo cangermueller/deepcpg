@@ -206,6 +206,8 @@ def eval_stats(x, chromos, cpos, stats_file, stats=None, nbins=5):
         for chromo, pos in zip(chromos, cpos):
             s.append(read_stats(stats_file, chromo, stat, pos)[1])
         s = np.hstack(s)
+        import ipdb; ipdb.set_trace()
+
         while nbins > 0:
             try:
                 bins = pd.qcut(s, q=nbins, precision=3)
