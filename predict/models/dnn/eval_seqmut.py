@@ -206,7 +206,6 @@ def eval_stats(x, chromos, cpos, stats_file, stats=None, nbins=5):
         for chromo, pos in zip(chromos, cpos):
             s.append(read_stats(stats_file, chromo, stat, pos)[1])
         s = np.hstack(s)
-        import ipdb; ipdb.set_trace()
 
         while nbins > 0:
             try:
@@ -331,8 +330,9 @@ class App(object):
         if not skip or not exits_meta(opts.sql_file, 'global', sql_meta):
             log.info('Evaluate global effects')
             e = evaluate(effects)
-            print('Global effects:')
-            print(eval_to_str(e))
+            if opts.verbose:
+                print('Global effects:')
+                print(eval_to_str(e))
             if out_dir is not None:
                 write_output(e, 'global', out_dir)
             if opts.sql_file:
@@ -343,8 +343,9 @@ class App(object):
                 log.info('Evaluate annotation-specific effects')
                 ea = eval_annos(effects, chromos, cpos, opts.annos_file,
                                 annos=opts.annos)
-                print('Annotation-specific effects:')
-                print(eval_to_str(ea))
+                if opts.verbose:
+                    print('Annotation-specific effects:')
+                    print(eval_to_str(ea))
                 if out_dir is not None:
                     write_output(ea, 'annos', out_dir)
                 if opts.sql_file:
@@ -356,8 +357,9 @@ class App(object):
                 es = eval_stats(effects, chromos, cpos, opts.stats_file,
                                 stats=opts.stats,
                                 nbins=opts.stats_bins)
-                print('Statistics-based effects:')
-                print(eval_to_str(es))
+                if opts.verbose:
+                    print('Statistics-based effects:')
+                    print(eval_to_str(es))
                 if out_dir is not None:
                     write_output(es, 'stats', out_dir)
                 if opts.sql_file:
