@@ -45,7 +45,12 @@ dat <- list()
 ```
 
 ```{r read_filt_imp, cache=opts$cache}
-dat$imp <- read_filt_imp(opts$imp_file, targets=NULL, filts=NULL)
+d <- read_filt_imp(opts$imp_file, targets=NULL, filts=NULL)
+saveRDS(d, 'filter_imp.rds')
+```
+
+```{r}
+dat$imp <- readRDS('filter_imp.rds')
 ```
 
 ```{r}
