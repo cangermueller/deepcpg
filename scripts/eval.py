@@ -130,6 +130,18 @@ def eval_annos(y, z, chromos, cpos, annos_file, annos=None):
     return pa
 
 
+def qcut(x, nb_bins, *args, **kwargs):
+    p = np.arange(0, 101, 100 / nb_bins)[1:]
+    q = list(np.percentile(x, p))
+    if q[0] != 0:
+        q.insert(0, 0)
+    q[-1] = 1
+    y = pd.cut(x, bins=q)
+    assert len(y.cat.categories) == nb_bins
+    assert y.isnull().any() is False
+    return y
+
+
 def eval_stats(y, z, chromos, cpos, stats_file, stats=None, nbins=5):
     if stats is None:
         f = h5.File(stats_file)
@@ -145,7 +157,7 @@ def eval_stats(y, z, chromos, cpos, stats_file, stats=None, nbins=5):
         s = np.hstack(s)
         while nbins > 0:
             try:
-                bins = pd.qcut(s, q=nbins, precision=3)
+                bins = qcut(s, nbins, precision=3)
                 break
             except ValueError:
                 nbins -= 1
@@ -210,7 +222,8 @@ class App(object):
             '--stats',
             help='Statistics to be considered',
             default=['cov', 'var', 'entropy',
-                     'win_cov', 'win_var', 'win_entropy', 'win_dist'],
+                     'win_cov', 'win_var', 'win_entropy', 'win_dist',
+                     'gc_content', 'cg_obs_exp'],
             nargs='+')
         p.add_argument(
             '--stats_bins',

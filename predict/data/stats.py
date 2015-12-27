@@ -9,6 +9,7 @@ import numpy.ma
 import h5py as h5
 import progressbar
 
+
 def read_pos(path, chromo, max_samples=None):
     f = h5.File(path, 'r')
     p = f['/cpg/%s/pos' % (chromo)]
