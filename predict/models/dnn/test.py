@@ -7,7 +7,7 @@ import os.path as pt
 import pandas as pd
 import numpy as np
 
-from predict.models.dnn.utils import read_labels, open_hdf, write_z, ArrayView
+import predict.models.dnn.utils as ut
 import predict.models.dnn.model as mod
 
 
@@ -70,7 +70,7 @@ class App(object):
         if opts.verbose:
             log.setLevel(logging.DEBUG)
         else:
-           log.setLevel(logging.INFO)
+            log.setLevel(logging.INFO)
             log.debug(opts)
 
         if opts.seed is not None:
@@ -83,7 +83,7 @@ class App(object):
         log.info('Load data')
 
         def read_data(path):
-            f = open_hdf(path, cache_size=opts.max_mem)
+            f = ut.open_hdf(path, cache_size=opts.max_mem)
             data = dict()
             for k, v in f['data'].items():
                 data[k] = v
@@ -91,12 +91,12 @@ class App(object):
                 data[k] = v
             return (f, data)
 
-        labels = read_labels(opts.data_file)
+        labels = ut.read_labels(opts.data_file)
         data_file, data = read_data(opts.data_file)
 
         def to_view(d):
             for k in d.keys():
-                d[k] = ArrayView(d[k], stop=opts.nb_sample)
+                d[k] = ut.ArrayView(d[k], stop=opts.nb_sample)
 
         to_view(data)
         log.info('%d samples' % (list(data.values())[0].shape[0]))
@@ -122,7 +122,7 @@ class App(object):
                           callbacks=[progress],
                           batch_size=opts.batch_size)
         log.info('Write')
-        write_z(data, z, labels, opts.out_file)
+        ut.write_z(data, z, labels, opts.out_file)
 
         data_file.close()
         log.info('Done!')

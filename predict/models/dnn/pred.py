@@ -4,15 +4,12 @@ import argparse
 import sys
 import logging
 import os.path as pt
-import pandas as pd
 import numpy as np
 import h5py as h5
 import theano as th
-import pickle
 
-from predict.models.dnn.utils import read_labels, open_hdf, ArrayView
+import predict.models.dnn.utils as ut
 import predict.models.dnn.model as mod
-from utils import write_z
 
 
 def write_activations(data, name, out_file):
@@ -125,8 +122,9 @@ class App(object):
             np.random.seed(opts.seed)
 
         log.info('Load data')
+
         def read_data(path):
-            f = open_hdf(path, cache_size=opts.max_mem)
+            f = ut.open_hdf(path, cache_size=opts.max_mem)
             data = dict()
             for k, v in f['data'].items():
                 data[k] = v
@@ -134,7 +132,7 @@ class App(object):
                 data[k] = v
             return (f, data)
 
-        labels = read_labels(opts.data_file)
+        labels = ut.read_labels(opts.data_file)
         data_file, data = read_data(opts.data_file)
 
         if opts.chromo is not None:
@@ -155,7 +153,7 @@ class App(object):
 
         def to_view(d):
             for k in d.keys():
-                d[k] = ArrayView(d[k], stop=opts.nb_sample)
+                d[k] = ut.ArrayView(d[k], stop=opts.nb_sample)
 
         to_view(data)
         log.info('%d samples' % (list(data.values())[0].shape[0]))
@@ -172,22 +170,23 @@ class App(object):
 
         def predict(dropout=False, d=data):
             z = model.predict(d, verbose=opts.verbose,
-                            callbacks=[progress], dropout=dropout)
+                              callbacks=[progress], dropout=dropout)
             return z
 
         log.info('Predict')
         z = predict()
-        write_z(data, z, labels, opts.out_file, unlabeled=True, name='z')
+        ut.write_z(data, z, labels, opts.out_file, unlabeled=True, name='z')
 
         if opts.nb_dropout:
             log.info('Prepare dropout prediction')
             model.compile(loss=model.loss, optimizer=model.optimizer,
                           dropout=True)
             for i in range(opts.nb_dropout):
-                log.info('Predict with dropout (%d / %d)' % (i + 1, opts.nb_dropout))
+                log.info('Predict with dropout (%d / %d)' % (i + 1,
+                                                             opts.nb_dropout))
                 z = predict(dropout=True, batch_size=opts.batch_size)
-                write_z(data, z, labels, opts.out_file,
-                        unlabeled=True, name='z%d' % (i))
+                ut.write_z(data, z, labels, opts.out_file,
+                           unlabeled=True, name='z%d' % (i))
 
         if opts.seq_filter:
             log.info('Compute sequence filter activations')
@@ -203,9 +202,8 @@ class App(object):
             datam = data
             datam['s_x'] = np.zeros(datam['s_x'].shape)
             z = predict(d=datam)
-            write_z(data, z, labels, opts.out_file, unlabeled=True, name='z_mut')
-
-
+            ut.write_z(data, z, labels, opts.out_file, unlabeled=True,
+                       name='z_mut')
 
         data_file.close()
         log.info('Done!')

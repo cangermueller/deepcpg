@@ -20,17 +20,17 @@ def read_file(dnames, fname, exists=False):
     ds = pd.concat(ds)
     return ds
 
+
 def read_lc(dnames, fname='lc.csv', exists=False):
     d = read_file(dnames, fname, exists)
     return d.groupby('model', as_index=False).last()
+
 
 def read_perf(dnames, fname='perf_val.csv', exists=False):
     d = read_file(dnames, fname, exists)
     d = d.groupby('model', as_index=False).mean()
     d = d.loc[:, d.columns != 'loss']
     return d
-
-
 
 
 class App(object):
@@ -119,5 +119,5 @@ class App(object):
 
 
 if __name__ == '__main__':
-    app=App()
+    app = App()
     app.run(sys.argv)
