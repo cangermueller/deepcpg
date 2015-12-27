@@ -1,14 +1,16 @@
 import numpy as np
-from keras import callbacks as cb
-from predict.models.dnn.callbacks import ProgressLogger
 from time import sleep
+
+from keras.callbacks import CallbackList
+
+import predict.models.dnn.callbacks as cbk
 
 
 def test_progress_logger():
     batch_logs = ['loss', 'acc']
     epoch_logs = ['val_loss', 'val_acc']
-    callbacks = [ProgressLogger()]
-    callbacks = cb.CallbackList(callbacks)
+    callbacks = [cbk.ProgressLogger()]
+    callbacks = CallbackList(callbacks)
     params = {
         'batch_size': 128,
         'nb_epoch': 3,

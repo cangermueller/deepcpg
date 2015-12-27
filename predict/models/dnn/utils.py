@@ -1,11 +1,15 @@
 import h5py as h5
 import pandas as pd
 import numpy as np
-import random
 
 from predict.evaluation import evaluate
+import predict.models.dnn.callbacks as cbk
 
 MASK = -1
+
+
+def make_cbk():
+    return cbk.EarlyStopping()
 
 
 def evaluate_all(y, z):
@@ -34,7 +38,9 @@ def map_targets(targets, labels):
 
 
 def write_z(data, z, labels, out_file, unlabeled=False, name='z'):
-    target_map = {x[0] + '_y': x[1] for x in zip(labels['targets'], labels['files'])}
+    target_map = dict()
+    for x in zip(labels['targets'], labels['files']):
+        target_map[x[0] + '_y'] = x[1]
 
     f = h5.File(out_file, 'a')
     for target in z.keys():

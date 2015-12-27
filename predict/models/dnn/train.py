@@ -11,19 +11,16 @@ import random
 import json
 from keras.callbacks import ModelCheckpoint
 
-from predict.models.dnn.utils import evaluate_all, MASK, open_hdf, read_labels
-from predict.models.dnn.utils import write_z, map_targets, ArrayView
-from predict.models.dnn.callbacks import DataJumper
-from predict.models.dnn.callbacks import LearningRateScheduler, EarlyStopping, PerformanceLogger, ProgressLogger, Timer
+import predict.models.dnn.utils as ut
+import predict.models.dnn.callbacks as cbk
 import predict.models.dnn.model as mod
-
 
 
 def get_sample_weights(y, weight_classes=False):
     y = y[:]
     class_weights = {-1: 0, 0: 1, 1: 1}
     if weight_classes:
-        t = y[y != MASK].mean()
+        t = y[y != ut.MASK].mean()
         class_weights[0] = t
         class_weights[1] = 1 - t
     sample_weights = np.zeros(y.shape, dtype='float16')
@@ -158,7 +155,9 @@ class App(object):
             batch_size = configs[i][0]
             self.log.info('Try batch size %d' % (batch_size))
             batch_data = {k: v[:batch_size] for k, v in data.items()}
-            batch_weights = {k: v[:batch_size] for k, v in sample_weights.items()}
+            batch_weights = dict()
+            for k, v in sample_weights.items():
+                batch_weights[k] = v[:batch_size]
             try:
                 model.train_on_batch(batch_data,
                                      sample_weight=batch_weights)
@@ -191,7 +190,7 @@ class App(object):
         self.opts = opts
 
         # Initialize variables
-        labels = read_labels(opts.train_file)
+        labels = ut.read_labels(opts.train_file)
         targets = labels['targets']
 
         f = h5.File(opts.train_file)
@@ -260,11 +259,12 @@ class App(object):
         model_weights_best = pt.join(opts.out_dir, 'model_weights.h5')
 
         cb = []
-        cb.append(ProgressLogger())
-        cb.append(ModelCheckpoint(model_weights_last, save_best_only=False))
+        cb.append(cbk.ProgressLogger())
+        cb.append(cbk.ModelCheckpoint(model_weights_last,
+                                      save_best_only=False))
         cb.append(ModelCheckpoint(model_weights_best,
                                   save_best_only=True, verbose=1))
-        cb.append(EarlyStopping(patience=opts.early_stop, verbose=1))
+        cb.append(cbk.EarlyStopping(patience=opts.early_stop, verbose=1))
 
         def lr_schedule():
             old_lr = model.optimizer.lr.get_value()
@@ -272,11 +272,11 @@ class App(object):
             model.optimizer.lr.set_value(new_lr)
             print('Learning rate dropped from %g to %g' % (old_lr, new_lr))
 
-        cb.append(LearningRateScheduler(lr_schedule,
-                                        patience=opts.lr_schedule))
+        cb.append(ut.LearningRateScheduler(lr_schedule,
+                                           patience=opts.lr_schedule))
 
         if opts.max_time is not None:
-            cb.append(Timer(opts.max_time * 3600 * 0.8))
+            cb.append(cbk.Timer(opts.max_time * 3600 * 0.8))
 
         def save_lc():
             log = {'lc.csv': perf_logger.frame(),
@@ -285,18 +285,17 @@ class App(object):
                 with open(pt.join(opts.out_dir, k), 'w') as f:
                     f.write(perf_logs_str(v))
 
-        perf_logger = PerformanceLogger(callbacks=[save_lc])
+        perf_logger = cbk.PerformanceLogger(callbacks=[save_lc])
         cb.append(perf_logger)
 
         def read_data(path):
-            f = open_hdf(path, cache_size=opts.max_mem)
+            f = ut.open_hdf(path, cache_size=opts.max_mem)
             data = dict()
             for k, v in f['data'].items():
                 data[k] = v
             for k, v in f['pos'].items():
                 data[k] = v
             return (f, data)
-
 
         train_file, train_data = read_data(opts.train_file)
         train_weights = dict()
@@ -317,20 +316,20 @@ class App(object):
 
         def to_view(d):
             for k in d.keys():
-                d[k] = ArrayView(d[k])
+                d[k] = ut.ArrayView(d[k])
 
         to_view(train_data)
         to_view(train_weights)
         views = list(train_data.values()) + list(train_weights.values())
-        cb.append(DataJumper(views, nb_sample=opts.nb_sample, verbose=1,
-                             jump=not opts.no_jump))
+        cb.append(cbk.DataJumper(views, nb_sample=opts.nb_sample, verbose=1,
+                                 jump=not opts.no_jump))
 
         if val_data is not train_data:
             to_view(val_data)
             to_view(val_weights)
             views = list(val_data.values()) + list(val_weights.values())
-            cb.append(DataJumper(views, nb_sample=opts.nb_sample, verbose=1,
-                                 jump=False))
+            cb.append(cbk.DataJumper(views, nb_sample=opts.nb_sample, verbose=1,
+                                     jump=False))
 
         print('%d training samples' % (list(train_data.values())[0].shape[0]))
         print('%d validation samples' % (list(val_data.values())[0].shape[0]))
@@ -375,12 +374,12 @@ class App(object):
 
         print('\nValidation set performance:')
         z = model.predict(val_data, batch_size=batch_size)
-        write_z(val_data, z, labels, pt.join(opts.out_dir, 'z_val.h5'))
+        ut.write_z(val_data, z, labels, pt.join(opts.out_dir, 'z_val.h5'))
 
-        p = evaluate_all(val_data, z)
+        p = ut.evaluate_all(val_data, z)
         loss = model.evaluate(val_data, sample_weight=val_weights)
         p['loss'] = loss
-        p.index = map_targets(p.index.values, labels)
+        p.index = ut.map_targets(p.index.values, labels)
         p.index.name = 'target'
         p.reset_index(inplace=True)
         p.sort_values('target', inplace=True)
@@ -398,5 +397,5 @@ class App(object):
 
 
 if __name__ == '__main__':
-    app=App()
+    app = App()
     app.run(sys.argv)

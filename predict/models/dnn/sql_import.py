@@ -29,11 +29,13 @@ def to_sql(sql_path, data, table, meta):
     data.to_sql(table, con, if_exists='append', index=False)
     con.close()
 
+
 def to_field(v):
     if isinstance(v, dict):
         return str(v)
     else:
         return v
+
 
 def model_to_tables(params):
     d = vars(params)
@@ -123,7 +125,7 @@ class App(object):
                 log.info(fname)
                 sql_meta['path'] = pt.realpath(fname)
                 if model is None:
-                    sql_meta['model'] =  pt.basename(pt.dirname(fname))
+                    sql_meta['model'] = pt.basename(pt.dirname(fname))
                 d = pd.read_table(fname)
                 to_sql(opts.sql_file, d, 'lc', sql_meta)
 
@@ -133,7 +135,7 @@ class App(object):
                 log.info(fname)
                 sql_meta['path'] = pt.realpath(fname)
                 if model is None:
-                    sql_meta['model'] =  pt.splitext(pt.basename(fname))[0]
+                    sql_meta['model'] = pt.splitext(pt.basename(fname))[0]
                 params = Params.from_yaml(fname)
                 d = model_to_tables(params)
                 for k, v in d.items():

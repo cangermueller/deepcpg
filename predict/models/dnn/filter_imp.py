@@ -6,9 +6,8 @@ import logging
 import os.path as pt
 import numpy as np
 
-from predict.models.dnn.utils import read_labels, open_hdf, ArrayView
+import predict.models.dnn.utils as ut
 import predict.models.dnn.model as mod
-from utils import write_z
 
 
 class App(object):
@@ -97,8 +96,9 @@ class App(object):
             np.random.seed(opts.seed)
 
         log.info('Load data')
+
         def read_data(path):
-            f = open_hdf(path, cache_size=opts.max_mem)
+            f = ut.open_hdf(path, cache_size=opts.max_mem)
             data = dict()
             for k, v in f['data'].items():
                 data[k] = v
@@ -106,7 +106,7 @@ class App(object):
                 data[k] = v
             return (f, data)
 
-        labels = read_labels(opts.data_file)
+        labels = ut.read_labels(opts.data_file)
         data_file, data = read_data(opts.data_file)
 
         if opts.chromo is not None:
@@ -127,7 +127,7 @@ class App(object):
 
         def to_view(d):
             for k in d.keys():
-                d[k] = ArrayView(d[k], stop=opts.nb_sample)
+                d[k] = ut.ArrayView(d[k], stop=opts.nb_sample)
 
         to_view(data)
         log.info('%d samples' % (list(data.values())[0].shape[0]))
@@ -149,7 +149,7 @@ class App(object):
 
         log.info('Predict')
         z = predict()
-        write_z(data, z, labels, opts.out_file, unlabeled=True, name='z')
+        ut.write_z(data, z, labels, opts.out_file, unlabeled=True, name='z')
 
         conv = model.nodes[opts.conv_layer]
         filters, bias = conv.get_weights()
@@ -162,8 +162,8 @@ class App(object):
             filters_x[i] = filters_x[i].mean()
             conv.set_weights((filters_x, bias))
             z = predict()
-            write_z(data, z, labels, opts.out_file, unlabeled=True,
-                  name='z_f%03d' % (i))
+            ut.write_z(data, z, labels, opts.out_file, unlabeled=True,
+                       name='z_f%03d' % (i))
 
         data_file.close()
         log.info('Done!')

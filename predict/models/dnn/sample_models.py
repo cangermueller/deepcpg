@@ -5,8 +5,6 @@ import sys
 import logging
 import os.path as pt
 import yaml
-import re
-import scipy.stats as sps
 import numpy as np
 
 from predict.models.dnn.model import ParamSampler
@@ -18,6 +16,7 @@ def eval_dict(d):
             d[k] = eval(v)
         elif isinstance(v, dict):
             eval_dict(v)
+
 
 class App(object):
 

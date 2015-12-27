@@ -1,7 +1,9 @@
 import h5py as h5
 import numpy as np
 import numpy.testing as npt
+
 from predict.models.dnn.data import encode_seqs, MAX_DIST
+
 
 def test_encode_seqs():
     seqs = np.array([

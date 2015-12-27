@@ -18,7 +18,8 @@ class EarlyStopping(Callback):
     def on_epoch_end(self, epoch, logs={}):
         score = logs.get(self.monitor)
         if score is None:
-            warnings.warn("Early stopping requires %s!" % (self.monitor), RuntimeWarning)
+            warnings.warn("Early stopping requires %s!" % (self.monitor),
+                          RuntimeWarning)
 
         if score <= self.best_score:
             self.counter = 0
@@ -113,7 +114,8 @@ class PerformanceLogger(Callback):
                 d.append(de)
             d = pd.concat(d)
         else:
-            d = self._list_to_frame(self._batch_logs[epoch - 1], self.batch_logs)
+            d = self._list_to_frame(self._batch_logs[epoch - 1],
+                                    self.batch_logs)
             t = list(d.columns)
             d['batch'] = np.arange(d.shape[0]) + 1
             d = d.loc[:, ['batch'] + t]
@@ -149,16 +151,19 @@ class ProgressLogger(Callback):
 
     def on_train_begin(self, logs={}):
         self._time_start = time()
-        s = 'Epochs: %d\nSamples: %d\nBatch size: %d\nLearning rate: %g\n' % (
-            self.params['nb_epoch'],
-            self.params['nb_sample'],
-            self.params['batch_size'],
-            self.model.optimizer.lr.get_value()
-        )
+        s = []
+        s.append('Epochs: %d' % (self.params['nb_epoch']))
+        s.append('Samples: %d' % (self.params['nb_sample']))
+        s.append('Batch size: %d' % (self.params['batch_size']))
+        if hasattr(self, 'model'):
+            s.append('Learning rate: %d' % (
+                self.model.optimizer.lr.get_value()))
+        s = '\n'.join(s)
         self._log(s)
 
     def on_epoch_begin(self, epoch, logs={}):
-        self._nb_batch = int(np.ceil(self.params['nb_sample'] / self.params['batch_size']))
+        self._nb_batch = int(np.ceil(self.params['nb_sample'] /
+                                     self.params['batch_size']))
         self._batch = 0
         self._interval = max(1, round(self._nb_batch * self.interval))
         s = 'Epoch %d/%d' % (epoch + 1, self.params['nb_epoch'])
@@ -224,7 +229,6 @@ class DataJumper(Callback):
             d.start = start
             d.stop = stop
         self.jump = jump
-
 
     def on_epoch_begin(self, epoch, logs={}):
         if not self.jump or self._n == self.nb_sample:
