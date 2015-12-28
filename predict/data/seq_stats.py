@@ -102,6 +102,10 @@ class App(object):
             help='Only apply to these chromosome',
             nargs='+')
         p.add_argument(
+            '--replace',
+            help='Replace existing dataset',
+            action='store_true')
+        p.add_argument(
             '--verbose', help='More detailed log messages', action='store_true')
         p.add_argument(
             '--log_file', help='Write log messages to file')
@@ -156,7 +160,10 @@ class App(object):
             def write(name, data):
                 p = '/%s/%s' % (chromo, name)
                 if p in out_file:
-                    del out_file[p]
+                    if opts.replace:
+                        del out_file[p]
+                    else:
+                        return
                 out_file.create_dataset(p, data=data)
 
             write('pos', cpos)

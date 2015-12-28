@@ -42,7 +42,10 @@ def to_sql(sql_path, data, table, meta):
         con.execute('DELETE FROM %s WHERE id = "%s"' % (table, id_))
     except sql.OperationalError:
         pass
-    cols = pd.read_sql('SELECT * FROM %s LIMIT 1' % (table), con)
+    try:
+        cols = pd.read_sql('SELECT * FROM %s LIMIT 1' % (table), con)
+    except pd.io.sql.DatabaseError:
+        cols = []
     if len(cols):
         t = sorted(set(data.columns) - set(cols.columns))
         if len(t):
@@ -130,15 +133,21 @@ def eval_annos(y, z, chromos, cpos, annos_file, annos=None):
     return pa
 
 
+def add_noise(x, eps=1e-6):
+    min_ = np.min(x)
+    max_ = np.max(x)
+    xeps = x + np.random.uniform(-eps, eps, len(x))
+    xeps = np.maximum(min_, xeps)
+    xeps = np.minimum(max_, xeps)
+    return xeps
+
+
 def qcut(x, nb_bins, *args, **kwargs):
-    p = np.arange(0, 101, 100 / nb_bins)[1:]
+    p = np.arange(0, 101, 100 / nb_bins)
     q = list(np.percentile(x, p))
-    if q[0] != 0:
-        q.insert(0, 0)
-    q[-1] = 1
-    y = pd.cut(x, bins=q)
-    assert len(y.cat.categories) == nb_bins
-    assert y.isnull().any() is False
+    y = pd.cut(x, bins=q, include_lowest=True)
+    assert len(y.categories) == nb_bins
+    assert y.isnull().any() == False
     return y
 
 
@@ -151,13 +160,14 @@ def eval_stats(y, z, chromos, cpos, stats_file, stats=None, nbins=5):
     ps = []
     index = []
     for stat in stats:
+        print(stat)
         s = []
         for chromo, pos in zip(chromos, cpos):
             s.append(read_stats(stats_file, chromo, stat, pos)[1])
         s = np.hstack(s)
         while nbins > 0:
             try:
-                bins = qcut(s, nbins, precision=3)
+                bins = qcut(add_noise(s), nbins, precision=3)
                 break
             except ValueError:
                 nbins -= 1
@@ -168,7 +178,9 @@ def eval_stats(y, z, chromos, cpos, stats_file, stats=None, nbins=5):
             t = bins == bin_
             ys = y[t]
             zs = z[t]
-            ps.append(evaluate(ys, zs))
+            p = evaluate(ys, zs)
+            p['nb_obs'] = t.sum()
+            ps.append(p)
             index.append((stat, bin_))
     ps = pd.concat(ps, axis=0)
     ps.index = pd.MultiIndex.from_tuples(index)
@@ -221,10 +233,10 @@ class App(object):
         p.add_argument(
             '--stats',
             help='Statistics to be considered',
+            nargs='+',
             default=['cov', 'var', 'entropy',
                      'win_cov', 'win_var', 'win_entropy', 'win_dist',
-                     'gc_content', 'cg_obs_exp'],
-            nargs='+')
+                     'gc_content', 'cg_obs_exp'])
         p.add_argument(
             '--stats_bins',
             help='Number of bins of quantization',
@@ -263,8 +275,9 @@ class App(object):
         if not skip or not exits_meta(opts.sql_file, 'global', sql_meta):
             log.info('Evaluate global performance')
             p = evaluate(y, z)
-            print('Global performance:')
-            print(eval_to_str(p))
+            if opts.verbose:
+                print('Global performance:')
+                print(eval_to_str(p))
             if out_dir is not None:
                 write_output(p, 'global', out_dir)
             if opts.sql_file:
@@ -275,8 +288,9 @@ class App(object):
                 log.info('Evaluate annotation-specific  performance')
                 pa = eval_annos(y, z, chromos, cpos, opts.annos_file,
                                 annos=opts.annos)
-                print('Annotation-specific performance:')
-                print(eval_to_str(pa))
+                if opts.verbose:
+                    print('Annotation-specific performance:')
+                    print(eval_to_str(pa))
                 if out_dir is not None:
                     write_output(pa, 'annos', out_dir)
                 if opts.sql_file:
@@ -288,8 +302,9 @@ class App(object):
                 ps = eval_stats(y, z, chromos, cpos, opts.stats_file,
                                 stats=opts.stats,
                                 nbins=opts.stats_bins)
-                print('Statistics-based performance:')
-                print(eval_to_str(ps))
+                if opts.verbose:
+                    print('Statistics-based performance:')
+                    print(eval_to_str(ps))
                 if out_dir is not None:
                     write_output(ps, 'stats', out_dir)
                 if opts.sql_file:

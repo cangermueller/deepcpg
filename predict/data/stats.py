@@ -5,9 +5,8 @@ import sys
 import logging
 import os.path as pt
 import numpy as np
-import numpy.ma
 import h5py as h5
-import progressbar
+import pandas as pd
 
 
 def read_pos(path, chromo, max_samples=None):
@@ -19,12 +18,23 @@ def read_pos(path, chromo, max_samples=None):
         p = p.value
     return p
 
+
+def read_pos_all(data_files, *args, **kwargs):
+    pos = [read_pos(x, *args, **kwargs) for x in data_files]
+    t = set()
+    for p in pos:
+        t.update(p)
+    pos = np.array(sorted(t))
+    return pos
+
+
 def adjust_pos(y, p, q, mask=-1):
     yq = np.empty(len(q), dtype='int8')
     yq.fill(-1)
     t = np.in1d(q, p).nonzero()[0]
     yq[t] = y
     return yq
+
 
 def read_cpg(path, chromo, pos=None, *args, **kwargs):
     f = h5.File(path, 'r')
@@ -36,23 +46,21 @@ def read_cpg(path, chromo, pos=None, *args, **kwargs):
         p = pos
     return (p, c)
 
-def read_chromo(data_files, chromo, max_samples=None):
-    pos = [read_pos(x, chromo, max_samples) for x in data_files]
-    t = set()
-    for p in pos:
-        t.update(p)
-    pos = np.array(sorted(t))
 
+def read_chromo(data_files, chromo, pos):
     d = [read_cpg(x, chromo, pos, mask=-1)[1] for x in data_files]
     d = np.atleast_2d(np.vstack(d)).T
     d = np.ma.masked_values(d, -1)
-    return (pos, d)
+    return d
+
 
 def cov(x):
     return np.sum(~x.mask, axis=1) / x.shape[1]
 
+
 def var(x):
     return x.var(axis=1)
+
 
 def entropy(x, mean=False):
     assert x.mask.ndim == 2
@@ -68,8 +76,10 @@ def entropy(x, mean=False):
     assert np.all(e >= 0)
     return e
 
+
 def win_entropy(x, *args, **kwargs):
     return entropy(x, mean=True)
+
 
 def win_dist(x, p, c, *args, **kwargs):
     assert x.mask.ndim == 2
@@ -78,14 +88,17 @@ def win_dist(x, p, c, *args, **kwargs):
     w = np.sum(~x.mask, axis=1)[s]
     return np.sum(d * w) / (w.sum() + 1e-8)
 
+
 def win_cov(x, *args, **kwargs):
     assert x.mask.ndim == 2
     t = np.mean(np.sum(~x.mask, axis=1) / x.shape[1])
     assert t >= 0 and t <= 1
     return t
 
+
 def win_var(x, *args, **kwargs):
     return x.mean(axis=0).var()
+
 
 def rolling_apply(pos, x, delta, funs, y=None, callback=None):
     n = len(pos)
@@ -128,6 +141,9 @@ class App(object):
             'data_files',
             help='HDF path to data files',
             nargs='+')
+        p.add_argument(
+            '--pos_file',
+            help='Optional position file with pos and chromo column')
         p.add_argument(
             '-o', '--out_file',
             help='Output HDF path')
@@ -175,42 +191,67 @@ class App(object):
             else:
                 funs.append((stat, globals()[stat]))
 
-        chromos = opts.chromos
-        if chromos is None:
-            f = h5.File(opts.data_files[0])
-            chromos = list(f['cpg'].keys())
-            f.close()
+        if opts.pos_file is not None:
+            log.info('Read positions ...')
+            pos = pd.read_table(opts.pos_file, comment='#',
+                                header=None, dtype={0: 'str'})
+            pos.columns = ['chromo', 'pos']
+            chromos = pos.chromo.unique()
+            if opts.chromos is not None:
+                pos = pos.loc[pos.chromo.isin(opts.chromos)]
+            pos.sort_values(['chromo', 'pos'], inplace=True)
+            pos = pd.Series(pos.pos.values, index=pos.chromo.values)
+            chromos = sorted(np.unique(pos.index.values))
+        else:
+            chromos = opts.chromos
+            if chromos is None:
+                f = h5.File(opts.data_files[0])
+                chromos = list(f['cpg'].keys())
+                f.close()
+            pos = None
 
         f = h5.File(opts.out_file, 'a')
         for chromo in chromos:
             log.info('Chromosome %s' % (chromo))
-            pos, X = read_chromo(opts.data_files, chromo, opts.max_samples)
+            if pos is None:
+                cpos = read_pos_all(opts.data_files, chromo=chromo,
+                                    max_samples=opts.max_samples)
+            else:
+                cpos = pos[chromo]
+            cpos = np.asarray(cpos)
             t = pt.join(chromo, 'pos')
             if t in f:
                 del f[t]
-            f.create_dataset(t, data=pos)
-            log.info('Per CpG statistics')
-            for k, v in funs:
-                y = v(X)
-                t = pt.join(chromo, k)
-                if t in f:
-                    del f[t]
-                f.create_dataset(t, data=y)
-            log.info('Window-based statistics')
-            n = len(pos)
-            y = np.empty((n, len(win_funs)), dtype='float32')
-            def prog(i):
-                if i % 10000 == 0:
-                    log.info('%4.1f%%' % (i / n * 100))
-            y = rolling_apply(pos, X,
-                              funs=[x[1] for x in win_funs],
-                              delta=delta, y=y,
-                              callback=prog)
-            for i, x in enumerate([x[0] for x in win_funs]):
-                t = pt.join(chromo, x)
-                if t in f:
-                    del f[t]
-                f.create_dataset(t, data=y[:, i])
+            f.create_dataset(t, data=cpos)
+            X = read_chromo(opts.data_files, chromo, cpos)
+
+            if len(funs):
+                log.info('Per CpG statistics')
+                for k, v in funs:
+                    y = v(X)
+                    t = pt.join(chromo, k)
+                    if t in f:
+                        del f[t]
+                    f.create_dataset(t, data=y)
+
+            if len(win_funs):
+                log.info('Window-based statistics')
+                n = len(cpos)
+                y = np.empty((n, len(win_funs)), dtype='float32')
+
+                def prog(i):
+                    if i % 10000 == 0:
+                        log.info('%4.1f%%' % (i / n * 100))
+
+                y = rolling_apply(cpos, X,
+                                funs=[x[1] for x in win_funs],
+                                delta=delta, y=y,
+                                callback=prog)
+                for i, x in enumerate([x[0] for x in win_funs]):
+                    t = pt.join(chromo, x)
+                    if t in f:
+                        del f[t]
+                    f.create_dataset(t, data=y[:, i])
         f.close()
 
         log.info('Done!')
