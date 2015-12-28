@@ -31,7 +31,7 @@ options(xtable.type='html')
 ```{r}
 dat <- list()
 opts <- list()
-opts$db_file <- './perf_test.sql'
+opts$db_file <- './db.sql'
 opts$models <- NULL
 opts$cell_type <- NULL
 ```
@@ -86,9 +86,16 @@ plot_annos(d)
 dat$stats <- query_stats(opts$db_file, model=opts$models)
 ```
 
-```{r fig.width=8, fig.height=25}
+```{r}
 m <- top_n(5)
-d <- dat$stats %>% filter(model %in% m) %>% droplevels %>%
-  mutate(model=factor(model, levels=m))
+d <- dat$stats %>%
+  filter(model %in% m) %>%
+  mutate(model=factor(model, levels=m)) %>%
+  filter(stat %in% opts$stats) %>%
+  mutate(stat=factor(stat, levels=opts$stats)) %>%
+  droplevels
+```
+
+```{r fig.width=8, fig.height=length(levels(d$stat))*2.5}
 plot_stats(d)
 ```

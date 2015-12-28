@@ -15,8 +15,12 @@ query_db <- function(table, models=NULL) {
 top_n <- function(n, include=c('rf', 'win_avg')) {
   d <- as.vector(dat$gstats$model) %>% head(n)
   if (!is.null(include)) {
-    h <- setdiff(include, d)
-    d <- c(d[1:(length(d)-length(h))], h)
+    i <- setdiff(include, d)
+    h <- length(d) + length(i)
+    if (h > n) {
+      d <- d[1:(length(d) - (h - n))]
+    }
+    d <- c(d, i)
   }
   return (d)
 }
@@ -176,13 +180,14 @@ plot_annos <- function(d) {
 }
 
 plot_stats <- function(d) {
-  p <- ggplot(d, aes(x=bin_mid, y=auc, color=model)) +
-    geom_smooth(se=F, size=1.2) +
-    geom_point(size=0.9) +
-    facet_wrap(~stat, scales='free', ncol=1) +
+  p <- ggplot(d, aes(x=bin_mid, y=auc)) +
+    geom_smooth(se=F, size=1.2, aes(color=model, fill=stat)) +
+    geom_point(size=0.7, aes(color=model)) +
     xlab('') + ylab('AUC') +
-    theme_pub() + theme(legend.position='right')
+    facet_wrap(~stat, ncol=1, scales='free') +
+    theme_pub() +
+    theme(legend.position='right') +
+    guides(fill=F)
   return (p)
 }
-
 
