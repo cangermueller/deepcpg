@@ -14,6 +14,7 @@ from keras.callbacks import ModelCheckpoint
 import predict.models.dnn.utils as ut
 import predict.models.dnn.callbacks as cbk
 import predict.models.dnn.model as mod
+from predict.models.dnn.params import Params
 
 
 def get_sample_weights(y, weight_classes=False):
@@ -201,14 +202,14 @@ class App(object):
 
         # Setup model
         if opts.params is not None:
-            model_params = mod.Params.from_yaml(opts.params)
+            model_params = Params.from_yaml(opts.params)
         else:
             model_params = None
 
         if opts.model is None:
             log.info('Build model')
             if model_params is None:
-                model_params = mod.Params()
+                model_params = Params()
             model = mod.build(model_params, targets, seq_len, cpg_len,
                               nb_unit=nb_unit, compile=False)
         else:
@@ -260,8 +261,8 @@ class App(object):
 
         cb = []
         cb.append(cbk.ProgressLogger())
-        cb.append(cbk.ModelCheckpoint(model_weights_last,
-                                      save_best_only=False))
+        cb.append(ModelCheckpoint(model_weights_last,
+                                  save_best_only=False))
         cb.append(ModelCheckpoint(model_weights_best,
                                   save_best_only=True, verbose=1))
         cb.append(cbk.EarlyStopping(patience=opts.early_stop, verbose=1))
@@ -272,7 +273,7 @@ class App(object):
             model.optimizer.lr.set_value(new_lr)
             print('Learning rate dropped from %g to %g' % (old_lr, new_lr))
 
-        cb.append(ut.LearningRateScheduler(lr_schedule,
+        cb.append(cbk.LearningRateScheduler(lr_schedule,
                                            patience=opts.lr_schedule))
 
         if opts.max_time is not None:

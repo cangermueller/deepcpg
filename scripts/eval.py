@@ -11,6 +11,7 @@ import numpy as np
 from predict.evaluation import evaluate, eval_to_str
 import sqlite3 as sql
 import hashlib
+import re
 
 
 def get_id(meta):
@@ -107,12 +108,20 @@ def write_output(p, name, out_dir):
         f.write(t)
 
 
-def eval_annos(y, z, chromos, cpos, annos_file, annos=None):
-    if annos is None:
-        f = h5.File(annos_file)
-        annos = list(f[chromos[0]].keys())
-        f.close()
-        annos = list(filter(lambda x: x.startswith('loc_'), annos))
+def filter_regex(x, regexs):
+    xf = []
+    for xi in x:
+        for regex in regexs:
+            if re.search(regex, xi):
+                xf.append(xi)
+    return xf
+
+
+def eval_annos(y, z, chromos, cpos, annos_file, regexs=[r'loc_.+']):
+    f = h5.File(annos_file)
+    annos = list(f[chromos[0]].keys())
+    f.close()
+    annos = filter_regex(annos, regexs)
     pa = []
     annos_used = []
     for anno in annos:
@@ -225,7 +234,8 @@ class App(object):
             action='store_true')
         p.add_argument(
             '--annos',
-            help='Annotations to be considered',
+            help='Regex of annotations to be considered',
+            default=[r'loc_.+'],
             nargs='+')
         p.add_argument(
             '--stats_file',
@@ -285,9 +295,9 @@ class App(object):
 
         if opts.annos_file is not None:
             if not skip or not exits_meta(opts.sql_file, 'annos', sql_meta):
-                log.info('Evaluate annotation-specific  performance')
+                log.info('Evaluate annotation-specific performance')
                 pa = eval_annos(y, z, chromos, cpos, opts.annos_file,
-                                annos=opts.annos)
+                                regexs=opts.annos)
                 if opts.verbose:
                     print('Annotation-specific performance:')
                     print(eval_to_str(pa))
