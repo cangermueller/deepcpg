@@ -32,12 +32,21 @@ options(xtable.type='html')
 dat <- list()
 opts <- list()
 opts$db_file <- './db.sql'
-opts$models <- NULL
 opts$cell_type <- NULL
+opts$annos <- NULL
+
+
+filter_data <- function(d) {
+  # m <- c('DeepCpG'='c0_015_s0_007_006', 'RF'='rf', 'WinAvg'='win_avg', 'CpG'='c0_015_r1', 'Seq'='s0_007')
+  # d <- d %>% filter(model %in% m) %>%
+  #   mutate(model=factor(model, levels=m, labels=names(m))) %>%
+  #   droplevels
+  return (d)
+}
 ```
 
 ```{r include=F}
-dat$global <- query_db('global', opts$models)
+dat$global <- query_db('global') %>% filter_data
 dat$gstats <- stats_global(dat$global)
 ```
 
@@ -56,7 +65,7 @@ d <- dat$global %>% filter(model %in% m)
 plot_global(d)
 ```
 
-```{r fig.width=10, fig.height=ceiling(length(m) / 3) * 2.2}
+```{r eval='rf' %in% tolower(m), fig.width=10, fig.height=ceiling(length(m) / 3) * 3}
 d <- dat$global %>% filter(model %in% m) %>% droplevels %>%
   mutate(model=factor(model, levels=m))
 plot_global_scatter(d)
@@ -65,8 +74,7 @@ plot_global_scatter(d)
 # Genomic contexts
 
 ```{r include=F}
-dat$annos <- query_db('annos', opts$models) %>%
-      mutate(anno=sub('loc_', '', anno))
+dat$annos <- query_annos() %>% filter_data
 ```
 
 ```{r}
@@ -83,17 +91,19 @@ plot_annos(d)
 # Statistics
 
 ```{r include=F}
-dat$stats <- query_stats(opts$db_file, model=opts$models)
+dat$stats <- query_stats(opts$db_file) %>% filter_data
 ```
 
 ```{r}
 m <- top_n(5)
 d <- dat$stats %>%
   filter(model %in% m) %>%
-  mutate(model=factor(model, levels=m)) %>%
-  filter(stat %in% opts$stats) %>%
-  mutate(stat=factor(stat, levels=opts$stats)) %>%
-  droplevels
+  mutate(model=factor(model, levels=m))
+if (!is.null(opts$stats)) {
+  d <- d %>% filter(stat %in% opts$stats) %>%
+    mutate(stat=factor(stat, levels=opts$stats)) %>%
+    droplevels
+}
 ```
 
 ```{r fig.width=8, fig.height=length(levels(d$stat))*2.5}

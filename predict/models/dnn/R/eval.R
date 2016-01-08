@@ -12,16 +12,29 @@ query_db <- function(table, models=NULL) {
   return (d)
 }
 
-top_n <- function(n, include=c('rf', 'win_avg')) {
+query_annos <- function() {
+  d <- query_db('annos')
+  if (!is.null(opts$annos)) {
+    h <- grepl(opts$annos, d$anno)
+    d <- d[h,]
+    d <- d %>% droplevels
+  }
+  return (d)
+}
+
+top_n <- function(n, include=c('rf', 'win_avg', 'RF', 'WinAvg')) {
   d <- as.vector(dat$gstats$model) %>% head(n)
   if (!is.null(include)) {
-    i <- setdiff(include, d)
-    h <- length(d) + length(i)
+    b <- include[include %in% dat$gstats$model]
+    a <- setdiff(d, include)
+    h <- length(a) + length(b)
     if (h > n) {
-      d <- d[1:(length(d) - (h - n))]
+      a <- a[1:length(a) - (h - n)]
     }
-    d <- c(d, i)
+    d <- dat$gstats %>% filter(model %in% c(a, b))
+    d <- as.vector(d$model)
   }
+  stopifnot(length(d) <= n)
   return (d)
 }
 
@@ -121,16 +134,20 @@ plot_global <- function(d) {
   return (p)
 }
 
-plot_global_scatter <- function(d) {
+plot_global_scatter <- function(d, ref='rf') {
+  m <- levels(d$model)
+  h <- grep(ref, m, ignore.case=T)
+  m[h] <- 'RF'
+  levels(d$model) <- m
   d <- d %>% select(model, target, cell_type, auc)
   d <- d %>% spread(model, auc) %>%
-    gather(model, auc, -c(target, cell_type, rf))
-  p <- ggplot(d, aes(x=rf, y=auc)) +
+    gather(model, auc, -c(target, cell_type, RF))
+  p <- ggplot(d, aes(x=RF, y=auc)) +
     geom_abline(slope=1, color='darkgrey', linetype='dashed') +
     geom_point(aes(color=cell_type), size=0.8) +
     scale_color_manual(values=colors_$cell_type) +
     facet_wrap(~model, ncol=3, scales='free') +
-    xlab('RF') + ylab('Model') +
+    xlab('RF') + ylab('') +
     theme_pub()
   return (p)
 }
@@ -152,7 +169,6 @@ plot_hparams <- function(d) {
     geom_point(aes(color=model)) +
     geom_smooth(size=1, method='lm') +
     facet_wrap(~param, scales='free', ncol=3) +
-    coord_cartesian(ylim=c(0.7, max(d$auc))) +
     guides(color=F) +
     xlab('') + ylab('AUC') +
     theme_pub() +
@@ -168,7 +184,8 @@ plot_annos <- function(d) {
     geom_boxplot(outlier.size=0) +
     geom_point(aes(fill=model, color=cell_type), size=0.8,
       position=position_jitterdodge(jitter.width=0, jitter.height=0, dodge.width=0.8)) +
-    facet_wrap(~anno, ncol=3) +
+    scale_color_manual(values=colors_$cell_type) +
+    facet_wrap(~anno, ncol=3, scale='free') +
     theme_pub() +
     theme(
       panel.grid.major=element_line(colour="grey60", size=0.1, linetype='solid'),
