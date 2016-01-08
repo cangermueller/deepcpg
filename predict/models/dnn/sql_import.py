@@ -8,14 +8,19 @@ import pandas as pd
 import sqlite3 as sql
 import hashlib
 
-from model import Params
+from predict.models.dnn.params import Params
 
 
-def to_sql(sql_path, data, table, meta):
+def get_id(meta):
     md5 = hashlib.md5()
     for v in sorted(meta.values()):
         md5.update(v.encode())
     id_ = md5.hexdigest()
+    return id_
+
+
+def to_sql(sql_path, data, table, meta):
+    id_ = get_id(meta)
 
     data = data.copy()
     for k, v in meta.items():
@@ -26,6 +31,15 @@ def to_sql(sql_path, data, table, meta):
         con.execute('DELETE FROM %s WHERE id = "%s"' % (table, id_))
     except sql.OperationalError:
         pass
+    try:
+        cols = pd.read_sql('SELECT * FROM %s LIMIT 1' % (table), con)
+    except pd.io.sql.DatabaseError:
+        cols = []
+    if len(cols):
+        t = sorted(set(data.columns) - set(cols.columns))
+        if len(t):
+            print('Ignoring columns %s' % (' '.join(t)))
+            data = data.loc[:, cols.columns]
     data.to_sql(table, con, if_exists='append', index=False)
     con.close()
 

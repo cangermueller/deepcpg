@@ -6,8 +6,9 @@ import logging
 import os.path as pt
 import yaml
 import numpy as np
+import scipy.stats as sps
 
-from predict.models.dnn.model import ParamSampler
+from predict.models.dnn.params import ParamSampler
 
 
 def eval_dict(d):

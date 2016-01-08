@@ -12,6 +12,8 @@ from predict.evaluation import evaluate, eval_to_str
 import sqlite3 as sql
 import hashlib
 
+from predict.utils import filter_regex
+
 
 def get_id(meta):
     md5 = hashlib.md5()
@@ -107,12 +109,11 @@ def write_output(p, name, out_dir):
         f.write(t)
 
 
-def eval_annos(y, z, chromos, cpos, annos_file, annos=None):
-    if annos is None:
-        f = h5.File(annos_file)
-        annos = list(f[chromos[0]].keys())
-        f.close()
-        annos = list(filter(lambda x: x.startswith('loc_'), annos))
+def eval_annos(y, z, chromos, cpos, annos_file, regexs=[r'loc_.+']):
+    f = h5.File(annos_file)
+    annos = list(f[chromos[0]].keys())
+    f.close()
+    annos = filter_regex(annos, regexs)
     pa = []
     annos_used = []
     for anno in annos:
@@ -160,7 +161,6 @@ def eval_stats(y, z, chromos, cpos, stats_file, stats=None, nbins=5):
     ps = []
     index = []
     for stat in stats:
-        print(stat)
         s = []
         for chromo, pos in zip(chromos, cpos):
             s.append(read_stats(stats_file, chromo, stat, pos)[1])
@@ -225,7 +225,8 @@ class App(object):
             action='store_true')
         p.add_argument(
             '--annos',
-            help='Annotations to be considered',
+            help='Regex of annotations to be considered',
+            default=[r'^loc.+', r'^chipseq.+', r'^uw.+', r'^psu.+', r'^licr.+'],
             nargs='+')
         p.add_argument(
             '--stats_file',
@@ -285,9 +286,9 @@ class App(object):
 
         if opts.annos_file is not None:
             if not skip or not exits_meta(opts.sql_file, 'annos', sql_meta):
-                log.info('Evaluate annotation-specific  performance')
+                log.info('Evaluate annotation-specific performance')
                 pa = eval_annos(y, z, chromos, cpos, opts.annos_file,
-                                annos=opts.annos)
+                                regexs=opts.annos)
                 if opts.verbose:
                     print('Annotation-specific performance:')
                     print(eval_to_str(pa))

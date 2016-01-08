@@ -84,16 +84,17 @@ class Params(object):
         self.optimizer = 'Adam'
         self.optimizer_params = {'lr': 0.001}
 
-    def validate(self):
+    def validate(self, nb_hidden=False):
         for k in ['seq', 'cpg', 'target']:
             if hasattr(vars(self)[k], 'validate'):
                 vars(self)[k].validate()
-        t = self.target.nb_hidden
-        for k in ['seq', 'cpg']:
-            s = vars(self)[k]
-            if hasattr(s, 'nb_hidden'):
-                t = min(t, s.nb_hidden)
-        self.target.nb_hidden = t
+        if nb_hidden:
+            t = self.target.nb_hidden
+            for k in ['seq', 'cpg']:
+                s = vars(self)[k]
+                if hasattr(s, 'nb_hidden'):
+                    t = min(t, s.nb_hidden)
+            self.target.nb_hidden = t
 
     @staticmethod
     def from_yaml(path):
