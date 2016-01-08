@@ -12,6 +12,8 @@ import sqlite3 as sql
 import hashlib
 import scipy.stats as sps
 
+from predict.utils import filter_regex
+
 
 def evaluate(x, funs=[('mean', np.mean), ('var', np.var)], axis=0):
     d = dict()
@@ -154,12 +156,11 @@ def write_output(p, name, out_dir):
         f.write(t)
 
 
-def eval_annos(x, chromos, cpos, annos_file, annos=None):
-    if annos is None:
-        f = h5.File(annos_file)
-        annos = list(f[chromos[0]].keys())
-        f.close()
-        annos = list(filter(lambda x: x.startswith('loc_'), annos))
+def eval_annos(x, chromos, cpos, annos_file, regexs=[r'loc_.+']):
+    f = h5.File(annos_file)
+    annos = list(f[chromos[0]].keys())
+    f.close()
+    annos = filter_regex(annos, regexs)
     es = []
     for anno in annos:
         a = []
@@ -193,6 +194,24 @@ def eval_annos(x, chromos, cpos, annos_file, annos=None):
     return es
 
 
+def qcut(x, nb_bins, *args, **kwargs):
+    p = np.arange(0, 101, 100 / nb_bins)
+    q = list(np.percentile(x, p))
+    y = pd.cut(x, bins=q, include_lowest=True)
+    assert len(y.categories) == nb_bins
+    assert y.isnull().any() == False
+    return y
+
+
+def add_noise(x, eps=1e-6):
+    min_ = np.min(x)
+    max_ = np.max(x)
+    xeps = x + np.random.uniform(-eps, eps, len(x))
+    xeps = np.maximum(min_, xeps)
+    xeps = np.minimum(max_, xeps)
+    return xeps
+
+
 def eval_stats(x, chromos, cpos, stats_file, stats=None, nbins=5):
     if stats is None:
         f = h5.File(stats_file)
@@ -200,7 +219,6 @@ def eval_stats(x, chromos, cpos, stats_file, stats=None, nbins=5):
         f.close()
         stats = list(filter(lambda x: x != 'pos', stats))
     es = []
-    index = []
     for stat in stats:
         s = []
         for chromo, pos in zip(chromos, cpos):
@@ -209,7 +227,7 @@ def eval_stats(x, chromos, cpos, stats_file, stats=None, nbins=5):
 
         while nbins > 0:
             try:
-                bins = pd.qcut(s, q=nbins, precision=3)
+                bins = qcut(add_noise(s), nbins, precision=3)
                 break
             except ValueError:
                 nbins -= 1

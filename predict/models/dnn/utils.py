@@ -165,6 +165,10 @@ class ArrayView(object):
                 raise IndexError
         return self.data[idx]
 
+    def use_all(self):
+        self.start = 0
+        self.stop = self.data.shape[0]
+
     @property
     def shape(self):
         return tuple([len(self)] + list(self.data.shape[1:]))

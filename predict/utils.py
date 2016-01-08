@@ -1,5 +1,15 @@
 import pandas as pd
 import numpy as np
+import re
+
+
+def filter_regex(x, regexs):
+    xf = []
+    for xi in x:
+        for regex in regexs:
+            if re.search(regex, xi):
+                xf.append(xi)
+    return xf
 
 
 def group_apply(d, by, fun, level=False, set_index=False, *args, **kwargs):
@@ -46,11 +56,3 @@ def rolling_apply(d, delta, fun, level=None):
         rv[i] = rvi
     rv = pd.DataFrame(rv, index=d.index, columns=d.columns)
     return rv
-
-
-def to_rhdf(d, filename, group):
-    if d.columns.nlevels > 1:
-        d = d.copy()
-        d.columns = join_index(d.columns)
-    d = d.reset_index()
-    d.to_hdf(filename, group, format='t', data_columns=True)

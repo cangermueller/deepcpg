@@ -11,7 +11,8 @@ import numpy as np
 from predict.evaluation import evaluate, eval_to_str
 import sqlite3 as sql
 import hashlib
-import re
+
+from predict.utils import filter_regex
 
 
 def get_id(meta):
@@ -108,15 +109,6 @@ def write_output(p, name, out_dir):
         f.write(t)
 
 
-def filter_regex(x, regexs):
-    xf = []
-    for xi in x:
-        for regex in regexs:
-            if re.search(regex, xi):
-                xf.append(xi)
-    return xf
-
-
 def eval_annos(y, z, chromos, cpos, annos_file, regexs=[r'loc_.+']):
     f = h5.File(annos_file)
     annos = list(f[chromos[0]].keys())
@@ -169,7 +161,6 @@ def eval_stats(y, z, chromos, cpos, stats_file, stats=None, nbins=5):
     ps = []
     index = []
     for stat in stats:
-        print(stat)
         s = []
         for chromo, pos in zip(chromos, cpos):
             s.append(read_stats(stats_file, chromo, stat, pos)[1])
@@ -235,7 +226,7 @@ class App(object):
         p.add_argument(
             '--annos',
             help='Regex of annotations to be considered',
-            default=[r'loc_.+'],
+            default=[r'^loc.+', r'^chipseq.+', r'^uw.+', r'^psu.+', r'^licr.+'],
             nargs='+')
         p.add_argument(
             '--stats_file',
