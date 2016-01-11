@@ -1,0 +1,108 @@
+---
+title: Effect of sequence mutations
+output:
+  html_document:
+    toc: yes
+---
+
+```{r, include=F}
+library(knitr)
+opts_chunk$set(echo=F, warning=F, message=F)
+```
+
+```{r, include=F}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(RSQLite)
+library(xtable)
+library(grid)
+
+lib <- file.path(Sys.getenv('Pd'), 'R')
+source(file.path(lib, 'utils.R'))
+source(file.path(lib, 'seqmut.R'))
+```
+
+```{r}
+options(xtable.type='html')
+```
+
+```{r}
+dat <- list()
+opts <- list()
+opts$db_file <- './seqmut.sql'
+opts$models <- NULL
+opts$seqmut <- 'z_zero-1'
+opts$effect <- c('lor', 'abs')
+opts$cell_type <- NULL
+opts$norm_effect <- T
+
+filter_data <- function(d) {
+  d <- d %>% filter(effect %in% opts$effect, seqmut==opts$seqmut) %>%
+    droplevels
+  return (d)
+}
+```
+
+# Global effect
+
+```{r include=F}
+dat$global <- query_db('global') %>% filter_data
+```
+
+```{r fig.width=6, fig.height=4}
+plot_global(dat$global)
+```
+
+# Genomic contexts
+
+```{r}
+d <- query_db('annos') %>%
+  rename(pvalue=pvalue_, statistic=statistic_) %>% filter_data
+d <- d[grep('^loc', d$anno),] %>% droplevels
+dat$annos <- d
+```
+
+```{r}
+dat$astats <- dat$annos %>% group_by(anno) %>%
+  summarise(mean_=mean(mean_)) %>% ungroup %>% arrange(desc(mean_))
+annos <- dat$astats$anno
+```
+
+```{r fig.width=10, fig.height=ceiling(length(annos) / 3) * 1.5}
+plot_annos(dat$annos, annos)
+```
+
+# Annotation-specific t-test
+
+```{r fig.width=10, fig.height=ceiling(length(annos) / 3) * 2.5}
+plot_annos_t(dat$annos, annos)
+```
+
+# Statistics
+
+```{r include=F}
+dat$stats <- query_stats() %>% filter_data
+```
+
+```{r fig.width=8, fig.height=length(levels(dat$stats$stat))*2.8}
+plot_stats(dat$stats)
+```
+
+```{r eval=F}
+lo <- function(p1, p2) log2(p1 / p2)
+lor <- function(p1, p2) log2(p1 / (1-p1) * (1-p2) / p2)
+
+d <- list(p1=c(), p2=c(), lo=c(), lor=c())
+for (p in seq(0.1, 1.0, 0.1)) {
+  p1 <- p
+  p2 <- p - 0.09
+  d$p1 <- c(d$p1, p1)
+  d$p2 <- c(d$p2, p2)
+  d$lo <- c(d$lo, lo(p1, p2))
+  d$lor <- c(d$lor, lor(p1, p2))
+  cat(sprintf('p1=%.3f  p2=%.3f  lo=%.3f  lor=%.3f', p1, p2, lo(p1, p2), lor(p1, p2)), fill=T)
+}
+d <- as.data.frame(d) %>% gather(fun, value, -c(p1, p2))
+ggplot(d, aes(x=p1, y=value)) + geom_line(aes(color=fun)) + theme_pub()
+```

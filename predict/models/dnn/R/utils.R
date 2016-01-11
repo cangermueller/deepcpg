@@ -41,3 +41,15 @@ char_to_factor <- function(d) {
   }
   return (d)
 }
+
+rename_values <- function(x, how) {
+  for (nn in names(how)) {
+    no <- how[nn]
+    h <- x == no
+    if (any(h)) {
+      x[h] <- nn
+    }
+  }
+  return (x)
+}
+
