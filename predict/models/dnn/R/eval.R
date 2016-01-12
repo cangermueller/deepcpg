@@ -122,7 +122,7 @@ plot_global <- function(d) {
   d <- d %>% select(-c(path, id, trial, eval))
   d <- d %>% gather(metric, value, -c(model, target, cell_type))
   p <- ggplot(d, aes(x=model, y=value)) +
-    geom_boxplot(aes(fill=model), alpha=1.0, outlier.size=0) +
+    geom_boxplot(aes(fill=model), alpha=1.0, outlier.shape=NA) +
     geom_jitter(aes(color=cell_type),
       position=position_jitter(width=0.1, height=0), size=0.8) +
     scale_color_manual(values=colors_$cell_type) +
@@ -181,7 +181,7 @@ plot_annos <- function(d) {
     summarise(auc=mean(auc)) %>% arrange(desc(auc)) %>% select(anno) %>% unlist
   d <- d %>% mutate(anno=factor(anno, levels=h))
   p <- ggplot(d, aes(x=model, y=auc, fill=model)) +
-    geom_boxplot(outlier.size=0) +
+    geom_boxplot(outlier.shape=NA) +
     geom_point(aes(fill=model, color=cell_type), size=0.8,
       position=position_jitterdodge(jitter.width=0, jitter.height=0, dodge.width=0.8)) +
     scale_color_manual(values=colors_$cell_type) +

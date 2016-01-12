@@ -1,0 +1,189 @@
+---
+title: Filter importance
+output:
+  html_document:
+    toc: yes
+---
+
+```{r, include=F}
+library(knitr)
+opts_chunk$set(echo=F, warning=F, message=F)
+```
+
+```{r, include=F}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(grid)
+library(gridExtra)
+library(scales)
+library(xtable)
+library(gplots)
+library(RColorBrewer)
+library(seqLogo)
+library(rhdf5)
+
+lib <- file.path(Sys.getenv('Pd'), 'R')
+source(file.path(lib, 'filter.R'))
+source(file.path(lib, 'utils.R'))
+source(file.path(lib, 'seqmut.R'))
+```
+
+```{r}
+options(xtable.type='html')
+```
+
+```{r}
+opts <- list()
+opts$db_file <- './filter.sql'
+opts$filt_file <- './filter.h5'
+opts$filt_name <- 's_c1'
+opts$effect <- 'lor'
+opts$cell_colors <- c('2i'='forestgreen', 'serum'='brown2')
+opts$cell_type <- NULL
+opts$cache <- T
+opts$norm_effect <- T
+opts$nb_sel <- 30
+dat <- list()
+```
+
+```{r}
+dat$filt <- read_filt(opts$filt_file, group=paste0('/', opts$filt_name))
+
+filt_motif <- function(d, filt, ...) {
+  d <- filt_pwm(d, filt)
+  return (paste0(rownames(d)[apply(d, 2, which.max)], collapse=''))
+}
+
+dat$motifs <- dat$filt %>% group_by(filt) %>%
+  summarise(motif=filt_motif(dat$filt, filt)) %>%
+  mutate(
+    motif=factor(motif),
+    label=factor(paste(as.vector(filt), as.vector(motif), sep=': '))
+  )
+```
+
+```{r}
+query_db <- function(table) {
+  con <- src_sqlite(opts$db_file)
+  d <- tbl(con, sql(sprintf('SELECT * FROM %s', table)))
+  d <- d %>% collect %>% select(-c(path, id))
+  d <- d[grep(opts$effect, d$effect),]
+  d <- d %>% mutate(
+    effect=factor(effect, levels=c('del', 'abs', 'lor', 'alor'),
+      labels=c('del', 'abs', 'del', 'abs'))
+    )
+  d <- d %>% mutate(cell_type=parse_cell_type(target))
+  d <- d %>% mutate(fun=paste0(fun, '_')) %>% spread(fun, value)
+  d <- d %>% rename(filt=seqmut) %>%
+    mutate(filt=factor(as.numeric(gsub('^z_f', '', filt))))
+  d <- d %>% group_by(target, effect) %>% mutate(rank_=rank(-abs(mean_))) %>%
+    ungroup
+  d <- d %>% char_to_factor %>% droplevels %>% tbl_df %>%
+    move_cols(c('filt', 'target', 'cell_type'))
+  return (d)
+}
+```
+
+```{r}
+dat$imp <- query_db('global') %>% left_join(dat$motifs, by='filt')
+```
+
+```{r}
+dat$stats <- dat$imp %>% group_by(filt, effect) %>%
+  summarise_each(funs(mean), mean_, var_, rank_) %>% ungroup %>%
+  group_by(effect) %>% arrange(desc(mean_)) %>% ungroup %>%
+  left_join(dat$motifs, by='filt') %>%
+  select(-motif) %>% move_cols('label')
+
+dat$astats <- dat$stats %>% filter(effect=='abs') %>% select(-effect) %>%
+  arrange(desc(mean_)) %>% droplevels
+dat$sel <- dat$astats %>% head(opts$nb_sel) %>% droplevels
+dat$nb_filt <- length(levels(dat$sel$filt))
+dat$imp <- dat$imp %>% semi_join(dat$sel, by='filt')
+```
+
+```{r fig.width=10, fig.height=12}
+plot_global <- function(d, sel) {
+  d <- d %>% filter(effect=='abs') %>%
+    semi_join(sel, by='filt') %>%
+    mutate(label=factor(label, levels=rev(sel$label))) %>%
+    droplevels
+  p <- ggplot(d, aes(x=label, y=mean_)) +
+    geom_boxplot(aes(fill=cell_type), outlier.shape=NA) +
+    geom_point(aes(fill=cell_type, color=cell_type), size=0.8,
+      position=position_jitterdodge(jitter.width=0.5, jitter.height=0, dodge.width=0.8)) +
+    scale_fill_manual(values=colors_$cell_type) +
+    guides(color=F) +
+    xlab('') + ylab('') +
+    theme_pub() +
+    coord_flip()
+  return (p)
+}
+
+plot_global(dat$imp, dat$sel)
+```
+
+# Sequence Motifs
+
+```{r eval=T, motifs, results='asis'}
+filts <- dat$sel$filt
+for (f in filts) {
+  d <- filt_pwm(dat$filt, f)
+  seqLogo(d)
+  h <- dat$stats %>% filter(filt == f)
+  print(xtable(h))
+}
+```
+
+# Clustering
+
+```{r}
+plot_heat <- function(d, rev_colors=F, Rowv=T, Colv=T, lhei=c(1, 10)) {
+  d <- d %>% select(label, target, value) %>%
+    spread(target, value) %>% as.data.frame
+  rownames(d) <- as.vector(d$label)
+  d <- d %>% select(-label) %>% as.matrix(d)
+
+  type <- factor(grepl('2i', colnames(d)), levels=c(T, F), labels=c('2i', 'serum'))
+  col_colors <- colors_$cell_type[type]
+
+  colors <- brewer.pal(9, 'Spectral')
+  if (!rev_colors) {
+    colors <- rev(colors)
+  }
+  colors <- colorRampPalette(colors)(50)
+  dendro <- 'column'
+  if (!is.null(Rowv)) {
+    dendro <- 'both'
+  }
+
+  p <- heatmap.2(d, density.info='none', trace='none', col=colors,
+    Rowv=Rowv, Colv=Colv, keysize=1.0, dendrogram=dendro,
+    margins=c(8, 8), lhei=lhei,
+    key.title='', srtCol=45, key.xlab='value', ColSideColors=col_colors)
+  return (p)
+}
+
+fig.width <- 12
+fig.height <- max(10, dat$nb_filt * 0.8)
+```
+
+## Absolute
+
+```{r fig.width=fig.width, fig.height=fig.height}
+d <- dat$imp %>% filter(effect == 'abs') %>% mutate(value=mean_)
+h <- plot_heat(d)
+```
+
+```{r fig.width=fig.width, fig.height=fig.height}
+d <- dat$imp %>% filter(effect == 'del') %>% mutate(value=mean_)
+h <- plot_heat(d, Rowv=h$rowDendrogram, Colv=h$colDendrogram)
+```
+
+## Rank
+
+```{r fig.width=fig.width, fig.height=fig.height}
+d <- dat$imp %>% filter(effect == 'abs') %>% mutate(value=rank_)
+h <- plot_heat(d, rev=T)
+```

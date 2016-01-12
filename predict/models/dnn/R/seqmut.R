@@ -6,7 +6,6 @@ query_db <- function(table) {
     d <- d %>% mutate(cell_type=parse_cell_type(target))
   }
   d <- d %>% char_to_factor %>% droplevels %>% tbl_df
-
   # d <- d %>% filter(seqmut == opts$seqmut) %>% select(-seqmut)
   d <- d %>% mutate(fun=paste0(fun, '_')) %>% spread(fun, value)
   if (opts$norm_effect) {
@@ -15,6 +14,7 @@ query_db <- function(table) {
       d <- d %>% group_by(effect) %>% mutate(mean0_=mean0_/max(mean0_))
     }
   }
+  d <- d %>% ungroup
   return (d)
 }
 
