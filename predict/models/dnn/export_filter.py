@@ -29,7 +29,7 @@ class App(object):
         p.add_argument(
             '-o', '--out_file',
             help='Output file',
-            default='filters.h5')
+            default='filter.h5')
         p.add_argument(
             '--out_group',
             help='Output group')

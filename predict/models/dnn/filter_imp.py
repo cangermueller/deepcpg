@@ -10,6 +10,25 @@ import predict.models.dnn.utils as ut
 import predict.models.dnn.model as mod
 
 
+def ranges_to_list(x, start=0, stop=None):
+    s = set()
+    for xi in x:
+        xi = str(xi)
+        if xi.find('-') >= 0:
+            t = xi.split('-')
+            if len(t) != 2:
+                raise ValueError('Invalid range!')
+            if len(t[0]) == 0:
+                t[0] = start
+            if len(t[1]) == 0:
+                t[1] = stop
+            s |= set(range(int(t[0]), int(t[1]) + 1))
+        else:
+            s.add(int(xi))
+    s = sorted(list(s))
+    return s
+
+
 class App(object):
 
     def run(self, args):
@@ -41,7 +60,6 @@ class App(object):
         p.add_argument(
             '--filters',
             help='Filters to be tested',
-            type=int,
             nargs='+')
         p.add_argument(
             '--chromo',
@@ -156,6 +174,9 @@ class App(object):
         filters_list = opts.filters
         if filters_list is None:
             filters_list = range(filters.shape[0])
+        else:
+            filters_list = ranges_to_list(filters_list, 0, filters.shape[0] - 1)
+
         for i in filters_list:
             log.info('Kill filter %d' % (i))
             filters_x = filters.copy()
