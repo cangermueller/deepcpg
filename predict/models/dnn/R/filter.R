@@ -41,10 +41,10 @@ filt_distance <- function(d) {
       y=pmin(1 - eps, pmax(eps, z)),
       y0=pmin(1 - eps, pmax(eps, z0))
     ) %>% summarise(
+      z_del=mean(z - z0),
       z_abs=mean(abs(z - z0)),
-      z_l2=sqrt(mean(abs(z - z0)**2)),
-      z_lo=mean(abs(log2(y) - log2(y0))),
-      z_lor=mean(abs(log2(y / (1 - y)) - log2(y0 / (1 - y0))))
+      z_lor=mean(log2(y / (1 - y)) - log2(y0 / (1 - y0))),
+      z_alor=mean(abs(log2(y / (1 - y)) - log2(y0 / (1 - y0))))
     )
   return (s)
 }

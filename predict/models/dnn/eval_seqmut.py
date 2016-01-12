@@ -51,13 +51,13 @@ def logodds_ratio(p, q):
 
 
 def seqmut_effect(z, zm, effect_size='abs'):
-    if effect_size == 'abs':
+    if effect_size == 'del':
+        return z - zm
+    elif effect_size == 'abs':
         return np.abs(z - zm)
-    elif effect_size == 'l2':
-        return (z - zm)**2
-    elif effect_size == 'lo':
-        return np.abs(logodds(z, zm))
     elif effect_size == 'lor':
+        return logodds_ratio(z, zm)
+    elif effect_size == 'abs_lor':
         return np.abs(logodds_ratio(z, zm))
     else:
         raise ValueError('Effect type "%s" not supported!' % (effect_size))
@@ -87,7 +87,7 @@ def to_sql(sql_path, data, table, meta):
     for k, v in meta.items():
         data[k] = v
     data['id'] = id_
-    con = sql.connect(sql_path)
+    con = sql.connect(sql_path, timeout=999999)
     try:
         con.execute('DELETE FROM %s WHERE id = "%s"' % (table, id_))
         cols = pd.read_sql('SELECT * FROM %s LIMIT 1' % (table), con)
@@ -194,15 +194,6 @@ def eval_annos(x, chromos, cpos, annos_file, regexs=[r'loc_.+']):
     return es
 
 
-def qcut(x, nb_bins, *args, **kwargs):
-    p = np.arange(0, 101, 100 / nb_bins)
-    q = list(np.percentile(x, p))
-    y = pd.cut(x, bins=q, include_lowest=True)
-    assert len(y.categories) == nb_bins
-    assert y.isnull().any() == False
-    return y
-
-
 def add_noise(x, eps=1e-6):
     min_ = np.min(x)
     max_ = np.max(x)
@@ -210,6 +201,15 @@ def add_noise(x, eps=1e-6):
     xeps = np.maximum(min_, xeps)
     xeps = np.minimum(max_, xeps)
     return xeps
+
+
+def qcut(x, nb_bins, *args, **kwargs):
+    p = np.arange(0, 101, 100 / nb_bins)
+    q = list(np.percentile(x, p))
+    y = pd.cut(x, bins=q, include_lowest=True)
+    assert len(y.categories) == nb_bins
+    assert y.isnull().any() == False
+    return y
 
 
 def eval_stats(x, chromos, cpos, stats_file, stats=None, nbins=5):
@@ -272,8 +272,8 @@ class App(object):
             '-e', '--effect_sizes',
             help='Effect sizes',
             nargs='+',
-            choices=['abs', 'l2', 'lo', 'lor'],
-            default=['abs', 'l2', 'lo', 'lor']
+            choices=['del', 'abs', 'lor', 'abs_lor'],
+            default=['del', 'abs', 'lor', 'abs_lor']
         )
         p.add_argument(
             '--sql_file',
@@ -291,7 +291,8 @@ class App(object):
             help='HDF file with annotations')
         p.add_argument(
             '--annos',
-            help='Annotations to be considered',
+            help='Regex of annotations to be considered',
+            default=[r'^.+$'],
             nargs='+')
         p.add_argument(
             '--stats_file',
@@ -300,7 +301,8 @@ class App(object):
             '--stats',
             help='Statistics to be considered',
             default=['cov', 'var', 'entropy',
-                     'win_cov', 'win_var', 'win_entropy', 'win_dist'],
+                     'win_cov', 'win_var', 'win_entropy', 'win_dist',
+                     'gc_content', 'cg_obs_exp'],
             nargs='+')
         p.add_argument(
             '--stats_bins',
@@ -360,7 +362,7 @@ class App(object):
             if not skip or not exits_meta(opts.sql_file, 'annos', sql_meta):
                 log.info('Evaluate annotation-specific effects')
                 ea = eval_annos(effects, chromos, cpos, opts.annos_file,
-                                annos=opts.annos)
+                                regexs=opts.annos)
                 if opts.verbose:
                     print('Annotation-specific effects:')
                     print(eval_to_str(ea))
