@@ -1,0 +1,133 @@
+---
+title: Analysis filter importance
+author: "Christof Angermueller"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: yes
+---
+
+```{r, include=F}
+library(knitr)
+opts_chunk$set(echo=F, warning=F, message=F)
+```
+
+```{r, include=F}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(grid)
+library(gridExtra)
+library(scales)
+library(xtable)
+library(gplots)
+library(RColorBrewer)
+library(seqLogo)
+library(rhdf5)
+
+lib <- file.path(Sys.getenv('Pd'), 'R')
+source(file.path(lib, 'utils.R'))
+source(file.path(lib, 'filter.R'))
+source(file.path(lib, 'inspect_filter.R'))
+```
+
+```{r}
+options(xtable.type='html')
+```
+
+```{r}
+opts <- list()
+opts$db_file <- './filter.sql'
+opts$filt_file <- './filter.h5'
+opts$filt_name <- 's_c1'
+opts$effect <- 'abs_lor'
+opts$anno <- NULL
+opts$cell_type <- NULL
+opts$nb_sel <- 45
+opts$cache <- T
+dat <- list()
+```
+
+```{r}
+dat$filt <- read_filt(opts$filt_file, group=paste0('/', opts$filt_name))
+
+filt_motif <- function(d, filt, ...) {
+  d <- filt_pwm(d, filt)
+  return (paste0(rownames(d)[apply(d, 2, which.max)], collapse=''))
+}
+
+dat$motifs <- dat$filt %>% group_by(filt) %>%
+  summarise(motif=filt_motif(dat$filt, filt)) %>%
+  mutate(
+    motif=factor(motif),
+    label=factor(paste(as.vector(filt), as.vector(motif), sep=': '))
+  )
+```
+
+```{r cache=opts$cache}
+d <- query_db(opts$db_file, effect=opts$effect, anno=opts$anno) %>%
+  left_join(dat$motifs, by='filt')
+
+dat$stats <- d %>% group_by(filt) %>%
+  summarise_each(funs(mean), mean_, var_, rank_) %>% ungroup %>%
+  arrange(desc(mean_)) %>% ungroup %>%
+  left_join(dat$motifs, by='filt') %>%
+  select(-motif) %>% move_cols('label') %>%
+  mutate(
+    filt=factor(filt, levels=filt),
+    label=factor(label, levels=label)
+    )
+
+dat$sel <- dat$stats
+if (!is.null(opts$nb_sel)) {
+  dat$sel <- dat$sel %>% head(opts$nb_sel) %>% droplevels
+}
+d <- d %>% semi_join(dat$sel, by='filt')
+d$label <- factor(d$label, levels=levels(dat$sel$label))
+dat$imp <- d
+```
+
+# Global
+
+```{r fig.width=10, fig.height=nrow(dat$sel) * 0.4}
+plot_global(dat$imp)
+```
+
+# Clustering
+
+```{r}
+fig.width <- 12
+fig.height <- max(10, nrow(dat$sel) * 0.4)
+```
+
+## Absolute
+
+```{r fig.width=fig.width, fig.height=fig.height}
+d <- dat$imp %>% mutate(value=mean_)
+p <- plot_heat(d)
+```
+
+## Delta
+
+
+```{r fig.width=fig.width, fig.height=fig.height}
+if (opts$effect == 'abs_lor') {
+  h <- 'lor'
+} else {
+  h <- 'del'
+}
+
+dat$del <- query_db(opts$db_file, effect=h, anno=opts$anno)
+h <- dat$imp %>% select(filt, target, label)
+dat$del <- h %>% inner_join(dat$del, by=c('filt', 'target'))
+stopifnot(nrow(dat$del) == nrow(dat$imp))
+d <- dat$del %>% mutate(value=mean_)
+h <- plot_heat(d, Rowv=p$rowDendrogram, Colv=p$colDendrogram)
+```
+
+## Rank
+
+```{r fig.width=fig.width, fig.height=fig.height}
+d <- dat$imp %>% mutate(value=rank_)
+h <- plot_heat(d, rev=T)
+```

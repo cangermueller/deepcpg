@@ -52,7 +52,7 @@ plot_annos <- function(d, annos) {
     scale_color_manual(values=colors_$cell_type) +
     theme_pub() +
     xlab('') + ylab('Effect') +
-    facet_wrap(~anno)
+    facet_wrap(~anno, ncol=3)
   return (p)
 }
 

@@ -1,104 +1,3 @@
-theme_pub <- function() {
-  p <- theme(
-    axis.text=element_text(size=rel(1.0), color='black'),
-    axis.title=element_text(size=rel(1.5)),
-    axis.title.y=element_text(vjust=1.0),
-    axis.title.x=element_text(vjust=-0.5),
-    legend.position='top',
-    legend.text=element_text(size=rel(1.0)),
-    legend.title=element_text(size=rel(1.0)),
-    legend.key=element_rect(fill='transparent'),
-    panel.border=element_blank(),
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank(),
-    panel.background = element_blank(),
-    axis.line = element_line(colour="black", size=1),
-    axis.ticks.length = unit(.3, 'cm'),
-    axis.ticks.margin = unit(.3, 'cm')
-    )
-  return (p)
-}
-
-move_cols <- function(d, cols) {
-  h <- setdiff(colnames(d), cols)
-  d <- d[,c(cols, h)]
-  return (d)
-}
-
-h5ls <- function(path, group='/') {
-  if (group[1] != '/') {
-    group <- paste0('/', group)
-  }
-  h <- sprintf('h5ls %s%s', path, group)
-  h <- system(h, intern=T)
-  h <- sapply(strsplit(h, '\\s+'), function(x) x[1])
-  return (h)
-}
-
-filt_distance <- function(d) {
-  eps <- 1e-6
-  s <- d %>% mutate(
-      y=pmin(1 - eps, pmax(eps, z)),
-      y0=pmin(1 - eps, pmax(eps, z0))
-    ) %>% summarise(
-      z_del=mean(z - z0),
-      z_abs=mean(abs(z - z0)),
-      z_lor=mean(log2(y / (1 - y)) - log2(y0 / (1 - y0))),
-      z_alor=mean(abs(log2(y / (1 - y)) - log2(y0 / (1 - y0))))
-    )
-  return (s)
-}
-
-read_filt_imp_target <- function(path, target, filt, chromos=NULL) {
-  if (is.null(chromos)) {
-    chromos <- h5ls(path, target)
-  }
-  ds <- list()
-  for (chromo in chromos) {
-    h <- c('pos', 'z', filt)
-    p <- file.path(target, chromo)
-    d <- lapply(h, function(x) as.vector(h5read(path, file.path(p, x))))
-    names(d) <- c('pos', 'z', 'z0')
-    d <- as.data.frame(d)
-    d$chromo <- chromo
-    ds[[length(ds) + 1]] <- d
-  }
-  ds <- do.call(rbind.data.frame, ds) %>% tbl_df
-  return (ds)
-}
-
-read_filt_imp <- function(path, targets=NULL, filts=NULL) {
-  if (is.null(targets)) {
-    targets <- h5ls(path)
-  }
-  chromos <- h5ls(path, targets[1])
-  if (is.null(filts)) {
-    filts <- h5ls(path, file.path(targets[1], chromos[1]))
-    filts <- grep('z_f.*', filts, value=T)
-  }
-
-  ds <- list()
-  for (target in targets) {
-    for (filt in filts) {
-      d <- read_filt_imp_target(path, target, filt, chromos)
-      d <- filt_distance(d)
-      d <- d %>% mutate(
-        target=target,
-        nfilt=filt,
-        filt=as.numeric(gsub('z_f', '', filt)))
-      ds[[length(ds) + 1]] <- d
-    }
-  }
-  ds <- do.call(rbind.data.frame, ds) %>% tbl_df %>%
-    mutate(filt=factor(filt))
-  return (ds)
-}
-
-
-
-
-
-
 filt_to_frame <- function(f) {
   f <- f %>% as.data.frame
   names(f) <- 1:ncol(f)
@@ -162,4 +61,79 @@ filt_pwm <- function(d, filt_, what='act_p2') {
   d <- d %>% select(-char) %>% as.matrix
   rownames(d) <- h
   return (d)
+}
+
+
+
+
+
+
+
+filt_distance <- function(d) {
+  eps <- 1e-6
+  s <- d %>% mutate(
+      y=pmin(1 - eps, pmax(eps, z)),
+      y0=pmin(1 - eps, pmax(eps, z0))
+    ) %>% summarise(
+      z_del=mean(z - z0),
+      z_abs=mean(abs(z - z0)),
+      z_lor=mean(log2(y / (1 - y)) - log2(y0 / (1 - y0))),
+      z_alor=mean(abs(log2(y / (1 - y)) - log2(y0 / (1 - y0))))
+    )
+  return (s)
+}
+
+h5ls <- function(path, group='/') {
+  if (group[1] != '/') {
+    group <- paste0('/', group)
+  }
+  h <- sprintf('h5ls %s%s', path, group)
+  h <- system(h, intern=T)
+  h <- sapply(strsplit(h, '\\s+'), function(x) x[1])
+  return (h)
+}
+
+read_filt_imp_target <- function(path, target, filt, chromos=NULL) {
+  if (is.null(chromos)) {
+    chromos <- h5ls(path, target)
+  }
+  ds <- list()
+  for (chromo in chromos) {
+    h <- c('pos', 'z', filt)
+    p <- file.path(target, chromo)
+    d <- lapply(h, function(x) as.vector(h5read(path, file.path(p, x))))
+    names(d) <- c('pos', 'z', 'z0')
+    d <- as.data.frame(d)
+    d$chromo <- chromo
+    ds[[length(ds) + 1]] <- d
+  }
+  ds <- do.call(rbind.data.frame, ds) %>% tbl_df
+  return (ds)
+}
+
+read_filt_imp <- function(path, targets=NULL, filts=NULL) {
+  if (is.null(targets)) {
+    targets <- h5ls(path)
+  }
+  chromos <- h5ls(path, targets[1])
+  if (is.null(filts)) {
+    filts <- h5ls(path, file.path(targets[1], chromos[1]))
+    filts <- grep('z_f.*', filts, value=T)
+  }
+
+  ds <- list()
+  for (target in targets) {
+    for (filt in filts) {
+      d <- read_filt_imp_target(path, target, filt, chromos)
+      d <- filt_distance(d)
+      d <- d %>% mutate(
+        target=target,
+        nfilt=filt,
+        filt=as.numeric(gsub('z_f', '', filt)))
+      ds[[length(ds) + 1]] <- d
+    }
+  }
+  ds <- do.call(rbind.data.frame, ds) %>% tbl_df %>%
+    mutate(filt=factor(filt))
+  return (ds)
 }

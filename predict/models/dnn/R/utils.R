@@ -53,3 +53,14 @@ rename_values <- function(x, how) {
   return (x)
 }
 
+move_cols <- function(d, cols) {
+  h <- setdiff(colnames(d), cols)
+  d <- d[,c(cols, h)]
+  return (d)
+}
+
+move_front <- function(x, what) {
+  h <- c(what, setdiff(x, what))
+  h <- intersect(h, x)
+  return (h)
+}
