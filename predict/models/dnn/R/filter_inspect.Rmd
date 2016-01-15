@@ -28,7 +28,7 @@ library(rhdf5)
 lib <- file.path(Sys.getenv('Pd'), 'R')
 source(file.path(lib, 'utils.R'))
 source(file.path(lib, 'filter.R'))
-source(file.path(lib, 'inspect_filter.R'))
+source(file.path(lib, 'filter_inspect.R'))
 ```
 
 ```{r}
@@ -37,24 +37,22 @@ options(xtable.type='html')
 
 ```{r}
 opts <- list()
-opts$db_file <- './filter.sql'
+opts$db_file <- './eval.sql'
 opts$filt_file <- './filter.h5'
 opts$filt_name <- 's_c1'
 opts$effect <- 'abs_lor'
 opts$anno <- NULL
-opts$cell_type <- NULL
 opts$nb_sel <- 45
-opts$cache <- T
 dat <- list()
+
+filter_data <- function(d) {
+  d <- d #%>% filter(filt != '8', cell_type == '2i')
+  return (d)
+}
 ```
 
 ```{r}
 dat$filt <- read_filt(opts$filt_file, group=paste0('/', opts$filt_name))
-
-filt_motif <- function(d, filt, ...) {
-  d <- filt_pwm(d, filt)
-  return (paste0(rownames(d)[apply(d, 2, which.max)], collapse=''))
-}
 
 dat$motifs <- dat$filt %>% group_by(filt) %>%
   summarise(motif=filt_motif(dat$filt, filt)) %>%
@@ -64,8 +62,9 @@ dat$motifs <- dat$filt %>% group_by(filt) %>%
   )
 ```
 
-```{r cache=opts$cache}
+```{r}
 d <- query_db(opts$db_file, effect=opts$effect, anno=opts$anno) %>%
+  filter_data %>%
   left_join(dat$motifs, by='filt')
 
 dat$stats <- d %>% group_by(filt) %>%
@@ -110,7 +109,7 @@ p <- plot_heat(d)
 ## Delta
 
 
-```{r fig.width=fig.width, fig.height=fig.height}
+```{r}
 if (opts$effect == 'abs_lor') {
   h <- 'lor'
 } else {
@@ -121,8 +120,11 @@ dat$del <- query_db(opts$db_file, effect=h, anno=opts$anno)
 h <- dat$imp %>% select(filt, target, label)
 dat$del <- h %>% inner_join(dat$del, by=c('filt', 'target'))
 stopifnot(nrow(dat$del) == nrow(dat$imp))
+```
+
+```{r fig.width=fig.width, fig.height=fig.height}
 d <- dat$del %>% mutate(value=mean_)
-h <- plot_heat(d, Rowv=p$rowDendrogram, Colv=p$colDendrogram)
+h <- plot_heat(d, Rowv=p$rowDendrogram, Colv=p$colDendrogram, del=T)
 ```
 
 ## Rank
@@ -131,3 +133,32 @@ h <- plot_heat(d, Rowv=p$rowDendrogram, Colv=p$colDendrogram)
 d <- dat$imp %>% mutate(value=rank_)
 h <- plot_heat(d, rev=T)
 ```
+
+# PCA
+
+```{r fig.width=8, fig.height=6}
+pc_d <- dat$imp %>% mutate(value=mean_) %>% to_matrix
+pc_t <- pca(pc_d)
+plot_pca_target(pc_t)
+```
+
+```{r fig.width=8, fig.height=6}
+pc_f <- pca(t(pc_d))
+plot_pca_filt(pc_f)
+```
+
+```{r}
+h <- file.path(Sys.getenv('Cr'), 'stats', 'stats.csv')
+dat$stats <- read.table(h, head=T) %>% tbl_df
+```
+
+```{r}
+d1 <- dat$stats %>% filter(fact %in% c('mean', 'PC1', 'PC2', 'PC3', 'PC4'))
+d2 <- dat$imp %>% select(target, cell_type, label, mean_)
+d <- d2 %>% inner_join(d1, by='target') %>% droplevels
+```
+
+```{r fig.width=10, fig.height=length(levels(d$label)) * 2}
+plot_scatter(d)
+```
+

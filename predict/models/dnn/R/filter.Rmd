@@ -35,7 +35,7 @@ options(xtable.type='html')
 
 ```{r}
 opts <- list()
-opts$db_file <- './filter.sql'
+opts$db_file <- './eval.sql'
 opts$filt_file <- './filter.h5'
 opts$filt_name <- 's_c1'
 opts$effect <- 'lor'

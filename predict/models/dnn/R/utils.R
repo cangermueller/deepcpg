@@ -33,6 +33,10 @@ parse_cell_type <- function(x) {
   return (x)
 }
 
+parse_sample_short <- function(x) {
+  return (sub('.+(RSC.+)', '\\1', x))
+}
+
 char_to_factor <- function(d) {
   for (n in names(d)) {
     if (is.character(d[[n]])) {
@@ -63,4 +67,76 @@ move_front <- function(x, what) {
   h <- c(what, setdiff(x, what))
   h <- intersect(h, x)
   return (h)
+}
+
+read_report_values <- function(filename, samples=NULL, n=NULL) {
+  h <- 'cut -f 13-'
+  if (!is.null(n)) {
+    h <- sprintf('head -n %d %s | %s', n, filename, h)
+  } else {
+    h <- sprintf('%s %s', h, filename)
+  }
+
+  h <- read.table(pipe(h), head=T, sep='\t')
+  if (!is.null(samples)) {
+    h <- subset(h, select=intersect(colnames(h), samples))
+  }
+  h <- h %>% tbl_df
+  return (h)
+}
+
+read_report_meta <- function(filename, n=NULL) {
+  sel <- 'cut -f 2-5,7,8,12'
+  if (!is.null(n)) {
+    cmd <- sprintf('head -n %d %s | %s', n, filename, sel)
+  } else {
+    cmd <- sprintf('%s %s', sel, filename)
+  }
+  h <- read.table(pipe(cmd), head=T, sep='\t')
+  names(h) <- tolower(names(h))
+  h <- h %>% rename(chromo=chromosome)
+  h <- h %>% tbl_df
+  return (h)
+}
+
+impute <- function(d) {
+  means <- colMeans(d, na.rm=T)
+  if (any(is.na(means))) {
+    stop('Insufficient data for mean imputation!')
+  }
+  for (i in 1:length(means)) {
+    d[is.na(d[,i]), i] <- means[i]
+  }
+  return (d)
+}
+
+pca <- function(d, center=T, scale=F) {
+  # columns are samples
+  d <- scale(d, center=center, scale=scale)
+  d <- t(d)
+  s <- svd(d)
+  vec <- as.data.frame(s$u)
+  colnames(vec) <- sapply(1:ncol(vec), function(x) sprintf('PC%d', x))
+  rownames(vec) <- rownames(d)
+  val <- s$d**2
+  val <- val / sum(val)
+  return (list(vec=vec, val=val))
+}
+
+plot_pca_target <- function(pc, x=1, y=2) {
+  t <- data.frame(
+    sample=factor(rownames(pc$vec)),
+    pcx=pc$vec[,x], pcy=pc$vec[,y]
+    ) %>% mutate(
+      cell_type=parse_cell_type(sample),
+      sample_short=parse_sample_short(sample)
+      )
+  p <- ggplot(t, aes(x=pcx, y=pcy)) +
+    geom_point(aes(color=cell_type)) +
+    scale_color_manual(values=colors_$cell_type) +
+    geom_text(aes(label=sample_short), vjust=-.4, hjust= .3, size=3) +
+    xlab(sprintf('PC%d (%.2f%%)', x, pc$val[x])) +
+    ylab(sprintf('PC%d (%.2f%%)', y, pc$val[y])) +
+    theme_pub()
+  return (p)
 }

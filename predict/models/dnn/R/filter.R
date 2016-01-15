@@ -63,7 +63,10 @@ filt_pwm <- function(d, filt_, what='act_p2') {
   return (d)
 }
 
-
+filt_motif <- function(d, filt, ...) {
+  d <- filt_pwm(d, filt)
+  return (paste0(rownames(d)[apply(d, 2, which.max)], collapse=''))
+}
 
 
 

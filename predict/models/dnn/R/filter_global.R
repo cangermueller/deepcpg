@@ -53,10 +53,11 @@ plot_annos <- function(d, annos) {
     scale_fill_manual(values=colors_$cell_type) +
     theme_pub() +
     theme(
-      axis.text.x=element_text(angle=30, hjust=1)
+      axis.text.x=element_text(angle=30, hjust=1),
+      legend.position='top'
       ) +
     xlab('') + ylab('Effect') +
-    facet_wrap(~anno, ncol=2, scale='free')
+    facet_wrap(~anno, ncol=1, scale='free')
   return (p)
 }
 
@@ -69,6 +70,6 @@ plot_stats <- function(d) {
     facet_wrap(~stat, ncol=1, scales='free') +
     theme_pub() +
     theme(legend.position='top') +
-    guides(fill=F)
+    guides(color=guide_legend(ncol=3), fill=F)
   return (p)
 }

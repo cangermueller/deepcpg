@@ -37,15 +37,19 @@ options(xtable.type='html')
 
 ```{r}
 opts <- list()
-opts$db_file <- './filter.sql'
+opts$db_file <- './eval.sql'
 opts$filt_file <- './filter.h5'
 opts$filt_name <- 's_c1'
 opts$effect <- 'abs_lor'
-opts$cell_type <- NULL
-opts$nb_sel <- 10
+opts$nb_sel <- 15
 opts$annos <- "loc%"
 opts$cache <- T
 dat <- list()
+
+filter_data <- function(d) {
+  d <- d #%>% filter(filt != '8')
+  return (d)
+}
 ```
 
 ```{r}
@@ -67,10 +71,10 @@ dat$motifs <- dat$filt %>% group_by(filt) %>%
 # Global
 
 ```{r cache=opts$cache}
-d <- query_db(opts$db_file, opts$effect) %>%
+d <- query_db(opts$db_file, opts$effect) %>% filter_data %>%
   left_join(dat$motifs, by='filt')
 
-dat$stats <- d %>% group_by(filt) %>%
+dat$gstats <- d %>% group_by(filt) %>%
   summarise_each(funs(mean), mean_, var_, rank_) %>% ungroup %>%
   arrange(desc(mean_)) %>% ungroup %>%
   left_join(dat$motifs, by='filt') %>%
@@ -80,7 +84,7 @@ dat$stats <- d %>% group_by(filt) %>%
     label=factor(label, levels=label)
     )
 
-dat$sel <- dat$stats
+dat$sel <- dat$gstats
 if (!is.null(opts$nb_sel)) {
   dat$sel <- dat$sel %>% head(opts$nb_sel) %>% droplevels
 }
@@ -103,20 +107,21 @@ if (!is.null(opts$annos)) {
 } else {
   h <- NULL
 }
-d <- query_db(opts$db_file, effect=opts$effect, table='annos', cond=h)
+d <- query_db(opts$db_file, effect=opts$effect, table='annos', cond=h) %>%
+  filter_data
 d <- select(dat$sel, label, filt) %>% inner_join(d, by='filt')
 d$filt <- factor(d$filt, levels=levels(dat$sel$filt))
 dat$annos <- d
 ```
 
-```{r fig.width=10, fig.height=30}
+```{r fig.width=10, fig.height=length(levels(dat$annos$anno)) * 4}
 plot_annos(dat$annos)
 ```
 
 # Statistics
 
 ```{r cache=opts$cache}
-d <- query_stats(opts$db_file, opts$effect)
+d <- query_stats(opts$db_file, opts$effect) %>% filter_data
 dat$stats <- select(dat$sel, label, filt) %>% inner_join(d, by='filt')
 ```
 

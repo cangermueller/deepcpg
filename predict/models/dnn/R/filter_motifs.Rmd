@@ -37,14 +37,13 @@ options(xtable.type='html')
 
 ```{r}
 opts <- list()
-opts$db_file <- './filter.sql'
+opts$db_file <- './eval.sql'
 opts$filt_file <- './filter.h5'
 opts$filt_name <- 's_c1'
 opts$effect <- 'abs_lor'
 opts$anno <- NULL
 opts$cell_type <- NULL
 opts$nb_sel <- 45
-opts$cache <- T
 dat <- list()
 ```
 
@@ -64,7 +63,7 @@ dat$motifs <- dat$filt %>% group_by(filt) %>%
   )
 ```
 
-```{r cache=opts$cache}
+```{r}
 d <- query_db(opts$db_file, effect=opts$effect, anno=opts$anno) %>%
   left_join(dat$motifs, by='filt')
 
