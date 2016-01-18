@@ -134,20 +134,20 @@ plot_global <- function(d) {
   return (p)
 }
 
-plot_global_scatter <- function(d, ref='rf') {
+plot_global_scatter <- function(d, ref='^rf$') {
   m <- levels(d$model)
   h <- grep(ref, m, ignore.case=T)
-  m[h] <- 'RF'
+  m[h] <- 'ref'
   levels(d$model) <- m
   d <- d %>% select(model, target, cell_type, auc)
   d <- d %>% spread(model, auc) %>%
-    gather(model, auc, -c(target, cell_type, RF))
-  p <- ggplot(d, aes(x=RF, y=auc)) +
+    gather(model, auc, -c(target, cell_type, ref))
+  p <- ggplot(d, aes(x=ref, y=auc)) +
     geom_abline(slope=1, color='darkgrey', linetype='dashed') +
     geom_point(aes(color=cell_type), size=0.8) +
     scale_color_manual(values=colors_$cell_type) +
     facet_wrap(~model, ncol=3, scales='free') +
-    xlab('RF') + ylab('') +
+    xlab('') + ylab('') +
     theme_pub()
   return (p)
 }
@@ -193,6 +193,26 @@ plot_annos <- function(d) {
       axis.text.x=element_text(angle=30, hjust=1)
     ) +
     xlab('') + ylab('AUC')
+  return (p)
+}
+
+plot_annos2 <- function(d) {
+  h <- d %>% group_by(anno) %>%
+    summarise(auc=mean(auc)) %>% arrange(desc(auc)) %>% select(anno) %>% unlist
+  d <- d %>% mutate(anno=factor(anno, levels=rev(h)))
+  p <- ggplot(d, aes(x=anno, y=auc, fill=cell_type)) +
+    geom_boxplot(outlier.shape=NA) +
+    geom_point(aes(fill=cell_type), size=0.5,
+      position=position_jitterdodge(jitter.width=0, jitter.height=0, dodge.width=0.8)) +
+    scale_fill_manual(values=colors_$cell_type) +
+    theme_pub() +
+    theme(
+      panel.grid.major=element_line(colour="grey60", size=0.1, linetype='solid'),
+      panel.grid.minor=element_line(colour="grey60", size=0.1, linetype='dotted'),
+      axis.text.x=element_text(angle=30, hjust=1)
+    ) +
+    xlab('') + ylab('AUC') +
+    coord_flip()
   return (p)
 }
 

@@ -37,10 +37,16 @@ opts$annos <- NULL
 
 
 filter_data <- function(d) {
-  # m <- c('DeepCpG'='c0_015_s0_007_006', 'RF'='rf', 'WinAvg'='win_avg', 'CpG'='c0_015_r1', 'Seq'='s0_007')
-  # d <- d %>% filter(model %in% m) %>%
-  #   mutate(model=factor(model, levels=m, labels=names(m))) %>%
-  #   droplevels
+  m <- c(
+    'DeepCpG'='c0_015_s0_007_006',
+    'RF'='rf',
+    'RF (kseq)'='rf_kseq',
+    'WinAvg'='win_avg',
+    'DeepCpG (CpG)'='c0_015_r1',
+    'DeepCpG (Seq)'='s0_007')
+  d <- d %>% filter(model %in% m) %>%
+    mutate(model=factor(model, levels=m, labels=names(m))) %>%
+    droplevels
   return (d)
 }
 ```
@@ -79,13 +85,17 @@ dat$annos <- query_annos() %>% filter_data
 
 ```{r}
 m <- top_n(5)
-annos <- unique(dat$annos$anno)
+annos <- grep('^loc|^licr|^psu|^uw', levels(dat$annos$anno), value=T)
 ```
 
 ```{r fig.width=10, fig.height=ceiling(length(annos) / 3) * 2.8}
 d <- dat$annos %>% filter(model %in% m, anno %in% annos) %>% droplevels %>%
   mutate(model=factor(model, levels=m))
 plot_annos(d)
+```
+
+```{r fig.width=10, fig.height=length(annos)*0.5}
+plot_annos2(d)
 ```
 
 # Statistics
