@@ -18,7 +18,7 @@ def write_activations(data, name, out_file):
         f.create_group('act')
     g = f['act']
     if name in g:
-        del f[name]
+        del g[name]
     g = g.create_group(name)
 
     for chromo in np.unique(data['chromo']):
@@ -181,8 +181,26 @@ class App(object):
         x = model.get_input(train=False)['s_x']
         y = model.nodes['s_c1'].get_output(train=False)
         f = th.function([x], y)
-        fy = f(data['s_x'])
-        d = dict(chromo=data['chromo'][:], pos=data['pos'][:], y=fy)
+
+        out = None
+        ins = data['s_x']
+        nb_sample = ins.shape[0]
+        nb_batch = int(np.ceil(nb_sample / opts.batch_size))
+        c = max(1, int(np.ceil(nb_batch / 50)))
+        batch = 0
+        for i in range(0, nb_sample, opts.batch_size):
+            batch += 1
+            if batch == 1 or batch == nb_batch or batch % c == 0:
+                print('%5d / %d (%.1f%%)' % (batch, nb_batch,
+                                             batch / nb_batch * 100))
+            ins_batch = ins[i:min(nb_sample, i + opts.batch_size)]
+            out_batch = f(ins_batch)
+            if out is None:
+                out = np.zeros(([nb_sample] + list(out_batch.shape[1:])),
+                               dtype='float32')
+            out[i:i + out_batch.shape[0]] = out_batch
+
+        d = dict(chromo=data['chromo'][:], pos=data['pos'][:], y=out)
         write_activations(d, 's_x', opts.out_file)
 
         data_file.close()

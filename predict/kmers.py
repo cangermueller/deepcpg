@@ -1,11 +1,8 @@
-import os.path as pt
 import numpy as np
 import pandas as pd
 import h5py
-import copy
 
 from predict import hdf
-from predict import data
 
 
 class KmersExtractor(object):
@@ -14,7 +11,7 @@ class KmersExtractor(object):
         self.k = k
         self.chrs = chrs
         self.b = len(chrs)
-        self.ints = {c:i for i, c in enumerate(chrs)}
+        self.ints = {c: i for i, c in enumerate(chrs)}
         self.vec = np.array([self.b**i for i in range(self.k)])
 
     def count(self):
@@ -88,7 +85,6 @@ class Processor(object):
         self.kext = kext
         self.delta = delta
         self.logger = None
-        self.progbar = None
         self.seq_index = 1
 
     def log(self, msg):
@@ -100,18 +96,14 @@ class Processor(object):
         freq = np.zeros((n, self.kext.count()), dtype=np.int)
         seq = seq.upper()
 
-        pb = None
-        if self.progbar is not None:
-            pb = copy.copy(self.progbar)
-            pb.maxval = n
-
         num_adjusted = 0
         num_nocpg = 0
         num_stripped = 0
         num_inv = 0
         for i in range(n):
-            if pb is not None:
-                pb.update(i)
+            if self.logger is not None:
+                if i == 0 or i == n - 1 or i % (n // 100) == 0:
+                    self.logger('%6.1f (%d / %d)' % ((i + 1) / n * 100, i + 1, n))
             p = pos[i] - self.seq_index
             if seq[p] not in self.kext.chrs:
                 num_inv += 1
@@ -129,27 +121,34 @@ class Processor(object):
             if t != len(seq_win):
                 num_stripped += 1
             freq[i] = self.kext.freq(seq_win)
-        if pb is not None:
-            pb.finish()
         self.log('%d (%.2f%%) positions adjusted to CpG.' % (num_adjusted, num_adjusted / n))
         self.log('%d (%.2f%%) no-CpG positions.' % (num_nocpg, num_nocpg / n))
         self.log('%d (%.2f%%) invalid positions.' % (num_inv, num_inv / n))
         self.log('%d (%.2f%%) of windows stripped.' % (num_stripped, num_stripped / n))
 
+        return freq
         freq = pd.DataFrame(freq, index=pos, columns=self.kext.labels())
         return freq
-
 
     def process(self, seq_path, pos, out_path):
         path, group = hdf.split_path(seq_path)
         seq_file = h5py.File(seq_path, 'r')
         seq_group = seq_file[group]
         out_path, out_group = hdf.split_path(out_path)
+        out_file = h5py.File(out_path, 'a')
+        if out_group not in out_file:
+            out_file.create_group(out_group)
+        g = out_file[out_group]
         for chromo in pos.chromo.unique():
             self.log('Chromosome %s ...' % (str(chromo)))
             p = pos.loc[pos.chromo == chromo].pos.values
             seq = seq_group[str(chromo)].value
             kmers = self.process_chromo(seq, p)
-            t = data.format_chromo(chromo)
-            kmers.to_hdf(out_path, pt.join(out_group, str(t)))
+            if chromo in g:
+                del g[chromo]
+            gc = g.create_group(chromo)
+            gc['pos'] = p
+            gc.create_dataset('kmers', data=kmers, compression='gzip')
+            gc['labels'] = [x.encode() for x in self.kext.labels()]
+        out_file.close()
         seq_file.close()

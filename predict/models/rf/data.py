@@ -31,6 +31,7 @@ def read_knn(data_file, chromo, pos, knn, knn_group):
 
     return (K, cols)
 
+
 def read_annos(annos_file, chromo, name, pos=None, binary=True):
     f = h5.File(annos_file)
     d = {k: f[pt.join(chromo, name, k)].value for k in ['pos', 'annos']}
@@ -47,6 +48,7 @@ def read_annos(annos_file, chromo, name, pos=None, binary=True):
         a = a.astype('int8')
     return (p, a)
 
+
 def read_annos_matrix(annos_file, chromo, pos, annos=None, annos_excl=None):
     if annos is None:
         f = h5.File(annos_file)
@@ -60,8 +62,24 @@ def read_annos_matrix(annos_file, chromo, pos, annos=None, annos_excl=None):
     assert len(p) == A.shape[0]
     return (A, annos)
 
+
+def read_kmers(path, chromo, pos=None):
+    f = h5.File(path)
+    g = f[chromo]
+    labels = [x.decode() for x in g['labels']]
+    kmers = g['kmers'].value
+    p = g['pos'].value
+    f.close()
+    if pos is not None:
+        t = np.in1d(p, pos)
+        kmers = kmers[t]
+        p = p[t]
+        assert np.all(p == pos)
+    return (kmers, labels)
+
+
 def read_chromo(data_file, chromo, knn, knn_group, annos_file=None,
-                max_samples=None, annos_excl=None):
+                max_samples=None, annos_excl=None, kmers_file=None):
     f = h5.File(data_file)
     pos = f[pt.join('cpg', chromo, 'pos')]
     y = f[pt.join('cpg', chromo, 'cpg')]
@@ -74,11 +92,18 @@ def read_chromo(data_file, chromo, knn, knn_group, annos_file=None,
     f.close()
 
     X, cols = read_knn(data_file, chromo, pos, knn=knn, knn_group=knn_group)
-    if annos_file:
+
+    if annos_file is not None:
         A, Acols = read_annos_matrix(annos_file, chromo, pos,
                                      annos_excl=annos_excl)
         X = np.hstack((X, A))
         cols.extend(Acols)
+
+    if kmers_file is not None:
+        kmers, labels = read_kmers(kmers_file, chromo, pos)
+        X = np.hstack((X, kmers))
+        cols.extend(labels)
+
     cols = [x.encode() for x in cols]
     return {'X': X, 'y': y, 'pos': pos, 'columns': cols}
 
@@ -107,6 +132,9 @@ class App(object):
             help='Annotations to be excluded',
             nargs='+'
         )
+        p.add_argument(
+            '--kmers_file',
+            help='HDF path to kmers file')
         p.add_argument(
             '-o', '--out_file',
             help='Output file')
@@ -166,7 +194,8 @@ class App(object):
                              max_samples=opts.max_samples,
                              knn=opts.knn,
                              knn_group=opts.knn_group,
-                             annos_excl=opts.annos_excl)
+                             annos_excl=opts.annos_excl,
+                             kmers_file=opts.kmers_file)
             chromos_len.append(len(dc['y']))
             for k, v in dc.items():
                 if k not in d.keys():
