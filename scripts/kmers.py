@@ -4,15 +4,9 @@ import argparse
 import sys
 import logging
 import os.path as pt
-import numpy as np
 import pandas as pd
-import progressbar
-import h5py
-import copy
 import warnings
 
-from predict import hdf
-from predict import data
 from predict import kmers
 
 
@@ -77,7 +71,8 @@ class App(object):
         log.debug(opts)
 
         log.info('Read positions ...')
-        pos = pd.read_table(opts.pos_file, dtype={'chromo': str})
+        pos = pd.read_table(opts.pos_file, dtype={0: str}, header=None)
+        pos.columns = ['chromo', 'pos']
         if opts.chromos is not None:
             pos = pos.loc[pos.chromo.isin(opts.chromos)]
         if opts.start is not None:
@@ -88,8 +83,7 @@ class App(object):
 
         kext = kmers.KmersExtractor(opts.kmers)
         proc = kmers.Processor(kext, int(opts.wlen / 2))
-        proc.progbar = progressbar.ProgressBar(term_width=80)
-        proc.logger = lambda x: log.info(x)
+        proc.logger = print
         log.info('Process ...')
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')

@@ -6,8 +6,10 @@ import logging
 import os.path as pt
 import pandas as pd
 import h5py as h5
+import numpy as np
 
 from predict import annos as A
+from predict.utils import filter_regex
 
 
 def annotate(pos, annos):
@@ -19,12 +21,42 @@ def annotate(pos, annos):
     return x
 
 
-def read_annos(path):
+def read_annos_bed(path):
     d = pd.read_table(path, header=None, usecols=[0, 1, 2],
                       dtype={0: 'str', 1: 'int32', 2: 'int32'})
     d.columns = ['chromo', 'start', 'end']
     d.chromo = d.chromo.str.lower().str.replace('chr', '')
     return d
+
+
+def read_annos(annos_file, chromo, name, pos=None):
+    f = h5.File(annos_file)
+    d = {k: f[pt.join(chromo, name, k)].value for k in ['pos', 'annos']}
+    f.close()
+    if pos is not None:
+        t = np.in1d(d['pos'], pos)
+        for k in d.keys():
+            d[k] = d[k][t]
+        assert np.all(d['pos'] == pos)
+    d['annos'][d['annos'] >= 0] = 1
+    d['annos'][d['annos'] < 0] = 0
+    d['annos'] = d['annos'].astype('bool')
+    return d['pos'], d['annos']
+
+
+def read_annos_matrix(annos_file, chromo, pos, regexs=None, *args, **kwargs):
+    f = h5.File(annos_file, 'r')
+    annos = list(f[chromo].keys())
+    if regexs is not None:
+        annos = filter_regex(annos, regexs)
+    A = []
+    for anno in annos:
+        t = read_annos(annos_file, chromo, anno, pos=pos, *args, **kwargs)
+        A.append(t[1])
+
+    A = np.vstack(A).T
+    A = pd.DataFrame(A, columns=annos, index=pos)
+    return A
 
 
 class App(object):
@@ -71,8 +103,9 @@ class App(object):
         log.debug(opts)
 
         log.info('Read positions')
-        pos = pd.read_table(opts.pos_file, header=None, dtype={0: 'str', 1: 'int32'})
-        pos.columns=['chromo', 'pos']
+        pos = pd.read_table(opts.pos_file, header=None,
+                            dtype={0: 'str', 1: 'int32'})
+        pos.columns = ['chromo', 'pos']
         if opts.chromos is not None:
             pos = pos.loc[pos.chromo.isin(opts.chromos)]
 
@@ -82,7 +115,7 @@ class App(object):
         for anno_file in opts.anno_files:
             anno = pt.splitext(pt.basename(anno_file))[0]
             log.info(anno)
-            annos = read_annos(anno_file)
+            annos = read_annos_bed(anno_file)
             for chromo in chromos:
                 cpos = pos.loc[pos.chromo == chromo]
                 cannos = annos.loc[annos.chromo == chromo]
