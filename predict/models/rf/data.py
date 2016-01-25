@@ -91,19 +91,26 @@ def read_chromo(data_file, chromo, knn, knn_group, annos_file=None,
         y = y[:max_samples]
     f.close()
 
-    X, cols = read_knn(data_file, chromo, pos, knn=knn, knn_group=knn_group)
+    X = []
+    cols = []
+
+    if knn:
+        h, c = read_knn(data_file, chromo, pos, knn=knn, knn_group=knn_group)
+        X.append(h)
+        cols.extend(c)
 
     if annos_file is not None:
-        A, Acols = read_annos_matrix(annos_file, chromo, pos,
-                                     annos_excl=annos_excl)
-        X = np.hstack((X, A))
-        cols.extend(Acols)
+        h, c = read_annos_matrix(annos_file, chromo, pos,
+                                 annos_excl=annos_excl)
+        X.append(h)
+        cols.extend(c)
 
     if kmers_file is not None:
-        kmers, labels = read_kmers(kmers_file, chromo, pos)
-        X = np.hstack((X, kmers))
-        cols.extend(labels)
+        h, c = read_kmers(kmers_file, chromo, pos)
+        X.append(h)
+        cols.extend(c)
 
+    X = np.hstack(X)
     cols = [x.encode() for x in cols]
     return {'X': X, 'y': y, 'pos': pos, 'columns': cols}
 

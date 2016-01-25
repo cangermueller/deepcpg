@@ -21,7 +21,7 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Inspect model training')
+            description='Pickle model')
         p.add_argument(
             'model',
             help='Model files',

@@ -68,6 +68,10 @@ class App(object):
             help='Convolutional layer',
             default='s_c1')
         p.add_argument(
+            '--mean',
+            help='Compute mean over sequence window to reduce storage',
+            type=int)
+        p.add_argument(
             '--chromo',
             help='Chromosome')
         p.add_argument(
@@ -195,6 +199,10 @@ class App(object):
                                              batch / nb_batch * 100))
             ins_batch = ins[i:min(nb_sample, i + opts.batch_size)]
             out_batch = f(ins_batch)
+            if opts.mean is not None:
+                d = opts.mean // 2
+                c = out_batch.shape[1] // 2
+                out_batch = out_batch[:, (c - d):(c + d)].mean(axis=1)
             if out is None:
                 out = np.zeros(([nb_sample] + list(out_batch.shape[1:])),
                                dtype='float32')
