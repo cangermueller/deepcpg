@@ -8,12 +8,6 @@ query_db <- function(table) {
   d <- d %>% char_to_factor %>% droplevels %>% tbl_df
   # d <- d %>% filter(seqmut == opts$seqmut) %>% select(-seqmut)
   d <- d %>% mutate(fun=paste0(fun, '_')) %>% spread(fun, value)
-  if (opts$norm_effect) {
-    d <- d %>% group_by(seqmut, effect) %>% mutate(mean_=mean_/max(mean_))
-    if ('mean0_' %in% names(d)) {
-      d <- d %>% group_by(effect) %>% mutate(mean0_=mean0_/max(mean0_))
-    }
-  }
   d <- d %>% ungroup
   return (d)
 }
@@ -32,8 +26,8 @@ query_stats <- function(...) {
 }
 
 plot_global <- function(d) {
-  p <- ggplot(d, aes(x=effect, y=mean_)) +
-    geom_boxplot(aes(fill=effect), outlier.size=0) +
+  p <- ggplot(d, aes(x=seqmut, y=mean_)) +
+    geom_boxplot(aes(fill=seqmut), outlier.size=0) +
     geom_jitter(aes(color=cell_type), position=position_jitter(width=0.1, height=0)) +
     scale_color_manual(values=colors_$cell_type) +
     xlab('') + ylab('') +
