@@ -1,4 +1,3 @@
-
 query_db <- function(db_file, anno=NULL, effect_='abs_lor') {
   con <- src_sqlite(db_file)
   if (is.null(anno)) {
@@ -6,10 +5,10 @@ query_db <- function(db_file, anno=NULL, effect_='abs_lor') {
     cond <- NULL
   } else {
     table <- 'annos'
-    cond <- sprintf('anno = "%s"', anno)
+    cond <- sprintf('anno LIKE "%s"', anno)
   }
   h <- sprintf('SELECT * FROM %s', table)
-  if (!is.null(anno)) {
+  if (!is.null(cond)) {
     h <- sprintf('%s WHERE %s', h, cond)
   }
   d <- tbl(con, sql(h))
@@ -69,6 +68,7 @@ plot_heat <- function(d, rev_colors=F, Rowv=T, Colv=T, lhei=c(1, 10), del=F) {
     key.title='', srtCol=45, key.xlab='value', ColSideColors=col_colors)
   return (p)
 }
+
 
 to_matrix <- function(d) {
   d <- d %>% mutate(value=mean_) %>% select(label, target, value) %>%

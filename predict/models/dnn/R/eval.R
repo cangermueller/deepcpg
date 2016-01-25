@@ -223,7 +223,7 @@ plot_stats <- function(d) {
     xlab('') + ylab('AUC') +
     facet_wrap(~stat, ncol=1, scales='free') +
     theme_pub() +
-    theme(legend.position='right') +
+    theme(legend.position='top') +
     guides(fill=F)
   return (p)
 }

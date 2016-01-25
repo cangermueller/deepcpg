@@ -1,5 +1,7 @@
 ---
-title: Visualization
+title: "Zoom"
+author: "Christof Angermueller"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output:
   html_document:
     toc: yes
@@ -18,11 +20,18 @@ library(rhdf5)
 library(grid)
 library(gridExtra)
 library(scales)
+
+lib <- file.path(Sys.getenv('Pd'), 'R')
+source(file.path(lib, 'utils.R'))
+source(file.path(lib, 'zoom'))
 ```
 
 ```{r}
 opts <- list()
-opts$in_file <- '../z.h5'
+opts$pred_file <- './pred.h5'
+opts$filt_act_file <- './filter_act.h5'
+opts$filt_imp <- './filter_imp.h5'
+opts$seqmut_file <- './seqmut.h5'
 opts$cache <- T
 dat <- list()
 ```
