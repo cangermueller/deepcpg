@@ -21,27 +21,27 @@ plot_annos <- function(d) {
 }
 
 plot_var <- function(d, span=0.05, degree=2) {
-  d1 <- d %>% group_by(chromo, pos, cell_type) %>%
+  d <- d %>% group_by(chromo, pos, cell_type) %>%
     summarise(var_=var(z)) %>% ungroup
-  d2 <- d %>% group_by(chromo, pos) %>%
-    summarise(var_=var(z)) %>% ungroup %>% mutate(cell_type='all')
-  d <- rbind.data.frame(d1, d2) %>% tbl_df
   p <- ggplot(d, aes(x=pos, y=var_)) +
-    stat_smooth(aes(linetype=cell_type),
+    stat_smooth(aes(color=cell_type),
       size=1, se=F, method='loess', span=span,
       method.args=list(degree=degree)) +
+    scale_color_manual(values=colors_$cell_type) +
     xlab('') + ylab('Variance') +
     theme_pub() +
+    theme(axis.title.x=element_blank(), legend.position='top') +
     scale_x_continuous(labels=comma) +
-    theme(axis.title.x=element_blank(), legend.position='top')
+    guides(color=F)
   return (p)
 }
 
 plot_met <- function(d, span=0.05, degree=2) {
   p <- ggplot(d, aes(x=pos, y=z)) +
-    geom_smooth(aes(color=target, linetype=cell_type), size=1, se=F,
+    geom_smooth(aes(group=target, color=cell_type), size=0.5, se=F,
       method='loess', span=span, method.args=list(degree=degree)) +
     theme_pub() +
+    scale_color_manual(values=colors_$cell_type) +
     guides(color=F, linetype=F) +
     ylab('Methylation rate') + xlab('') +
     scale_x_continuous(labels=comma) +
@@ -58,11 +58,12 @@ data_seqmut <- function(d, region, seqmut_='rnd', wlen_=10) {
 
 plot_seqmut <- function(d, span=0.05, degree=2) {
   p <- ggplot(d, aes(x=pos, y=value)) +
-    geom_smooth(aes(color=target, linetype=cell_type), size=0.5, se=F,
+    geom_smooth(aes(group=target, color=cell_type), size=0.5, se=F,
       method='loess', span=span, method.args=list(degree=degree)) +
     theme_pub() +
-    guides(color=F, linetype=F) +
+    guides(color=F) +
     ylab('Effect') + xlab('') +
+    scale_color_manual(values=colors_$cell_type) +
     scale_x_continuous(labels=comma) +
     theme(axis.title.x=element_blank())
   return (p)
@@ -98,9 +99,10 @@ plot_filt_imp <- function(d, what='lor') {
       panel.grid.major = element_blank(),
       panel.grid.minor = element_blank(),
       panel.background = element_blank(),
+      axis.title.x=element_blank(),
       legend.position='bottom'
       ) +
-    theme(axis.title.x=element_blank())
+    guides(fill=F)
   return (p)
 }
 
@@ -127,9 +129,10 @@ plot_filt_act <- function(d) {
       panel.grid.major = element_blank(),
       panel.grid.minor = element_blank(),
       panel.background = element_blank(),
+      axis.title.x=element_blank(),
       legend.position='bottom'
       ) +
-    theme(axis.title.x=element_blank())
+    guides(fill=F)
   return (p)
 }
 
@@ -194,7 +197,7 @@ get_tracks <- function(region) {
   grtrack <- BiomartGeneRegionTrack(
     genome=region$genome, chromo=region$chromo, start=region$start, end=region$end,
     name='gene', biomart=bm, featureMap=fm)
-  tracks <- c(itrack, atracks, grtrack)
+  tracks <- c(itrack, grtrack, atracks)
 }
 
 plot_tracks <- function(tracks, region) {
