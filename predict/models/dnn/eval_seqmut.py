@@ -52,13 +52,13 @@ def logodds_ratio(p, q):
 
 def seqmut_effect(z, zm, effect_size='abs'):
     if effect_size == 'del':
-        return z - zm
+        return zm - z
     elif effect_size == 'abs':
-        return np.abs(z - zm)
+        return np.abs(zm - z)
     elif effect_size == 'lor':
-        return logodds_ratio(z, zm)
+        return logodds_ratio(zm, z)
     elif effect_size == 'abs_lor':
-        return np.abs(logodds_ratio(z, zm))
+        return np.abs(logodds_ratio(zm, z))
     else:
         raise ValueError('Effect type "%s" not supported!' % (effect_size))
 
