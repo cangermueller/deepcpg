@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 import h5py as h5
 
+from predict.dna import char2int
+
 
 def adjust_pos(p, seq, target='CG'):
     for i in [0, -1, 1]:
@@ -15,17 +17,11 @@ def adjust_pos(p, seq, target='CG'):
             return p + i
     return None
 
-def extract_windows(seq, pos, wlen, onehot=True, seq_index=1):
+def extract_windows(seq, pos, wlen, seq_index=1):
     delta = wlen // 2
-    trans = {'A': 0, 'G': 1, 'T': 2, 'C': 3, 'N': 4}
     n = pos.shape[0]
     seq = seq.upper()
-
-    if onehot:
-        enc_wins = np.zeros((n, wlen, len(trans) - 1), dtype='float16')
-        special = 1 / enc_wins.shape[2]
-    else:
-        enc_wins = np.zeros((n, wlen), dtype='int8')
+    enc_wins = np.zeros((n, wlen), dtype='int8')
 
     for i in range(n):
         p = pos[i] - seq_index
@@ -36,16 +32,7 @@ def extract_windows(seq, pos, wlen, onehot=True, seq_index=1):
             win = max(0, delta - p) * 'N' + win
             win += max(0, p + delta + 1 - len(seq)) * 'N'
             assert len(win) == wlen
-        enc_win = enc_wins[i]
-        if onehot:
-            for j, c in enumerate(win):
-                if c == 'N':
-                    enc_win[j, :] = special
-                else:
-                    enc_win[j, trans[c]] = 1
-        else:
-            for j, c in enumerate(win):
-                enc_win[j] = trans[c]
+        enc_wins[i] = char2int(win)
     return enc_wins
 
 
@@ -81,10 +68,6 @@ class App(object):
             '--chromos',
             help='Only apply to these chromosome',
             nargs='+')
-        p.add_argument(
-            '--onehot',
-            help='Encode one-hot',
-            action='store_true')
         p.add_argument(
             '--verbose', help='More detailed log messages', action='store_true')
         p.add_argument(
