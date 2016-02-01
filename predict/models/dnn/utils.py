@@ -135,19 +135,23 @@ class ArrayView(object):
     def __len__(self):
         return self.stop - self.start
 
-    def __getitem__(self, key):
+    def _adapt_slice(self, key):
+        start = key.start
+        if start is None:
+            start = 0
+        stop = key.stop
+        if stop is None:
+            stop = self.stop - self.start
+        if self.start + stop <= self.stop:
+            idx = slice(self.start + start,
+                        self.start + stop)
+        else:
+            raise IndexError
+        return idx
+
+    def _adapt_key(self, key):
         if isinstance(key, slice):
-            start = key.start
-            if start is None:
-                start = 0
-            stop = key.stop
-            if stop is None:
-                stop = self.stop - self.start
-            if self.start + stop <= self.stop:
-                idx = slice(self.start + start,
-                            self.start + stop)
-            else:
-                raise IndexError
+            idx = self._adapt_slice(key)
         elif isinstance(key, int):
             if self.start + key < self.stop:
                 idx = self.start + key
@@ -163,6 +167,15 @@ class ArrayView(object):
                 idx = [self.start + x for x in key]
             else:
                 raise IndexError
+        return idx
+
+    def __getitem__(self, key):
+        if isinstance(key, tuple):
+            idx = list(key)
+            idx[0] = self._adapt_key(idx[0])
+            idx = tuple(idx)
+        else:
+            idx = self._adapt_key(key)
         return self.data[idx]
 
     def use_all(self):
