@@ -12,30 +12,6 @@ import predict.models.dnn.utils as ut
 import predict.models.dnn.model as mod
 
 
-def write_activations(data, name, out_file):
-    f = h5.File(out_file, 'a')
-    if 'act' not in f:
-        f.create_group('act')
-    g = f['act']
-    if name in g:
-        del g[name]
-    g = g.create_group(name)
-
-    for chromo in np.unique(data['chromo']):
-        t = data['chromo'] == chromo
-        dc = {k: data[k][t] for k in data.keys()}
-        t = np.argsort(dc['pos'])
-        for k in dc.keys():
-            dc[k] = dc[k][t]
-        t = dc['pos']
-        assert np.all(t[:-1] < t[1:])
-        gc = g.create_group(chromo)
-        for k in dc.keys():
-            if k != 'chromo':
-                gc[k] = dc[k]
-    f.close()
-
-
 class App(object):
 
     def run(self, args):
@@ -61,25 +37,30 @@ class App(object):
             '-o', '--out_file',
             help='Output file')
         p.add_argument(
-            '--predict_file',
-            help='Also make prediction')
-        p.add_argument(
-            '--input_nodes',
-            help='Input nodes',
-            nargs='+',
-            default=['s_x'])
-        p.add_argument(
             '--conv_node',
             help='Convolutional node',
             default='s_c1')
         p.add_argument(
-            '--mean',
-            help='Compute mean over sequence window to reduce storage',
-            type=int)
-        p.add_argument(
             '--no_store_input',
             help='Store not input data in output file',
             action='store_true')
+        p.add_argument(
+            '--occ_input',
+            help='Input to be occluded')
+        p.add_argument(
+            '--occ_nb',
+            help='Number of occlusions',
+            type=int,
+            default=1)
+        p.add_argument(
+            '--occ_step',
+            help='Occlusion step size',
+            type=int)
+        p.add_argument(
+            '--occ_wlen',
+            help='Occlusion window length',
+            type=int,
+            default=20)
         p.add_argument(
             '--chromo',
             help='Chromosome')
@@ -93,7 +74,7 @@ class App(object):
             type=int)
         p.add_argument(
             '--nb_sample',
-            help='Maximum # training samples',
+            help='Maximum # samples',
             type=int)
         p.add_argument(
             '--batch_size',
@@ -170,77 +151,103 @@ class App(object):
         log.info('%d samples' % (list(data.values())[0].shape[0]))
 
         log.info('Load model')
-        model = mod.model_from_list(opts.model, compile=True)
-
-        def progress(batch, nb_batch):
-            batch += 1
-            c = max(1, int(np.ceil(nb_batch / 50)))
-            if batch == 1 or batch == nb_batch or batch % c == 0:
-                print('%5d / %d (%.1f%%)' % (batch, nb_batch,
-                                             batch / nb_batch * 100))
-
-        def predict(d=data):
-            z = model.predict(d, verbose=opts.verbose,
-                              batch_size=opts.batch_size, callbacks=[progress])
-            return z
-
-        if opts.predict_file is not None:
-            log.info('Predict')
-            z = predict()
-            ut.write_z(data, z, labels, opts.predict_file, unlabeled=True,
-                       name='z')
-
-        log.info('Compute sequence filter activations')
-        input_nodes_order = opts.input_nodes
+        model = mod.model_from_list(opts.model)
         conv_node = model.nodes[opts.conv_node]
-        ins = [model.get_input(train=False)[x] for x in input_nodes_order]
-        f_act = th.function(ins, conv_node.get_output(train=False))
 
+        log.info('Store filter weights')
         out_file = h5.File(opts.out_file, 'w')
         out_group = out_file
-        log.info('Store filter weights')
         g = out_group.create_group('filter')
         g['weights'] = conv_node.get_weights()[0]
         g['bias'] = conv_node.get_weights()[1]
 
         log.info('Compute activations')
+        x = [model.get_input(train=False)[x] for x in model.input_order]
+        f_act = th.function(x, conv_node.get_output(train=False))
+        f_z = model._predict
         ins = data
-        nb_sample = ins[opts.input_nodes[0]].shape[0]
+        nb_sample = ins[model.input_order[0]].shape[0]
+        targets = ut.map_targets(model.output_order, labels)
+        out_group['targets'] = [x.encode() for x in targets]
+
+        def write_hdf(x, path, idx, dtype=None, compression=None):
+            if path not in out_group:
+                if dtype is None:
+                    dtype = x.dtype
+                out_group.create_dataset(
+                    name=path,
+                    shape=[nb_sample] + list(x.shape[1:]),
+                    dtype=dtype,
+                    compression=compression
+                )
+            out_group[path][idx] = x
+
         nb_batch = int(np.ceil(nb_sample / opts.batch_size))
         c = max(1, int(np.ceil(nb_batch / 50)))
         batch = 0
-        for i in range(0, nb_sample, opts.batch_size):
+        for batch_start in range(0, nb_sample, opts.batch_size):
             batch += 1
             if batch == 1 or batch == nb_batch or batch % c == 0:
                 print('%5d / %d (%.1f%%)' % (batch, nb_batch,
                                              batch / nb_batch * 100))
-            s = slice(i, min(nb_sample, i + opts.batch_size))
-            ins_batch = {x: ins[x][s] for x in ins.keys()}
-            x = [ins_batch[x] for x in input_nodes_order]
-            if len(x) == 1:
-                x = x[0]
-            out_batch = f_act(x)
-            if opts.mean is not None:
-                d = opts.mean // 2
-                c = out_batch.shape[1] // 2
-                out_batch = out_batch[:, (c - d):(c + d)].mean(axis=1)
-            out_data = {
-                'pos': ins_batch['pos'],
-                'chromo': ins_batch['chromo'],
-                'act': out_batch,
-            }
+
+            batch_idx = slice(batch_start,
+                              min(nb_sample, batch_start + opts.batch_size))
+            ins_batch = {x: ins[x][batch_idx] for x in ins.keys()}
+            ins_f = [ins_batch[x] for x in model.input_order]
+            if len(ins_f) == 1:
+                ins_f = ins_f[0]
+            out_z = f_z(ins_f)
+            out_z = np.hstack(out_z)
+            write_hdf(out_z, 'z', batch_idx)
+            out_act = f_act(ins_f)
+            write_hdf(out_act, 'act', batch_idx, 'float16')
+
+            for k in ['pos', 'chromo']:
+                write_hdf(ins_batch[k], k, batch_idx)
             if not opts.no_store_input:
-                if 's_x' in input_nodes_order:
-                    h = np.argmax(ins_batch['s_x'], axis=2)
-                    out_data['s_x'] = h.astype('int8')
-            for k, v in out_data.items():
-                if k not in out_group:
-                    out_group.create_dataset(
-                        name=k,
-                        shape=[nb_sample] + list(v.shape[1:]),
-                        dtype=v.dtype
-                    )
-                out_group[k][s] = v
+                for k in model.input_order:
+                    x = ins_batch[k]
+                    if k == 's_x':
+                        # one-hot to int to reduce storage
+                        x = x.argmax(axis=2).astype('int8')
+                    write_hdf(x, k, batch_idx)
+
+            if opts.occ_input is not None:
+                X = ins_batch[opts.occ_input]
+                seq_len = X.shape[1]
+                seq_dim = X.shape[2]
+                occ_step = seq_len // opts.occ_nb
+                occ_idx = list(range(0, seq_len, occ_step))[:opts.occ_nb]
+                center = seq_len // 2
+                if center not in occ_idx:
+                    occ_idx.append(center)
+                    if len(occ_idx) > opts.occ_nb:
+                        occ_idx = occ_idx[1:]
+
+                batch_size = batch_idx.stop - batch_idx.start
+                occ_z = np.empty((batch_size, len(occ_idx), out_z.shape[1]),
+                                 dtype='float16')
+                occ_act = np.empty((batch_size, len(occ_idx), out_act.shape[2]),
+                                   dtype='float16')
+                occ_del = opts.occ_wlen // 2
+
+                for iidx, idx in enumerate(occ_idx):
+                    X_occ = np.array(X, dtype='float16')
+                    s = slice(max(0, idx - occ_del),
+                              min(seq_len, idx + occ_del))
+                    # Mutate sequence window
+                    X_occ[:, s].fill(1 / seq_dim)
+                    y = f_z(X_occ)
+                    y = np.hstack(y)
+                    occ_z[:, iidx] = y - out_z
+                    y = f_act(X_occ)
+                    occ_act[:, iidx] = y[:, idx] - out_act[:, idx]
+
+                write_hdf(occ_z, '/occ/z', batch_idx)
+                write_hdf(occ_act, '/occ/act', batch_idx, 'float16')
+                if '/occ/idx' not in out_group:
+                    out_group['/occ/idx'] = occ_idx
 
         data_file.close()
         out_file.close()

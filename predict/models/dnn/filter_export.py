@@ -59,7 +59,7 @@ class App(object):
         log.debug(opts)
 
         m = mod.model_from_list(opts.model, compile=False)
-        f = h5.File(opts.out_file, 'a')
+        f = h5.File(opts.out_file, 'w')
         if opts.out_group is not None:
             if opts.out_group in f:
                 del f[opts.out_group]
@@ -69,7 +69,10 @@ class App(object):
         for node in opts.nodes:
             if node in m.nodes:
                 log.info('Export %s' % (node))
-                fg[node] = m.nodes[node].get_weights()[0]
+                w = m.nodes[node].get_weights()
+                g = fg.create_group(node)
+                g['weights'] = w[0]
+                g['bias'] = w[1]
         f.close()
 
         log.info('Done!')

@@ -54,13 +54,18 @@ class App(object):
             '-o', '--out_file',
             help='Output file')
         p.add_argument(
-            '--conv_layer',
+            '--conv_node',
             help='Convolutional layer',
             default='s_c1')
         p.add_argument(
             '--filters',
             help='Filters to be tested',
             nargs='+')
+        p.add_argument(
+            '--method',
+            help='Method to kill filter',
+            choices=['mean', 'zero'],
+            default='mean')
         p.add_argument(
             '--chromo',
             help='Chromosome')
@@ -169,7 +174,7 @@ class App(object):
         z = predict()
         ut.write_z(data, z, labels, opts.out_file, unlabeled=True, name='z')
 
-        conv = model.nodes[opts.conv_layer]
+        conv = model.nodes[opts.conv_node]
         filters, bias = conv.get_weights()
         filters_list = opts.filters
         if filters_list is None:
@@ -180,7 +185,10 @@ class App(object):
         for i in filters_list:
             log.info('Kill filter %d' % (i))
             filters_x = filters.copy()
-            filters_x[i] = filters_x[i].mean()
+            if opts.method == 'mean':
+                filters_x[i] = filters_x[i].mean()
+            else:
+                filters_x[i].fill(0)
             conv.set_weights((filters_x, bias))
             z = predict()
             ut.write_z(data, z, labels, opts.out_file, unlabeled=True,

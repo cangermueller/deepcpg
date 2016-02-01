@@ -12,7 +12,7 @@ import sqlite3 as sql
 import hashlib
 import scipy.stats as sps
 
-from predict.utils import filter_regex
+import predict.utils as ut
 
 
 def evaluate(x, funs=[('mean', np.mean), ('var', np.var)], axis=0):
@@ -160,7 +160,7 @@ def eval_annos(x, chromos, cpos, annos_file, regexs=[r'loc_.+']):
     f = h5.File(annos_file)
     annos = list(f[chromos[0]].keys())
     f.close()
-    annos = filter_regex(annos, regexs)
+    annos = ut.filter_regex(annos, regexs)
     es = []
     for anno in annos:
         a = []
@@ -194,25 +194,7 @@ def eval_annos(x, chromos, cpos, annos_file, regexs=[r'loc_.+']):
     return es
 
 
-def add_noise(x, eps=1e-6):
-    min_ = np.min(x)
-    max_ = np.max(x)
-    xeps = x + np.random.uniform(-eps, eps, len(x))
-    xeps = np.maximum(min_, xeps)
-    xeps = np.minimum(max_, xeps)
-    return xeps
-
-
-def qcut(x, nb_bins, *args, **kwargs):
-    p = np.arange(0, 101, 100 / nb_bins)
-    q = list(np.percentile(x, p))
-    y = pd.cut(x, bins=q, include_lowest=True)
-    assert len(y.categories) == nb_bins
-    assert y.isnull().any() == False
-    return y
-
-
-def eval_stats(x, chromos, cpos, stats_file, stats=None, nbins=5):
+def eval_stats(x, chromos, cpos, stats_file, stats=None, nb_bin=5):
     if stats is None:
         f = h5.File(stats_file)
         stats = f[chromos[0]].keys()
@@ -225,14 +207,14 @@ def eval_stats(x, chromos, cpos, stats_file, stats=None, nbins=5):
             s.append(read_stats(stats_file, chromo, stat, pos)[1])
         s = np.hstack(s)
 
-        while nbins > 0:
+        while nb_bin > 0:
             try:
-                bins = qcut(add_noise(s), nbins, precision=3)
+                bins = ut.qcut(ut.add_noise(s), nb_bin)
                 break
             except ValueError:
-                nbins -= 1
-        if nbins == 0:
-            raise ValueError('Not enough observations for binning statistic!')
+                nb_bin -= 1
+        if nb_bin == 0:
+            raise ValueError('Insufficient observations for binning statistic!')
 
         for bin_ in bins.categories:
             t = bins == bin_
@@ -348,7 +330,7 @@ class App(object):
         skip = opts.sql_file is not None and opts.sql_skip
 
         if not skip or not exits_meta(opts.sql_file, 'global', sql_meta):
-            log.info('Evaluate global effects')
+            log.info('Evaluate global')
             e = evaluate(effects)
             if opts.verbose:
                 print('Global effects:')
@@ -360,7 +342,7 @@ class App(object):
 
         if opts.annos_file is not None:
             if not skip or not exits_meta(opts.sql_file, 'annos', sql_meta):
-                log.info('Evaluate annotation-specific effects')
+                log.info('Evaluate annos')
                 ea = eval_annos(effects, chromos, cpos, opts.annos_file,
                                 regexs=opts.annos)
                 if opts.verbose:
@@ -373,10 +355,10 @@ class App(object):
 
         if opts.stats_file is not None:
             if not skip or not exits_meta(opts.sql_file, 'stats', sql_meta):
-                log.info('Evaluate statistics-based effects')
+                log.info('Evaluate stats')
                 es = eval_stats(effects, chromos, cpos, opts.stats_file,
                                 stats=opts.stats,
-                                nbins=opts.stats_bins)
+                                nb_bin=opts.stats_bins)
                 if opts.verbose:
                     print('Statistics-based effects:')
                     print(eval_to_str(es))

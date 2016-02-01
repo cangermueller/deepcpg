@@ -48,3 +48,12 @@ class TestArrayView(object):
         npt.assert_array_equal(av[:], a[8:])
         npt.assert_array_equal(av[0], a[8])
         npt.assert_array_equal(av[[0, 1]], a[[8, 9]])
+
+        av = ArrayView(a, start=2, stop=5)
+        assert len(av) == 3
+        assert av.shape == (3, 4)
+        npt.assert_array_equal(av[:, :], a[2:5, :])
+        npt.assert_array_equal(av[:, 2], a[2:5, 2])
+        npt.assert_array_equal(av[:, [1, -1]], a[2:5, [1, -1]])
+        npt.assert_array_equal(av[:, 1:3], a[2:5, 1:3])
+        npt.assert_array_equal(av[1:, 1:3], a[3:5, 1:3])
