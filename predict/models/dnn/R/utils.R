@@ -52,6 +52,15 @@ char_to_factor <- function(d) {
   return (d)
 }
 
+factor_to_char <- function(d) {
+  for (n in names(d)) {
+    if (is.factor(d[[n]])) {
+      d[[n]] <- as.character(d[[n]])
+    }
+  }
+  return (d)
+}
+
 rename_values <- function(x, how) {
   for (nn in names(how)) {
     no <- how[nn]

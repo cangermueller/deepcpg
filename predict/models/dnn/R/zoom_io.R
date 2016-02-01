@@ -141,7 +141,7 @@ bed_to_atrack <- function(d) {
 
 filter_bed <- function(d, region) {
   d <- d %>% filter(
-    chromo==region$chromo, start >= region$start, end <= region$end
+    chromo==as.character(region$chromo), start >= region$start, end <= region$end
     )
   return (d)
 }

@@ -1,6 +1,6 @@
 filt_to_frame <- function(f) {
   f <- f %>% as.data.frame
-  names(f) <- 1:ncol(f)
+  names(f) <- ncol(f):1
   f$char <- c('A', 'G', 'T', 'C')
   f$char <- factor(f$char, levels=f$char)
   f <- f %>% gather(pos, value, -char) %>% tbl_df
