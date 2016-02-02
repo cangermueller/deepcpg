@@ -27,6 +27,12 @@ colors_$cell_type <- c(
   'serum'='#e41a1c'
   )
 
+linetypes <- list()
+linetypes$cell_type <- c(
+  '2i'='dashed',
+  'serum'='solid'
+  )
+
 parse_cell_type <- function(x) {
   x <- as.vector(x)
   x <- factor(grepl('2i', x), levels=c(T, F), labels=c('2i', 'serum'))
@@ -41,6 +47,15 @@ char_to_factor <- function(d) {
   for (n in names(d)) {
     if (is.character(d[[n]])) {
       d[[n]] <- factor(d[[n]])
+    }
+  }
+  return (d)
+}
+
+factor_to_char <- function(d) {
+  for (n in names(d)) {
+    if (is.factor(d[[n]])) {
+      d[[n]] <- as.character(d[[n]])
     }
   }
   return (d)

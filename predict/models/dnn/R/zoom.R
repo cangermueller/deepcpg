@@ -8,8 +8,8 @@ filter_region <- function(d, region) {
   return (d)
 }
 
-data_annos <- function(a) {
-  d <- do.call(rbind.data.frame, a) %>% mutate(name=factor(names(a))) %>%
+data_annos <- function(d) {
+  d <- d %>% select(name, chromo, start, end) %>%
     gather(pos, x, -c(name, chromo)) %>%
     arrange(name, chromo, pos) %>% tbl_df
   return (d)
@@ -21,27 +21,26 @@ plot_annos <- function(d) {
 }
 
 plot_var <- function(d, span=0.05, degree=2) {
-  d1 <- d %>% group_by(chromo, pos, cell_type) %>%
+  d <- d %>% group_by(chromo, pos, cell_type) %>%
     summarise(var_=var(z)) %>% ungroup
-  d2 <- d %>% group_by(chromo, pos) %>%
-    summarise(var_=var(z)) %>% ungroup %>% mutate(cell_type='all')
-  d <- rbind.data.frame(d1, d2) %>% tbl_df
   p <- ggplot(d, aes(x=pos, y=var_)) +
-    stat_smooth(aes(linetype=cell_type),
+    stat_smooth(aes(color=cell_type),
       size=1, se=F, method='loess', span=span,
       method.args=list(degree=degree)) +
+    scale_color_manual(values=colors_$cell_type) +
     xlab('') + ylab('Variance') +
     theme_pub() +
-    scale_x_continuous(labels=comma) +
-    theme(axis.title.x=element_blank(), legend.position='top')
+    theme(axis.title.x=element_blank(), legend.position='top') +
+    scale_x_continuous(labels=comma)
   return (p)
 }
 
 plot_met <- function(d, span=0.05, degree=2) {
   p <- ggplot(d, aes(x=pos, y=z)) +
-    geom_smooth(aes(color=target, linetype=cell_type), size=1, se=F,
+    geom_smooth(aes(group=target, color=cell_type), size=0.5, se=F,
       method='loess', span=span, method.args=list(degree=degree)) +
     theme_pub() +
+    scale_color_manual(values=colors_$cell_type) +
     guides(color=F, linetype=F) +
     ylab('Methylation rate') + xlab('') +
     scale_x_continuous(labels=comma) +
@@ -52,17 +51,18 @@ plot_met <- function(d, span=0.05, degree=2) {
 data_seqmut <- function(d, region, seqmut_='rnd', wlen_=10) {
   d <- d %>% filter_region(region) %>%
     filter(seqmut == seqmut_, wlen == wlen_) %>%
-    mutate(value=lor)
+    droplevels
   return (d)
 }
 
-plot_seqmut <- function(d, span=0.05, degree=2) {
-  p <- ggplot(d, aes(x=pos, y=value)) +
-    geom_smooth(aes(color=target, linetype=cell_type), size=0.5, se=F,
+plot_seqmut <- function(d, span=0.05, degree=2, what='lor') {
+  p <- ggplot(d, aes_string('x'='pos', 'y'=what)) +
+    geom_smooth(aes(group=target, color=cell_type), size=0.5, se=F,
       method='loess', span=span, method.args=list(degree=degree)) +
     theme_pub() +
-    guides(color=F, linetype=F) +
+    guides(color=F) +
     ylab('Effect') + xlab('') +
+    scale_color_manual(values=colors_$cell_type) +
     scale_x_continuous(labels=comma) +
     theme(axis.title.x=element_blank())
   return (p)
@@ -98,9 +98,10 @@ plot_filt_imp <- function(d, what='lor') {
       panel.grid.major = element_blank(),
       panel.grid.minor = element_blank(),
       panel.background = element_blank(),
+      axis.title.x=element_blank(),
       legend.position='bottom'
       ) +
-    theme(axis.title.x=element_blank())
+    guides(fill=F)
   return (p)
 }
 
@@ -127,9 +128,10 @@ plot_filt_act <- function(d) {
       panel.grid.major = element_blank(),
       panel.grid.minor = element_blank(),
       panel.background = element_blank(),
+      axis.title.x=element_blank(),
       legend.position='bottom'
       ) +
-    theme(axis.title.x=element_blank())
+    guides(fill=F)
   return (p)
 }
 
@@ -161,19 +163,17 @@ plot_met_conf <- function(d, region, targets=NULL, span=0.05) {
 
 # Functions with global dependencies
 
-get_plots <- function(region, annos=NULL, span=0.1, nb_filt=20) {
+get_plots <- function(region, span=0.1, nb_filt=20, effect='del') {
   d <- dat$pred %>% filter_region(region)
   p <- list()
-  if (!is.null(annos)) {
-    p$annos <- plot_annos(annos)
-  }
-  p$var <- plot_var(d, span=span) + p$annos
-  p$met <- plot_met(d, span=span) + p$annos
+  p$annos <- plot_annos(data_annos(region))
+  p$var <- plot_var(d, span=span) + p$annos + guides(linetype=F)
+  p$met <- plot_met(d, span=span) + p$annos + guides(linetype=F)
   d <- dat$seqmut %>% data_seqmut(
     region=region, seqmut=opts$seqmut, wlen=opts$seqmut_wlen)
-  p$seqmut <- plot_seqmut(d) + p$annos
+  p$seqmut <- plot_seqmut(d, what=effect) + p$annos + guides(linetype=F)
   d <- dat$filt_imp %>% data_filt_imp(region, n=nb_filt, excl=opts$excl)
-  p$filt_imp <- plot_filt_imp(d) + p$annos
+  p$filt_imp <- plot_filt_imp(d, what=effect)
   d <- data_filt_act(dat$filt_act, region, n=nb_filt, excl=opts$excl)
   p$filt_act <- plot_filt_act(d)
   return (p)
@@ -184,7 +184,8 @@ plot_grid <- function(p) {
 }
 
 get_tracks <- function(region) {
-  itrack <- IdeogramTrack(genome=region$genome, chromo=region$chromo)
+  region <- factor_to_char(region)
+  itrack <- IdeogramTrack(genome=as.character(region$genome), chromo=region$chromo)
   atracks <- beds_to_atracks(dat$bed, region)
   if ('Active_enhancers' %in% names(atracks)) {
     atracks$Active_enhancers@name <- 'AE'
@@ -192,9 +193,9 @@ get_tracks <- function(region) {
   bm <- useMart('ensembl', dataset='mmusculus_gene_ensembl')
   fm <- Gviz:::.getBMFeatureMap()
   grtrack <- BiomartGeneRegionTrack(
-    genome=region$genome, chromo=region$chromo, start=region$start, end=region$end,
+    genome=as.character(region$genome), chromo=region$chromo, start=region$start, end=region$end,
     name='gene', biomart=bm, featureMap=fm)
-  tracks <- c(itrack, atracks, grtrack)
+  tracks <- c(itrack, grtrack, atracks)
 }
 
 plot_tracks <- function(tracks, region) {

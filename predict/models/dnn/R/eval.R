@@ -115,22 +115,29 @@ stats_global <- function(d) {
   return (d)
 }
 
-plot_global <- function(d) {
+plot_global <- function(d, metric=NULL) {
   d <- d  %>% droplevels %>%
     arrange(desc(auc)) %>%
     mutate(model=factor(model, levels=unique(model)))
   d <- d %>% select(-c(path, id, trial, eval))
   d <- d %>% gather(metric, value, -c(model, target, cell_type))
+  if (!is.null(metric)) {
+    d <- d %>% filter_(sprintf('metric == "%s"', metric))
+  }
   p <- ggplot(d, aes(x=model, y=value)) +
     geom_boxplot(aes(fill=model), alpha=1.0, outlier.shape=NA) +
     geom_jitter(aes(color=cell_type),
-      position=position_jitter(width=0.1, height=0), size=0.8) +
+      position=position_jitter(width=0.1, height=0), size=1.2) +
     scale_color_manual(values=colors_$cell_type) +
     xlab('') + ylab('') +
     theme_pub() +
     theme(legend.position='right') +
-    theme(axis.text.x=element_text(angle=40, hjust=1)) +
-    facet_wrap(~metric, ncol=1, scales='free')
+    theme(axis.text.x=element_text(angle=40, hjust=1))
+  if (is.null(metric)) {
+    p <- p + facet_wrap(~metric, ncol=1, scales='free')
+  } else {
+    p <- p + ylab(toupper(metric))
+  }
   return (p)
 }
 
@@ -144,7 +151,7 @@ plot_global_scatter <- function(d, ref='^rf$') {
     gather(model, auc, -c(target, cell_type, ref))
   p <- ggplot(d, aes(x=ref, y=auc)) +
     geom_abline(slope=1, color='darkgrey', linetype='dashed') +
-    geom_point(aes(color=cell_type), size=0.8) +
+    geom_point(aes(color=cell_type), size=1.5) +
     scale_color_manual(values=colors_$cell_type) +
     facet_wrap(~model, ncol=3, scales='free') +
     xlab('') + ylab('') +
@@ -196,10 +203,40 @@ plot_annos <- function(d) {
   return (p)
 }
 
-plot_annos2 <- function(d) {
+plot_annos_bar <- function(d, ver=F) {
+  annos <- d %>% group_by(anno) %>%
+    summarise(auc=mean(auc)) %>% arrange(desc(auc)) %>% select(anno) %>% unlist
+  if (ver) {
+    annos <- rev(annos)
+  }
+  d <- d %>% mutate(anno=factor(anno, levels=annos))
+  p <- ggplot(d, aes(x=anno, y=auc, fill=model)) +
+    geom_boxplot(outlier.shape=NA) +
+    geom_point(aes(fill=model, color=cell_type), size=0.5,
+      position=position_jitterdodge(jitter.width=0.1, jitter.height=0, dodge.width=0.8)) +
+    scale_color_manual(values=colors_$cell_type) +
+    theme_pub() +
+    theme(
+      panel.grid.major=element_line(colour="grey60", size=0.1, linetype='solid'),
+      panel.grid.minor=element_line(colour="grey60", size=0.1, linetype='dotted'),
+      axis.text.x=element_text(angle=30, hjust=1),
+      legend.position='top'
+    ) +
+    xlab('') + ylab('AUC')
+  if (ver) {
+    p <- p +
+      theme(
+        legend.position='right'
+        ) +
+      coord_flip()
+  }
+  return (p)
+}
+
+plot_annos_bar_cell_type <- function(d) {
   h <- d %>% group_by(anno) %>%
     summarise(auc=mean(auc)) %>% arrange(desc(auc)) %>% select(anno) %>% unlist
-  d <- d %>% mutate(anno=factor(anno, levels=rev(h)))
+  d <- d %>% mutate(anno=factor(anno, levels=h))
   p <- ggplot(d, aes(x=anno, y=auc, fill=cell_type)) +
     geom_boxplot(outlier.shape=NA) +
     geom_point(aes(fill=cell_type), size=0.5,
@@ -228,3 +265,21 @@ plot_stats <- function(d) {
   return (p)
 }
 
+plot_stat <- function(d, stat, xlab=NULL) {
+  if (is.null(xlab)) {
+    xlab <- stat
+  }
+  d <- d %>% filter_(sprintf('stat == "%s"', stat)) %>% droplevels
+  p <- ggplot(d, aes(x=bin_mid, y=auc)) +
+    geom_smooth(se=F, size=1.2, aes(color=model)) +
+    geom_point(size=0.7, aes(color=model)) +
+    xlab(xlab) + ylab('AUC') +
+    theme_pub() +
+    theme(
+      legend.position='top',
+      axis.text=element_text(size=rel(1.5)),
+      axis.title=element_text(size=rel(1.8))
+      ) +
+    guides(fill=F)
+  return (p)
+}
