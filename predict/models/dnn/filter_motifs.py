@@ -124,9 +124,6 @@ class App(object):
         print('Filter len: %d' % (filter_size))
         print('Samples: %d' % (seqs.shape[0]))
 
-        #################################################################
-        # individual filter plots
-        #################################################################
         filters_list = opts.filters
         if filters_list is None:
             filters_list = range(num_filters)
@@ -135,27 +132,26 @@ class App(object):
 
 
         # plot filter-sequence heatmap
-        log.info('Create filter sequence heatmap')
-        fact = filter_act[:, :, filters_list]
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-            plot_filter_seq_heat(fact,
-                                '%s/filter_seqs.pdf' % opts.out_dir)
+        #  log.info('Create filter sequence heatmap')
+        #  fact = filter_act[:, :, filters_list]
+        #  with warnings.catch_warnings():
+            #  warnings.simplefilter('ignore')
+            #  plot_filter_seq_heat(fact,
+                                #  '%s/filter_seqs.pdf' % opts.out_dir)
 
-        log.info('Create filter target heatmap')
-        # plot correlation filter activation vs. predictions
-        z = ArrayView(in_file['z'], stop=opts.nb_sample)
-        target_names = [x.decode() for x in in_file['targets']]
-        filter_names = [str(x) for x in filters_list]
-        cor = corr_act_target(fact, z, filter_names, target_names, 'max')
-        cor.to_csv(pt.join(opts.out_dir, 'filter_target_cor.csv'),
-                   sep='\t', index=False)
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-            plot_corr_act_target(cor, pt.join(opts.out_dir,
-                                            'filter_target_cors_max.pdf'))
+        #  log.info('Create filter target heatmap')
+        #  # plot correlation filter activation vs. predictions
+        #  z = ArrayView(in_file['z'], stop=opts.nb_sample)
+        #  target_names = [x.decode() for x in in_file['targets']]
+        #  filter_names = [str(x) for x in filters_list]
+        #  cor = corr_act_target(fact, z, filter_names, target_names, 'max')
+        #  cor.to_csv(pt.join(opts.out_dir, 'filter_target_cor.csv'),
+                   #  sep='\t', index=False)
+        #  with warnings.catch_warnings():
+            #  warnings.simplefilter('ignore')
+            #  plot_corr_act_target(cor, pt.join(opts.out_dir,
+                                            #  'filter_target_cors_max.pdf'))
 
-        # also save information contents
         meme_out = meme_intro('%s/filters_meme.txt' % opts.out_dir, seqs)
 
         log.info('Analyze filters')
