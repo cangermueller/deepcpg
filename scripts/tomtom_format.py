@@ -18,11 +18,13 @@ def parse_meme(meme_file):
         line = line.strip()
         if line.startswith('MOTIF'):
             line = line.split()
+            if len(line) < 3:
+                continue
             mid = line[1]
-            motifs[mid] = [line[2]]
+            motifs[mid] = [line[2], '']
         elif line.startswith('URL'):
             line = line.split()
-            motifs[mid].append(line[1])
+            motifs[mid][1] = line[1]
     f.close()
     return motifs
 
@@ -48,7 +50,7 @@ class App(object):
             help='meme database files',
             nargs='+')
         p.add_argument(
-            '--out_file',
+            '-o', '--out_file',
             help='Output file')
         p.add_argument(
             '--verbose',

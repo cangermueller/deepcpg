@@ -248,9 +248,9 @@ class App(object):
             '-o', '--out_dir',
             help='Output directory')
         p.add_argument(
-            '--seqmut_name',
-            help='Name of sequence mutation',
-            default='z_zero-1')
+            '--seqmuts',
+            help='Name of sequence mutations',
+            nargs='+')
         p.add_argument(
             '-e', '--effect_sizes',
             help='Effect sizes',
@@ -305,7 +305,7 @@ class App(object):
             help='Write log messages to file')
         return p
 
-    def evaluate(self, sql_meta=dict(), target=None):
+    def evaluate(self, seqmut, sql_meta=dict(), target=None):
         log = self.log
         opts = self.opts
 
@@ -320,9 +320,9 @@ class App(object):
 
         data = read_prediction(opts.seqmut_file, target=target,
                                chromos=opts.chromos,
-                               what=['pos', 'z', opts.seqmut_name])
+                               what=['pos', 'z', seqmut])
         chromos, cpos = data['chromo'], data['pos']
-        z, zm = data['z'], data[opts.seqmut_name]
+        z, zm = data['z'], data[seqmut]
         effects = dict()
         for effect_size in opts.effect_sizes:
             effects[effect_size] = seqmut_effect(z, zm, effect_size)
@@ -383,7 +383,6 @@ class App(object):
 
         sql_meta = dict()
         if opts.sql_file is not None:
-            sql_meta['seqmut'] = opts.seqmut_name
             sql_meta['path'] = pt.realpath(opts.seqmut_file)
             if opts.sql_meta is not None:
                 for meta in opts.sql_meta:
@@ -392,15 +391,22 @@ class App(object):
 
         log.info('Read')
         f = h5.File(opts.seqmut_file, 'r')
+        seqmuts = opts.seqmuts
         if list(f.keys())[0].isdigit():
-            self.evaluate(sql_meta)
+            targets = [None]
         else:
             targets = list(f.keys())
+            if seqmuts is None:
+                g = f[list(f.keys())[0]]
+                seqmuts = list(g[list(g.keys())[0]].keys())
+                seqmuts = [x for x in seqmuts if x.startswith('z_')]
             log.info('Found %d targets' % (len(targets)))
-            for target in targets:
-                log.info(target)
-                self.evaluate(sql_meta, target)
 
+        for seqmut in seqmuts:
+            log.info('Seqmut %s' % (seqmut))
+            for target in targets:
+                log.info('Target %s' % (target))
+                self.evaluate(seqmut, sql_meta, target)
         log.info('Done!')
 
         return 0
