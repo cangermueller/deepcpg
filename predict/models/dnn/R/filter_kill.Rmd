@@ -1,5 +1,5 @@
 ---
-title: Filter activation
+title: Filter kill
 author: "Christof Angermueller"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output:
@@ -36,38 +36,61 @@ options(xtable.type='html')
 
 ```{r}
 opts <- list()
-opts$db_file <- './filter_act.sql'
+opts$db_file <- './filter_kill_mean.sql'
 opts$nb_sel <- 25
 opts$annos <- "loc%"
+opts$effect <- 'lor'
 dat <- list()
 
 filter_data <- function(d) {
-  d <- d #%>% filter(filt != '8')
+  d <- d
   return (d)
 }
 ```
 
+Effect: `r opts$effect`
+Input file: `r opts$db_file`
+
 ```{r}
+query_db <- function(db_file, table='global', cond=NULL, annos=NULL, effect='lor') {
+  con <- src_sqlite(db_file)
+  cmd <- sprintf('SELECT * FROM %s', table)
+  if (!is.null(annos)) {
+    h <- sprintf('anno LIKE "%s"', annos)
+    if (is.null(cond)) {
+      cond <- h
+    } else {
+      cond <- sprintf('%s AND %s', cond, h)
+    }
+  }
+  if (!is.null(cond)) {
+    cmd <- sprintf('%s WHERE %s', cmd, cond)
+  }
+  d <- tbl(con, sql(cmd))
+  d <- d %>% collect %>% select(-c(path, id))
+  d <- d %>% mutate(cell_type=parse_cell_type(target))
+  d <- d %>% rename(filt=seqmut) %>%
+    mutate(filt=factor(as.numeric(gsub('^z_f', '', filt))))
+  # d <- d %>% spread(effect, value)
+  d <- d %>% filter_('fun == "mean"') %>% select(-fun) %>%
+    spread(effect, value)
+  if (effect == 'lor') {
+    d$value_del <- d$lor
+    d$value_abs <- d$abs_lor
+  } else {
+    d$value_del <- d$del
+    d$value_abs <- d$abs
+  }
+  d <- d %>% char_to_factor %>% droplevels %>% tbl_df %>%
+    move_cols(c('filt', 'target', 'cell_type'))
+  return (d)
+}
 ```
 
 # Global
 
 ```{r fig.width=10, height=5}
-dat$global <- query_db(opts$db_file) %>% filter_data
-```
-
-```{r}
-act_mean <- dat$global %>% group_by(filt) %>% summarise(act_mean=mean(act_mean)) %>%
-  arrange(desc(act_mean)) %>%
-  mutate(filt=factor(filt, levels=unique(filt)))
-```
-
-```{r fig.width=10, height=5}
-d <- act_mean %>% head(opts$nb_sel)
-ggplot(d, aes(x=filt, y=act_mean)) +
-  geom_bar(stat='identity') +
-  xlab('Filter') + ylab('Mean activation') +
-  theme_pub()
+dat$global <- query_db(opts$db_file, effect=opts$effect) %>% filter_data
 ```
 
 ```{r}
@@ -93,7 +116,7 @@ p <- plot_heat(dat$global, del=T)
 # Annotations
 
 ```{r}
-dat$annos <- query_db(opts$db_file, 'annos')
+dat$annos <- query_db(opts$db_file, 'annos', annos=opts$annos, effect=opts$effect)
 ```
 
 
@@ -102,7 +125,7 @@ dat$annos <- query_db(opts$db_file, 'annos')
 ```{r results='asis'}
 astats <- dat$annos %>% select(-c(filt, target, cell_type)) %>%
   group_by(anno) %>%
-  summarise_each(funs(mean(., na.rm=T))) %>%
+  summarise_each(funs(mean)) %>%
   arrange(desc(value_abs)) %>%
   mutate(anno=factor(anno, levels=anno))
 xtable(astats, digis=3)
@@ -110,7 +133,7 @@ xtable(astats, digis=3)
 
 ```{r fig.width=10}
 d <- dat$anno %>% mutate(anno=factor(anno, levels=astats$anno))
-plot_annos_mean(d)
+plot_annos_mean(d) + ylim(0, 0.01)
 ```
 
 ## Heatmaps
@@ -141,11 +164,11 @@ plot_annos_distinct(dat$annos)
 # Statistics
 
 ```{r}
-dat$stats <- query_db(opts$db_file, 'stats') %>% format_stats
+dat$stats <- query_db(opts$db_file, 'stats', effect=opts$effect) %>% format_stats
 ```
 
 ```{r fig.width=10, fig.height=20}
-plot_stats(dat$stats)
+plot_stats(dat$stats) + ylim(0, 0.01)
 ```
 
 ## CG content
@@ -158,6 +181,7 @@ plot_stat(dat$stats, 'gc_content')
 plot_stat(dat$stats, 'cg_obs_exp')
 ```
 
+
 ## Variability (win)
 ```{r fig.width=10, fig.height=20}
 plot_stat(dat$stats, 'var (win)')
@@ -167,7 +191,3 @@ plot_stat(dat$stats, 'var (win)')
 ```{r fig.width=10, fig.height=20}
 plot_stat(dat$stats, 'dist (win)')
 ```
-
-
-
-

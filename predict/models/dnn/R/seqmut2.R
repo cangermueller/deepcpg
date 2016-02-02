@@ -14,7 +14,8 @@ query_db <- function(db_file, table, effect='lor', seqmut='rnd') {
   d <- d %>%
     mutate(
       cell_type=parse_cell_type(target),
-      wlen=factor(parse_wlen(seqmut))
+      iwlen=parse_wlen(seqmut),
+      wlen=factor(iwlen)
       ) %>%
     select(-seqmut, -effect)
   d <- d %>% mutate(fun=paste0(fun, '_')) %>% spread(fun, value)
@@ -63,6 +64,21 @@ plot_annos <- function(d, annos=NULL) {
       ) +
     xlab('') + ylab('Effect') +
     facet_wrap(~anno, ncol=3, scale='free')
+  return (p)
+}
+
+plot_annos_global <- function(d, annos=NULL) {
+  a <- d %>% group_by(anno) %>% summarise(effect=mean(mean_)) %>%
+    arrange(desc(effect)) %>% select(annos) %>% unlist
+  d <- d %>% mutate(anno=factor(anno, levels=a))
+  p <- ggplot(d, aes(x=anno, y=mean_)) +
+    geom_boxplot(aes(fill=wlen), outlier.size=0) +
+    theme_pub() +
+    theme(
+      axis.text.x=element_text(angle=30, hjust=1),
+      legend.position='top'
+      ) +
+    xlab('') + ylab('Effect')
   return (p)
 }
 

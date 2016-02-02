@@ -6,7 +6,8 @@ query_db <- function(db_file, table='global', cond=NULL) {
   }
   d <- tbl(con, sql(h))
   d <- d %>% collect %>% select(-path, -id)
-  d <- d %>% mutate(cell_type=parse_cell_type(target))
+  d <- d %>% mutate(cell_type=parse_cell_type(target),
+    value_del=r, value_abs=abs(r))
   d <- d %>% char_to_factor %>% droplevels %>% tbl_df
   return (d)
 }
@@ -16,7 +17,8 @@ format_stats <- function(d) {
     mutate(bin=gsub('\\[', '', gsub('\\]', '', gsub('[()]', '', bin)))) %>%
     separate(bin, c('bin_lo', 'bin_up'), ', ') %>%
     mutate(bin_lo=as.numeric(bin_lo), bin_up=as.numeric(bin_up),
-        bin_mid=0.5*(bin_lo + bin_up))
+        bin_mid=0.5*(bin_lo + bin_up),
+        x=round(bin_mid, 3))
   h <- sub('win_(.+)', '\\1 (win)', d$stat)
   hh <- move_front(sort(unique(h)), c('cg_obs_exp', 'gc_content'))
   d <- d %>% mutate(stat=factor(h, levels=hh))
@@ -24,19 +26,22 @@ format_stats <- function(d) {
 }
 
 plot_global <- function(d) {
-  p <- ggplot(d, aes(x=filt, y=abs(r))) +
+  p <- ggplot(d, aes(x=filt, y=value_abs)) +
     geom_boxplot(aes(fill=cell_type), outlier.shape=NA) +
     geom_point(aes(fill=cell_type), size=0.8,
       position=position_jitterdodge(jitter.width=0.5, jitter.height=0, dodge.width=0.8)) +
     scale_fill_manual(values=colors_$cell_type) +
     guides(color=F) +
-    xlab('') + ylab('Spearman correlation') +
-    theme_pub()
+    xlab('') + ylab('Effect') +
+    theme_pub() +
+    theme(legend.position='top')
   return (p)
 }
 
 plot_heat <- function(d, rev_colors=F, Rowv=T, Colv=T, lhei=c(1, 10), del=F) {
-  d <- d %>% select(filt, target, r) %>% spread(target, r) %>%
+  f <- ifelse(del, 'value_del', 'value_abs')
+  d$value <- d[[f]]
+  d <- d %>% select(filt, target, value) %>% spread(target, value) %>%
     as.data.frame
   rownames(d) <- d$filt
   d <- d %>% select(-filt) %>% as.matrix
@@ -45,9 +50,8 @@ plot_heat <- function(d, rev_colors=F, Rowv=T, Colv=T, lhei=c(1, 10), del=F) {
   col_colors <- colors_$cell_type[type]
 
   if (del) {
-    colors <- brewer.pal(11, 'RdBu')
+    colors <- rev(brewer.pal(11, 'RdBu'))
   } else {
-    d <- abs(d)
     colors <- brewer.pal(9, 'YlGnBu')
   }
   colors <- colorRampPalette(colors)(50)
@@ -64,7 +68,7 @@ plot_heat <- function(d, rev_colors=F, Rowv=T, Colv=T, lhei=c(1, 10), del=F) {
 }
 
 plot_annos <- function(d) {
-  p <- ggplot(d, aes(x=filt, y=abs(r))) +
+  p <- ggplot(d, aes(x=filt, y=value_abs)) +
     geom_boxplot(aes(fill=cell_type), outlier.size=0) +
     geom_point(aes(fill=cell_type), size=0.5,
       position=position_jitterdodge(jitter.width=0, jitter.height=0, dodge.width=0.8)) +
@@ -74,13 +78,24 @@ plot_annos <- function(d) {
       axis.text.x=element_text(angle=30, hjust=1),
       legend.position='top'
       ) +
-    xlab('') + ylab('Correlation') +
+    xlab('') + ylab('Effect') +
     facet_wrap(~anno, ncol=1)
   return (p)
 }
 
+plot_annos_distinct <- function(dat) {
+  for (anno_ in astats$anno) {
+    d <- dat %>% filter(anno == anno_) %>% droplevels
+    f <- d %>% group_by(filt) %>% summarise(value_abs=mean(value_abs)) %>%
+      arrange(desc(value_abs)) %>% head(opts$nb_sel) %>% select(filt) %>% unlist
+    d <- d %>% filter(filt %in% f) %>% droplevels %>%
+      mutate(filt=factor(filt, levels=f))
+    print(plot_annos(d))
+  }
+}
+
 plot_annos_mean <- function(d) {
-  p <- ggplot(d, aes(x=anno, y=abs(r))) +
+  p <- ggplot(d, aes(x=anno, y=value_abs)) +
     geom_boxplot(aes(fill=cell_type), outlier.size=0) +
     scale_fill_manual(values=colors_$cell_type) +
     theme_pub() +
@@ -88,21 +103,20 @@ plot_annos_mean <- function(d) {
       axis.text.x=element_text(angle=30, hjust=1),
       legend.position='top'
       ) +
-    xlab('') + ylab('Correlation')
+    xlab('') + ylab('Effect')
   return (p)
 }
 
 plot_annos_heat <- function(d, rev_colors=F, Rowv=T, Colv=T, lhei=c(1, 10), del=F) {
-  if (!del) {
-    d$r <- abs(d$r)
-  }
-  d <- d %>% group_by(anno, filt) %>% summarise(r=mean(r)) %>%
-    spread(anno, r) %>% as.data.frame
+  f <- ifelse(del, 'value_del', 'value_abs')
+  d$value <- d[[f]]
+  d <- d %>% group_by(anno, filt) %>% summarise(value=mean(value)) %>%
+    spread(anno, value) %>% as.data.frame
   rownames(d) <- d$filt
   d <- d %>% select(-filt) %>% as.matrix
 
   if (del) {
-    colors <- brewer.pal(11, 'RdBu')
+    colors <- rev(brewer.pal(11, 'RdBu'))
   } else {
     colors <- brewer.pal(9, 'YlGnBu')
   }
@@ -120,15 +134,15 @@ plot_annos_heat <- function(d, rev_colors=F, Rowv=T, Colv=T, lhei=c(1, 10), del=
 }
 
 plot_stats <- function(d) {
-  d <- d %>% group_by(stat, bin_mid, cell_type, filt) %>%
-    summarise(r=mean(abs(r))) %>% ungroup
-  d <- d %>% mutate(bin=factor(bin_mid))
-  p <- ggplot(d, aes(x=bin, y=abs(r))) +
+  d <- d %>% group_by(stat, x, cell_type, filt) %>%
+    summarise(value=mean(value_abs)) %>% ungroup
+  d <- d %>% mutate(bin=factor(x))
+  p <- ggplot(d, aes(x=bin, y=value)) +
     geom_boxplot(aes(fill=cell_type), outlier.shape=NA) +
     scale_fill_manual(values=colors_$cell_type) +
     # geom_text(aes(label=filt, size=exp(r)),
     #   position=position_jitter(width=0.3)) +
-    xlab('') + ylab('Correlation') +
+    xlab('') + ylab('Effect') +
     facet_wrap(~stat, ncol=1, scales='free') +
     theme_pub() +
     theme(legend.position='top') +
@@ -137,13 +151,14 @@ plot_stats <- function(d) {
 }
 
 plot_stat <- function(d, stat_, nb_sel=20) {
-  d <- dat$stats %>% filter(stat == stat_) %>% droplevels
-  f <- d %>% group_by(filt) %>% summarise(r=mean(abs(r))) %>%
-    arrange(desc(r)) %>% head(nb_sel) %>% select(filt) %>% unlist
+  d <- d %>% filter(stat == stat_) %>% droplevels
+  d$value <- d$value_abs
+  f <- d %>% group_by(filt) %>% summarise(value=mean(value, na.rm=T)) %>%
+    arrange(desc(value)) %>% head(nb_sel) %>% select(filt) %>% unlist
   d <- d %>% filter(filt %in% f) %>% droplevels %>%
     mutate(filt=factor(filt, levels=f),
-      bin=factor(bin_mid, levels=sort(unique(bin_mid))))
-  p <- ggplot(d, aes(x=filt, y=abs(r))) +
+      bin=factor(x, levels=sort(unique(x))))
+  p <- ggplot(d, aes(x=filt, y=value)) +
     geom_boxplot(aes(fill=cell_type), outlier.size=0) +
     geom_point(aes(fill=cell_type), size=0.5,
       position=position_jitterdodge(jitter.width=0, jitter.height=0, dodge.width=0.8)) +
@@ -153,7 +168,7 @@ plot_stat <- function(d, stat_, nb_sel=20) {
       axis.text.x=element_text(angle=30, hjust=1),
       legend.position='top'
       ) +
-    xlab('') + ylab('Correlation') +
+    xlab('') + ylab('Effect') +
     facet_wrap(~bin, ncol=1)
   return (p)
 }
