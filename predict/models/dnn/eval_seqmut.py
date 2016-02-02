@@ -19,6 +19,7 @@ def evaluate(x, funs=[('mean', np.mean), ('var', np.var)], axis=0):
     d = dict()
     for fn, f in funs:
         d[fn] = f(x, axis=axis)
+    d['n'] = x.shape[0]
     d = pd.DataFrame(d)
     d.index.name = 'effect'
     d = d.reset_index()
