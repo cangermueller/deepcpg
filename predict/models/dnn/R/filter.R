@@ -7,8 +7,8 @@ filt_to_frame <- function(f) {
   return (f)
 }
 
-read_filt <- function(path, group='/s_c1') {
-  d <- h5read(path, group)
+read_filt <- function(path, name='s_c1') {
+  d <- h5read(path, sprintf('/%s/weights', name))
   fs <- list()
   for (i in 1:dim(d)[4]) {
     f <- filt_to_frame(t(d[1,,,i]))
@@ -63,7 +63,7 @@ filt_pwm <- function(d, filt_, what='act_p2') {
   return (d)
 }
 
-filt_motif <- function(d, filt, ...) {
+filt_motif <- function(d, filt) {
   d <- filt_pwm(d, filt)
   return (paste0(rownames(d)[apply(d, 2, which.max)], collapse=''))
 }
