@@ -1,5 +1,7 @@
 ---
-title: Effect of sequence mutations
+title: Effect sequence mutations
+author: "Christof Angermueller"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output:
   html_document:
     toc: yes
@@ -14,9 +16,14 @@ opts_chunk$set(echo=F, warning=F, message=F)
 library(ggplot2)
 library(dplyr)
 library(tidyr)
-library(RSQLite)
-library(xtable)
 library(grid)
+library(gridExtra)
+library(scales)
+library(xtable)
+library(gplots)
+library(RColorBrewer)
+library(seqLogo)
+library(rhdf5)
 
 lib <- file.path(Sys.getenv('Pd'), 'R')
 source(file.path(lib, 'utils.R'))
@@ -27,82 +34,114 @@ source(file.path(lib, 'seqmut.R'))
 options(xtable.type='html')
 ```
 
-```{r}
-dat <- list()
+```{r echo=T}
 opts <- list()
 opts$db_file <- './seqmut.sql'
-opts$models <- NULL
-opts$seqmut <- 'z_zero-1'
-opts$effect <- c('lor', 'abs')
-opts$cell_type <- NULL
-opts$norm_effect <- T
+opts$annos <- 'loc%'
+opts$effect <- 'del'
+opts$seqmut <- 'z_rnd0' # 0 5 11 100
+dat <- list()
 
 filter_data <- function(d) {
-  d <- d %>% filter(effect %in% opts$effect, seqmut==opts$seqmut) %>%
-    droplevels
+  d <- d #%>% filter(target != 'ESC_2i_8_RSC25_6') %>% droplevels
   return (d)
 }
 ```
 
-# Global effect
+# Global
 
-```{r include=F}
-dat$global <- query_db('global') %>% filter_data
+```{r fig.width=10, height=5}
+dat$global <- query_db(opts$db_file, seqmut=opts$seqmut) %>%
+  filter_data %>%
+  spread_data(effect=opts$effect)
 ```
 
-```{r fig.width=6, fig.height=4}
+```{r fig.width=10, height=5}
 plot_global(dat$global)
 ```
 
-# Genomic contexts
+# Annotations
 
 ```{r}
-d <- query_db('annos') %>%
-  rename(pvalue=pvalue_, statistic=statistic_) %>% filter_data
-d <- d[grep('^loc', d$anno),] %>% droplevels
-dat$annos <- d
+dat$annos_ <- query_db(opts$db_file, 'annos', annos=opts$annos,
+  seqmut=opts$seqmut) %>% filter_data
+dat$annos <- dat$annos_ %>% spread_data(effect=opts$effect)
+nb_anno <- length(levels(dat$annos$anno))
 ```
 
 ```{r}
-dat$astats <- dat$annos %>% group_by(anno) %>%
-  summarise(mean_=mean(mean_)) %>% ungroup %>% arrange(desc(mean_))
-annos <- dat$astats$anno
+astats <- dat$annos %>% select(-c(target, seqmut, cell_type)) %>%
+  group_by(anno) %>%
+  summarise_each(funs(mean)) %>%
+  arrange(desc(value_abs)) %>%
+  mutate(anno=factor(anno, levels=anno))
+h <- dat$annos_ %>% filter(fun=='n') %>%
+  group_by(anno) %>% summarise(n=mean(value))
+astats <- astats %>% inner_join(h, by='anno') %>%
+  filter(n > 100) %>% droplevels
+
+dat$annos_ <- dat$annos_ %>% filter(anno %in% astats$anno) %>% droplevels
+dat$annos <- dat$annos %>% filter(anno %in% astats$anno) %>% droplevels
 ```
 
-```{r fig.width=10, fig.height=ceiling(length(annos) / 3) * 1.5}
-plot_annos(dat$annos, annos)
+## Overview
+
+
+```{r results='asis'}
+xtable(astats)
 ```
 
-# Annotation-specific t-test
+```{r fig.width=10, fig.height=0.4 * nb_anno}
+plot_annos(dat$annos)
+```
 
-```{r fig.width=10, fig.height=ceiling(length(annos) / 3) * 2.5}
-plot_annos_t(dat$annos, annos)
+## Heatmaps
+
+```{r fig.width=12, fig.height=0.5*nb_anno}
+p <- plot_annos_heat(dat$annos)
+```
+
+```{r fig.width=12, fig.height=0.5*nb_anno}
+p <- plot_annos_heat(dat$annos, del=T)
+```
+
+## Significance test
+
+```{r results='asis'}
+h <- effect_name(opts$effect)
+dat$annos_effect <- dat$annos_ %>% filter(effect == h) %>% spread(fun, value) %>% select(-effect)
+astats_effect <- dat$annos_effect %>% select(-c(target, seqmut, cell_type)) %>%
+  group_by(anno) %>% summarise_each(funs(mean)) %>%
+  mutate(mean_del=mean-mean0) %>% arrange(desc(mean_del))
+xtable(astats_effect)
+```
+
+```{r}
+h <- astats_effect %>% filter(pvalue < 0.1) %>% select(anno) %>% unlist
+d <- dat$annos_effect %>% filter(anno %in% h) %>% droplevels
+```
+
+```{r fig.width=10, fig.height=length(levels(d$anno))/3*3}
+plot_annos_t(d)
 ```
 
 # Statistics
 
-```{r include=F}
-dat$stats <- query_stats() %>% filter_data
+```{r}
+dat$stats_ <- query_db(opts$db_file, 'stats', seqmut=opts$seqmut) %>%
+  filter_data %>% format_stats
+dat$stats <- dat$stats_ %>% spread_data(effect=opts$effect)
+stat <- stat_stats(dat$stats, opts$effect)
 ```
 
-```{r fig.width=8, fig.height=length(levels(dat$stats$stat))*2.8}
+```{r results='asis'}
+xtable(stat$t)
+```
+
+```{r fig.width=8, fig.height=10}
+plot_stat_stats(stat)
+```
+
+```{r fig.width=7, fig.height=20}
 plot_stats(dat$stats)
-```
-
-```{r eval=F}
-lo <- function(p1, p2) log2(p1 / p2)
-lor <- function(p1, p2) log2(p1 / (1-p1) * (1-p2) / p2)
-
-d <- list(p1=c(), p2=c(), lo=c(), lor=c())
-for (p in seq(0.1, 1.0, 0.1)) {
-  p1 <- p
-  p2 <- p - 0.09
-  d$p1 <- c(d$p1, p1)
-  d$p2 <- c(d$p2, p2)
-  d$lo <- c(d$lo, lo(p1, p2))
-  d$lor <- c(d$lor, lor(p1, p2))
-  cat(sprintf('p1=%.3f  p2=%.3f  lo=%.3f  lor=%.3f', p1, p2, lo(p1, p2), lor(p1, p2)), fill=T)
-}
-d <- as.data.frame(d) %>% gather(fun, value, -c(p1, p2))
-ggplot(d, aes(x=p1, y=value)) + geom_line(aes(color=fun)) + theme_pub()
 ```

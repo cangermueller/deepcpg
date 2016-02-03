@@ -4,7 +4,7 @@ parse_wlen <- function(x) {
   return (wlen)
 }
 
-query_db <- function(db_file, table='global', annos=NULL, effect='lor', seqmut='z_rnd-1', cond=c()) {
+query_db <- function(db_file, table='global', annos=NULL, seqmut='z_rnd-1', cond=c()) {
   con <- src_sqlite(db_file)
   cmd <- sprintf('SELECT * FROM %s WHERE seqmut = "%s"', table, seqmut)
   if (!is.null(annos)) {
@@ -18,8 +18,12 @@ query_db <- function(db_file, table='global', annos=NULL, effect='lor', seqmut='
   d <- d %>% mutate(
     cell_type=parse_cell_type(target)
     )
-  # d <- d %>% spread(effect, value)
-  d <- d %>% filter_('fun == "mean"') %>% select(-fun) %>%
+  d <- d %>% char_to_factor %>% droplevels %>% tbl_df
+  return (d)
+}
+
+spread_data <- function(d, fun='mean', effect='lor') {
+  d <- d %>% filter_(sprintf('fun == "%s"', fun)) %>% select(-fun) %>%
     spread(effect, value)
   if (effect == 'lor') {
     d$value_del <- d$lor
@@ -28,8 +32,6 @@ query_db <- function(db_file, table='global', annos=NULL, effect='lor', seqmut='
     d$value_del <- d$del
     d$value_abs <- d$abs
   }
-  d <- d %>% char_to_factor %>% droplevels %>% tbl_df# %>%
-    # move_cols(c('filt', 'target', 'cell_type'))
   return (d)
 }
 
@@ -137,5 +139,72 @@ plot_stat <- function(d, stat_, nb_sel=20) {
       ) +
     xlab('') + ylab('Effect') +
     facet_wrap(~bin, ncol=1)
+  return (p)
+}
+
+effect_name <- function(e, del=F) {
+  r <- e
+  if (!del) {
+    if (e == 'lor') {
+      r <- 'abs_lor'
+    } else {
+      r <- 'abs'
+    }
+  }
+  return (r)
+}
+
+plot_annos_t <- function(d) {
+  d <- d %>% gather(region, value, mean, mean0) %>%
+    mutate(
+      anno=factor(anno, levels=astats$anno),
+      qvalue=-log10(pvalue),
+      region=factor(region, levels=c('mean', 'mean0'), labels=c('Inside', 'Outside')))
+
+  p <- ggplot(d, aes(x=region, y=value)) +
+    geom_boxplot(aes(fill=cell_type), outlier.shape=NA) +
+    geom_point(aes(fill=cell_type, color=qvalue, size=qvalue),
+      position=position_jitterdodge(jitter.width=0.1, jitter.height=0, dodge.width=0.8)) +
+    scale_fill_manual(values=colors_$cell_type) +
+    scale_color_gradient(low='black', high='green') +
+    scale_size(range=c(0, 1)) +
+    theme_pub() +
+    xlab('') + ylab('Effect') +
+    facet_wrap(~anno, ncol=3, scale='free')
+  return (p)
+}
+
+cor_test <- function(d) {
+  h <- cor.test(d$y, d$bin_mid)
+  d <- data.frame(r=h$estimate, pvalue=h$p.value)
+  return (d)
+}
+
+stat_stats <- function(d, effect) {
+  stat <- list()
+  h <- effect_name(effect)
+  d$y <- d[[h]]
+  stat$ttarget <- d %>% group_by(stat, target) %>%
+    do(cor_test(.)) %>% ungroup %>%
+    mutate(cell_type=parse_cell_type(target), qvalue=-log10(pvalue))
+  stat$t <- stat$ttarget %>% group_by(stat) %>%
+    summarise(r=mean(r), pvalue=mean(pvalue), qvalue=mean(qvalue)) %>%
+    arrange(desc(abs(r)))
+  return (stat)
+}
+
+plot_stat_stats <- function(d) {
+  d <- stat$ttarget
+  d$stat <- factor(d$stat, levels=stat$t$stat)
+  p <- ggplot(d, aes(x=stat, y=r)) +
+    geom_boxplot(aes(fill=cell_type), outlier.shape=NA) +
+    geom_point(aes(fill=cell_type, color=qvalue, size=qvalue),
+      position=position_jitterdodge(jitter.width=0.1, jitter.height=0, dodge.width=0.8)) +
+    scale_fill_manual(values=colors_$cell_type) +
+    scale_color_gradient(low='black', high='green') +
+    scale_size(range=c(0, 1)) +
+    theme_pub() +
+    xlab('') + ylab('Correlation') +
+    coord_flip()
   return (p)
 }
