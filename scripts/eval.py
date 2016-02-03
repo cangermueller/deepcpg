@@ -9,52 +9,8 @@ import h5py as h5
 import pandas as pd
 import numpy as np
 from predict.evaluation import evaluate, eval_to_str
-import sqlite3 as sql
-import hashlib
 
-from predict.utils import filter_regex
-
-
-def get_id(meta):
-    md5 = hashlib.md5()
-    for v in sorted(meta.values()):
-        md5.update(v.encode())
-    id_ = md5.hexdigest()
-    return id_
-
-
-def exits_meta(sql_path, table, meta):
-    id_ = get_id(meta)
-    con = sql.connect(sql_path)
-    cmd = con.execute('SELECT id FROM %s WHERE id = "%s"' % (table, id_))
-    count = len(cmd.fetchall())
-    con.close()
-    return count > 0
-
-
-def to_sql(sql_path, data, table, meta):
-    id_ = get_id(meta)
-
-    data = data.copy()
-    for k, v in meta.items():
-        data[k] = v
-    data['id'] = id_
-    con = sql.connect(sql_path)
-    try:
-        con.execute('DELETE FROM %s WHERE id = "%s"' % (table, id_))
-    except sql.OperationalError:
-        pass
-    try:
-        cols = pd.read_sql('SELECT * FROM %s LIMIT 1' % (table), con)
-    except pd.io.sql.DatabaseError:
-        cols = []
-    if len(cols):
-        t = sorted(set(data.columns) - set(cols.columns))
-        if len(t):
-            print('Ignoring columns %s' % (' '.join(t)))
-            data = data.loc[:, cols.columns]
-    data.to_sql(table, con, if_exists='append', index=False)
-    con.close()
+import predict.utils as ut
 
 
 def read_test(test_file, target=None, chromos=None):
@@ -113,7 +69,7 @@ def eval_annos(y, z, chromos, cpos, annos_file, regexs=[r'loc_.+']):
     f = h5.File(annos_file)
     annos = list(f[chromos[0]].keys())
     f.close()
-    annos = filter_regex(annos, regexs)
+    annos = ut.filter_regex(annos, regexs)
     pa = []
     annos_used = []
     for anno in annos:
@@ -134,24 +90,6 @@ def eval_annos(y, z, chromos, cpos, annos_file, regexs=[r'loc_.+']):
     return pa
 
 
-def add_noise(x, eps=1e-6):
-    min_ = np.min(x)
-    max_ = np.max(x)
-    xeps = x + np.random.uniform(-eps, eps, len(x))
-    xeps = np.maximum(min_, xeps)
-    xeps = np.minimum(max_, xeps)
-    return xeps
-
-
-def qcut(x, nb_bins, *args, **kwargs):
-    p = np.arange(0, 101, 100 / nb_bins)
-    q = list(np.percentile(x, p))
-    y = pd.cut(x, bins=q, include_lowest=True)
-    assert len(y.categories) == nb_bins
-    assert y.isnull().any() == False
-    return y
-
-
 def eval_stats(y, z, chromos, cpos, stats_file, stats=None, nbins=5):
     if stats is None:
         f = h5.File(stats_file)
@@ -167,7 +105,7 @@ def eval_stats(y, z, chromos, cpos, stats_file, stats=None, nbins=5):
         s = np.hstack(s)
         while nbins > 0:
             try:
-                bins = qcut(add_noise(s), nbins, precision=3)
+                bins = ut.qcut(ut.add_noise(s), nbins)
                 break
             except ValueError:
                 nbins -= 1
@@ -269,11 +207,12 @@ class App(object):
                 out_dir = pt.join(out_dir, target)
                 os.makedirs(out_dir, exist_ok=True)
 
-        chromos, cpos, y, z = read_test(opts.test_file,
-                                       target=target, chromos=opts.chromos)
+        chromos, cpos, y, z = read_test(opts.test_file, target=target,
+                                        chromos=opts.chromos)
         skip = opts.sql_file is not None and opts.skip
+        sql_id = ut.sql_id(sql_meta)
 
-        if not skip or not exits_meta(opts.sql_file, 'global', sql_meta):
+        if not skip or not ut.sql_exists(opts.sql_file, sql_id, 'global'):
             log.info('Evaluate global performance')
             p = evaluate(y, z)
             if opts.verbose:
@@ -282,10 +221,10 @@ class App(object):
             if out_dir is not None:
                 write_output(p, 'global', out_dir)
             if opts.sql_file:
-                to_sql(opts.sql_file, p, 'global', sql_meta)
+                ut.to_sql(opts.sql_file, p, 'global', sql_meta)
 
         if opts.annos_file is not None:
-            if not skip or not exits_meta(opts.sql_file, 'annos', sql_meta):
+            if not skip or not ut.sql_exits(opts.sql_file, 'annos', sql_id):
                 log.info('Evaluate annotation-specific performance')
                 pa = eval_annos(y, z, chromos, cpos, opts.annos_file,
                                 regexs=opts.annos)
@@ -295,10 +234,10 @@ class App(object):
                 if out_dir is not None:
                     write_output(pa, 'annos', out_dir)
                 if opts.sql_file:
-                    to_sql(opts.sql_file, pa, 'annos', sql_meta)
+                    ut.to_sql(opts.sql_file, pa, 'annos', sql_meta)
 
         if opts.stats_file is not None:
-            if not skip or not exits_meta(opts.sql_file, 'stats', sql_meta):
+            if not skip or not ut.sql_exits(opts.sql_file, sql_id, 'stats'):
                 log.info('Evaluate statistics-based performance')
                 ps = eval_stats(y, z, chromos, cpos, opts.stats_file,
                                 stats=opts.stats,
@@ -309,7 +248,7 @@ class App(object):
                 if out_dir is not None:
                     write_output(ps, 'stats', out_dir)
                 if opts.sql_file:
-                    to_sql(opts.sql_file, ps, 'stats', sql_meta)
+                    ut.to_sql(opts.sql_file, ps, 'stats', sql_meta)
 
     def main(self, name, opts):
         logging.basicConfig(filename=opts.log_file,

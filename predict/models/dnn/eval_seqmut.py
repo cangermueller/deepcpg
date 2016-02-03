@@ -404,6 +404,7 @@ class App(object):
 
         for seqmut in seqmuts:
             log.info('Seqmut %s' % (seqmut))
+            sql_meta['seqmut'] = seqmut
             for target in targets:
                 log.info('Target %s' % (target))
                 self.evaluate(seqmut, sql_meta, target)

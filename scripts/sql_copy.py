@@ -64,17 +64,19 @@ class App(object):
             log.setLevel(logging.INFO)
         log.debug(opts)
 
-        if opts.models is None:
-            return 0
         src_db = sql.connect(opts.src_file)
         dst_db = sql.connect(opts.dst_file)
+        models = opts.models
+        if models is None:
+            models = list(pd.read_sql('SELECT distinct(model) from global',
+                                      src_db).model)
         sel = 'model="{model}" AND eval="{ev}" AND trial="{trial}"'
         for table in opts.tables:
             try:
                 cols = pd.read_sql('SELECT * FROM %s LIMIT 1' % (table), src_db)
             except pd.io.sql.DatabaseError:
                 cols = []
-            for model in opts.models:
+            for model in models:
                 sel = 'model="{model}" AND eval="{ev}" AND trial="{trial}"'
                 sel = sel.format(model=model, ev=opts.eval, trial=opts.trial)
                 cmd = 'SELECT * FROM %s WHERE %s' % (table, sel)
