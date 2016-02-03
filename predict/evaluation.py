@@ -85,7 +85,9 @@ def evaluate(y, z, mask=-1, funs=eval_funs):
     s = dict()
     for name, fun in eval_funs:
         s[name] = fun(y, z)
-    return pd.DataFrame(s, columns=[x for x, _ in eval_funs], index=[0])
+    d = pd.DataFrame(s, columns=[x for x, _ in eval_funs], index=[0])
+    d['n'] = len(y)
+    return d
 
 
 def evaluate_all(y, z):
