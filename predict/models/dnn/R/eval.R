@@ -159,6 +159,29 @@ plot_global_scatter <- function(d, ref='^rf$') {
   return (p)
 }
 
+plot_scatter <- function(d, mx=NULL, my=NULL) {
+  d <- d %>% select(model, target, auc)
+  dx <- d
+  if (!is.null(mx)) {
+    dx<- dx %>% filter(model %in% mx) %>% droplevels
+  }
+  dy <- d
+  if (!is.null(my)) {
+    dy <- dy %>% filter(model %in% my) %>% droplevels
+  }
+  d <- dx %>% inner_join(dy, by='target') %>%
+    mutate(cell_type=parse_cell_type(target))
+  p <- ggplot(d, aes(x=auc.x, y=auc.y)) +
+    geom_abline(slope=1, color='darkgrey', linetype='dashed') +
+    geom_point(aes(color=cell_type), size=1.5) +
+    scale_color_manual(values=colors_$cell_type) +
+    facet_grid(model.x~model.y, scales='free') +
+    xlab('') + ylab('') +
+    theme_pub() +
+    theme(legend.position='top')
+  return (p)
+}
+
 plot_lc <- function(d) {
   d <- d %>% select(model, epoch, loss, val_loss) %>%
     gather(score, value, -c(model, epoch))
@@ -220,6 +243,7 @@ plot_annos_bar <- function(d, ver=F) {
       panel.grid.major=element_line(colour="grey60", size=0.1, linetype='solid'),
       panel.grid.minor=element_line(colour="grey60", size=0.1, linetype='dotted'),
       axis.text.x=element_text(angle=30, hjust=1),
+      axis.text=element_text(size=rel(1.5)),
       legend.position='top'
     ) +
     xlab('') + ylab('AUC')
