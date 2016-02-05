@@ -9,11 +9,11 @@ import h5py as h5
 import pandas as pd
 
 
-def read_pos(path, chromo, max_samples=None):
+def read_pos(path, chromo, nb_sample=None):
     f = h5.File(path, 'r')
     p = f['/cpg/%s/pos' % (chromo)]
-    if max_samples:
-        p = p[:max_samples]
+    if nb_sample is not None:
+        p = p[:nb_sample]
     else:
         p = p.value
     return p
@@ -100,6 +100,14 @@ def win_var(x, *args, **kwargs):
     return x.mean(axis=0).var()
 
 
+def win_counts(x, *args, **kwargs):
+    return np.mean(np.sum(~x.mask, axis=0))
+
+
+def win_mean(x, *args, **kwargs):
+    return np.mean(np.mean(x, axis=0))
+
+
 def rolling_apply(pos, x, delta, funs, y=None, callback=None):
     n = len(pos)
     if not isinstance(funs, list):
@@ -149,21 +157,26 @@ class App(object):
             help='Output HDF path')
         p.add_argument(
             '--stats',
-            help='Statistics',
-            nargs='+',
-            default=['cov', 'var', 'entropy',
-                     'win_cov', 'win_var', 'win_entropy', 'win_dist'])
+            help='Per CpG Statistics',
+            nargs='*',
+            default=['cov', 'var', 'entropy'])
+        p.add_argument(
+            '--win_stats',
+            help='Window based statistics',
+            nargs='*',
+            default=['counts', 'mean', 'cov', 'var', 'entropy', 'dist'])
         p.add_argument(
             '--wlen',
-            help='Sliding window length',
+            help='Sliding window lengths',
             type=int,
-            default=3000)
+            nargs='+',
+            default=[3000])
         p.add_argument(
             '--chromos',
             help='Only apply to these chromosome',
             nargs='+')
         p.add_argument(
-            '--max_samples',
+            '--nb_sample',
             help='Only consider that many samples',
             type=int)
         p.add_argument(
@@ -181,15 +194,6 @@ class App(object):
         else:
             log.setLevel(logging.INFO)
         log.debug(opts)
-
-        delta = opts.wlen // 2
-        funs = list()
-        win_funs = list()
-        for stat in opts.stats:
-            if stat.startswith('win'):
-                win_funs.append((stat, globals()[stat]))
-            else:
-                funs.append((stat, globals()[stat]))
 
         if opts.pos_file is not None:
             log.info('Read positions ...')
@@ -212,18 +216,27 @@ class App(object):
 
         f = h5.File(opts.out_file, 'a')
         for chromo in chromos:
-            log.info('Chromosome %s' % (chromo))
             if pos is None:
                 cpos = read_pos_all(opts.data_files, chromo=chromo,
-                                    max_samples=opts.max_samples)
+                                    nb_sample=opts.nb_sample)
             else:
                 cpos = pos[chromo]
+                if opts.nb_sample is not None:
+                    cpos = cpos[:opts.nb_sample]
+                log.info('Chromo %s: %d sites' % (chromo, len(cpos)))
             cpos = np.asarray(cpos)
             t = pt.join(chromo, 'pos')
             if t in f:
                 del f[t]
             f.create_dataset(t, data=cpos)
             X = read_chromo(opts.data_files, chromo, cpos)
+
+            funs = list()
+            win_funs = list()
+            for stat in opts.stats:
+                funs.append((stat, globals()[stat]))
+            for stat in opts.win_stats:
+                win_funs.append((stat, globals()['win_' + stat]))
 
             if len(funs):
                 log.info('Per CpG statistics')
@@ -237,21 +250,22 @@ class App(object):
             if len(win_funs):
                 log.info('Window-based statistics')
                 n = len(cpos)
-                y = np.empty((n, len(win_funs)), dtype='float32')
 
                 def prog(i):
-                    if i % 10000 == 0:
+                    if i == 0 or i == n or i % 10000 == 0:
                         log.info('%4.1f%%' % (i / n * 100))
 
-                y = rolling_apply(cpos, X,
-                                funs=[x[1] for x in win_funs],
-                                delta=delta, y=y,
-                                callback=prog)
-                for i, x in enumerate([x[0] for x in win_funs]):
-                    t = pt.join(chromo, x)
-                    if t in f:
-                        del f[t]
-                    f.create_dataset(t, data=y[:, i])
+                for wlen in opts.wlen:
+                    log.info('wlen %d' % (wlen))
+                    delta = wlen // 2
+                    y = np.empty((n, len(win_funs)), dtype='float32')
+                    y = rolling_apply(cpos, X, funs=[x[1] for x in win_funs],
+                                      delta=delta, y=y, callback=prog)
+                    for i, x in enumerate([x[0] for x in win_funs]):
+                        t = pt.join(chromo, 'w%d_%s' % (wlen, x))
+                        if t in f:
+                            del f[t]
+                        f.create_dataset(t, data=y[:, i])
         f.close()
 
         log.info('Done!')
