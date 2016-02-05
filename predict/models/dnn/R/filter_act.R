@@ -134,14 +134,12 @@ plot_annos_heat <- function(d, rev_colors=F, Rowv=T, Colv=T, lhei=c(1, 10), del=
 }
 
 plot_stats <- function(d) {
-  d <- d %>% group_by(stat, x, cell_type, filt) %>%
-    summarise(value=mean(value_abs)) %>% ungroup
+  # d <- d %>% group_by(stat, x, cell_type, filt) %>%
+  #   summarise(value=mean(value_abs)) %>% ungroup
   d <- d %>% mutate(bin=factor(x))
-  p <- ggplot(d, aes(x=bin, y=value)) +
+  p <- ggplot(d, aes(x=bin, y=value_abs)) +
     geom_boxplot(aes(fill=cell_type), outlier.shape=NA) +
     scale_fill_manual(values=colors_$cell_type) +
-    # geom_text(aes(label=filt, size=exp(r)),
-    #   position=position_jitter(width=0.3)) +
     xlab('') + ylab('Effect') +
     facet_wrap(~stat, ncol=1, scales='free') +
     theme_pub() +
