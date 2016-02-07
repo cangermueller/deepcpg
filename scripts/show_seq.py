@@ -7,8 +7,7 @@ import os
 import os.path as pt
 import h5py as h5
 
-
-__dir = pt.dirname(pt.realpath(__file__))
+import predict.dna as dna
 
 
 def get_seq(path, chromo, start, end):
@@ -51,6 +50,14 @@ class App(object):
             help='Sequence file',
             default='mm10')
         p.add_argument(
+            '--int',
+            help='As integer sequence',
+            action='store_true')
+        p.add_argument(
+            '--onehot',
+            help='As one-hot encoded',
+            action='store_true')
+        p.add_argument(
             '--verbose',
             help='More detailed log messages',
             action='store_true')
@@ -70,7 +77,7 @@ class App(object):
         log.debug(opts)
 
         if opts.seq_file == 'mm10':
-            seq_file = pt.join(os.getenv('Bdata'), 'mm10.h5')
+            seq_file = pt.join(os.getenv('Pdata'), 'mm10.h5')
         else:
             seq_file = opts.seq_file
         chromo = str(opts.chromo)
@@ -84,6 +91,10 @@ class App(object):
         s = get_seq(seq_file, chromo, start, end)
         print('%s (%d - %d)' % (chromo, start + 1, end + 1))
         print(s)
+        if opts.int:
+            print(dna.char2int(s))
+        if opts.onehot:
+            print(dna.int2onehot(dna.char2int(s)))
 
         return 0
 

@@ -96,12 +96,12 @@ def logodds_ratio(p, q):
 
 
 def filter_regex(x, regexs):
-    xf = []
+    xf = set()
     for xi in x:
         for regex in regexs:
             if re.search(regex, xi):
-                xf.append(xi)
-    return xf
+                xf.add(xi)
+    return sorted(list(xf))
 
 
 def group_apply(d, by, fun, level=False, set_index=False, *args, **kwargs):

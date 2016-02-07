@@ -65,6 +65,7 @@ def eval_annos(X, chromos, pos, annos_file, regexs=[r'loc_.+'], nb_min=1):
     annos = ut.filter_regex(annos, regexs)
     es = []
     for anno in annos:
+        print(anno)
         a = []
         for c, chromo in enumerate(chromos):
             cpos = pos[c]

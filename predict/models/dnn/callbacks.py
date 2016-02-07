@@ -46,7 +46,7 @@ class LearningRateScheduler(Callback):
 
     def on_epoch_end(self, epoch, logs={}):
         score = logs.get(self.monitor)
-        if score <= self.best_score:
+        if self.best_weights is None or score <= self.best_score:
             self.counter = 0
             self.best_score = score
             self.best_weights = self.model.get_weights()
@@ -156,7 +156,7 @@ class ProgressLogger(Callback):
         s.append('Samples: %d' % (self.params['nb_sample']))
         s.append('Batch size: %d' % (self.params['batch_size']))
         if hasattr(self, 'model'):
-            s.append('Learning rate: %d' % (
+            s.append('Learning rate: %f' % (
                 self.model.optimizer.lr.get_value()))
         s = '\n'.join(s)
         self._log(s)
@@ -231,14 +231,14 @@ class DataJumper(Callback):
         self.jump = jump
 
     def on_epoch_begin(self, epoch, logs={}):
-        if not self.jump or self._n == self.nb_sample:
-            return
-        i = np.random.randint(self._n - self.nb_sample)
+        if self.jump and self._n != self.nb_sample:
+            i = np.random.randint(self._n - self.nb_sample)
+            for d in self.data:
+                d.start = i
+                d.stop = i + self.nb_sample
         if self.verbose:
-            print('Start index: %d' % (i))
-        for d in self.data:
-            d.start = i
-            d.stop = i + self.nb_sample
+            d = self.data[0]
+            print('Index: (%d - %d)' % (d.start, d.stop))
 
 
 class Timer(Callback):

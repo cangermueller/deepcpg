@@ -7,6 +7,10 @@ def cor(y, z):
     return np.corrcoef(y, z)[0, 1]
 
 
+def mad(y, z):
+    return np.mean(np.abs(y - z))
+
+
 def mse(y, z):
     return np.mean((y - z)**2)
 
@@ -49,6 +53,7 @@ def mcc(y, z, r=True):
         z = np.round(z)
     return skm.matthews_corrcoef(y, z)
 
+
 def nll(y, z):
     eps = 1e-6
     y = y.ravel()
@@ -74,6 +79,12 @@ eval_funs = [('auc', auc),
              ('rrmse', rrmse),
              ('cor', cor)]
 
+eval_funs_regress = [
+    ('mse', mse),
+    ('rrmse', rrmse),
+    ('mad', mad),
+    ('cor', cor)]
+
 
 def evaluate(y, z, mask=-1, funs=eval_funs):
     y = y.ravel()
@@ -83,16 +94,16 @@ def evaluate(y, z, mask=-1, funs=eval_funs):
         y = y[t]
         z = z[t]
     s = dict()
-    for name, fun in eval_funs:
+    for name, fun in funs:
         s[name] = fun(y, z)
-    d = pd.DataFrame(s, columns=[x for x, _ in eval_funs], index=[0])
+    d = pd.DataFrame(s, columns=[x for x, _ in funs], index=[0])
     d['n'] = len(y)
     return d
 
 
-def evaluate_all(y, z):
+def evaluate_all(y, z, *args, **kwargs):
     keys = sorted(z.keys())
-    p = [evaluate(y[k], z[k]) for k in keys]
+    p = [evaluate(y[k][:], z[k][:], *args, **kwargs) for k in keys]
     p = pd.concat(p)
     p.index = keys
     return p
