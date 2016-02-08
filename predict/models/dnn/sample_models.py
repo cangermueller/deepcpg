@@ -11,12 +11,25 @@ import scipy.stats as sps
 from predict.models.dnn.params import ParamSampler
 
 
+def eval_atom(v):
+    if isinstance(v, str) and v.startswith('sps.'):
+        v = eval(v)
+    return v
+
+
 def eval_dict(d):
-    for k, v in d.items():
-        if isinstance(v, str) and v.startswith('sps.'):
-            d[k] = eval(v)
-        elif isinstance(v, dict):
-            eval_dict(v)
+    if isinstance(d, list):
+        for i, v in enumerate(d):
+            if isinstance(v, list) or isinstance(v, dict):
+                eval_dict(v)
+            else:
+                d[i] = eval_atom(v)
+    elif isinstance(d, dict):
+        for k, v in d.items():
+            if isinstance(v, list) or isinstance(v, dict):
+                eval_dict(v)
+            else:
+                d[k] = eval_atom(v)
 
 
 class App(object):
@@ -78,6 +91,8 @@ class App(object):
         with open(opts.temp_file) as f:
             temp = yaml.load(f.read())
         eval_dict(temp)
+        import ipdb; ipdb.set_trace()
+
         for i, param in enumerate(ParamSampler(temp, opts.nb_sample)):
             t = '%s%03d.yaml' % (opts.out_base, opts.offset + i)
             log.info(t)

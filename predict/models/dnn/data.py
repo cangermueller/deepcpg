@@ -8,15 +8,45 @@ import h5py as h5
 import numpy as np
 import gc
 
+import predict.utils as ut
 
 MAX_DIST = 10**6
 
 
-def read_pos(path, chromo, max_samples=None):
+def read_anno(annos_file, chromo, name, pos=None):
+    f = h5.File(annos_file, 'r')
+    d = {k: f[pt.join(chromo, name, k)].value for k in ['pos', 'annos']}
+    f.close()
+    if pos is not None:
+        t = np.in1d(d['pos'], pos)
+        for k in d.keys():
+            d[k] = d[k][t]
+        assert np.all(d['pos'] == pos)
+    d['annos'][d['annos'] >= 0] = 1
+    d['annos'][d['annos'] < 0] = 0
+    d['annos'] = d['annos'].astype('bool')
+    return d['pos'], d['annos']
+
+
+def read_annos(annos_file, chromo, names, *args, **kwargs):
+    pos = None
+    annos = []
+    for name in names:
+        p, a = read_anno(annos_file, chromo, name, *args, **kwargs)
+        if pos is None:
+            pos = p
+        else:
+            assert np.all(pos == p)
+        annos.append(a)
+    annos = np.vstack(annos).T
+    return pos, annos
+
+
+def read_pos(path, chromo, nb_sample=None):
     f = h5.File(path, 'r')
     p = f['/cpg/%s/pos' % (chromo)]
-    if max_samples:
-        p = p[:max_samples]
+    if nb_sample:
+        p = p[:nb_sample]
     else:
         p = p.value
     return p
@@ -213,6 +243,18 @@ class App(object):
             help='Sequence length',
             type=int)
         p.add_argument(
+            '--annos_file',
+            help='Annotation file')
+        p.add_argument(
+            '--annos',
+            help='Regex of annotations to be considered',
+            nargs='+')
+        p.add_argument(
+            '--annos_op',
+            help='Operation to combine annos',
+            choices=['and', 'or'],
+            default='or')
+        p.add_argument(
             '--knn_group',
             help='Name of knn group in HDF file',
             default='knn_shared')
@@ -231,7 +273,7 @@ class App(object):
             type=int,
             default=13000)
         p.add_argument(
-            '--max_samples',
+            '--nb_sample',
             help='Limit # samples',
             type=int)
         p.add_argument(
@@ -309,13 +351,36 @@ class App(object):
         # Get positions
         chromos = opts.chromos
         pos = dict()
-        chromos_len = dict()
         for chromo in chromos:
-            cpos = read_pos_all(target_files, chromo,
-                               max_samples=opts.max_samples)
-            chromos_len[chromo] = len(cpos)
-            pos[chromo] = cpos
-        posc = np.hstack([pos[x] for x in chromos])
+            pos[chromo] = read_pos_all(target_files, chromo,
+                                       nb_sample=opts.nb_sample)
+
+        # Filter positions by annotations
+        if opts.annos_file is not None:
+            log.info('Filter positions by annotations')
+            fa = h5.File(opts.annos_file)
+            names = list(fa[chromos[0]].keys())
+            fa.close()
+            if opts.annos is not None:
+                names = ut.filter_regex(names, opts.annos)
+            for chromo in chromos:
+                t, annos = read_annos(opts.annos_file, chromo, names,
+                                      pos[chromo])
+                if opts.annos_op == 'or':
+                    annos = annos.any(axis=1)
+                else:
+                    annos = annos.all(axis=1)
+                pos[chromo] = pos[chromo][annos]
+
+        # Concatenate position vector
+        chromos_len = dict()
+        posc = []
+        for chromo in pos.keys():
+            if opts.nb_sample is not None:
+                pos[chromo] = pos[chromo][:opts.nb_sample]
+            chromos_len[chromo] = len(pos[chromo])
+            posc.append(pos[chromo])
+        posc = np.hstack(posc)
 
         # Initialize datasets
         fp = f.create_group('pos')

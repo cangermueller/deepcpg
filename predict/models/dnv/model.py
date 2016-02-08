@@ -4,6 +4,7 @@ from keras.models import CpgGraph
 from keras.layers import core as kcore
 from keras.layers import convolutional as kconv
 from keras.layers import normalization as knorm
+import keras.regularizers as kr
 import keras.optimizers as kopt
 
 
@@ -12,14 +13,20 @@ def seq_layers(params):
     if params.drop_in:
         layer = kcore.Dropout(params.drop_in)
         layers.append(('xd', layer))
-    layer = kconv.Convolution1D(nb_filter=params.nb_filter,
-                                filter_length=params.filter_len,
-                                activation=params.activation,
-                                init='glorot_uniform',
-                                border_mode='same')
-    layers.append(('c1', layer))
-    layer = kconv.MaxPooling1D(pool_length=params.pool_len)
-    layers.append(('p1', layer))
+    nb_layer = len(params.nb_filter)
+    w_reg = kr.WeightRegularizer(l1=params.l1, l2=params.l2)
+    for l in range(nb_layer):
+        layer = kconv.Convolution1D(nb_filter=params.nb_filter[l],
+                                    filter_length=params.filter_len[l],
+                                    activation=params.activation,
+                                    init='glorot_uniform',
+                                    W_regularizer=w_reg,
+                                    border_mode='same')
+        layers.append(('c%d' % (l + 1), layer))
+        layer = kconv.MaxPooling1D(pool_length=params.pool_len[l])
+        layers.append(('p%d' % (l + 1), layer))
+
+
     layer = kcore.Flatten()
     layers.append(('f1', layer))
     if params.drop_out:

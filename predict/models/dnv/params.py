@@ -6,19 +6,30 @@ import re
 class SeqParams(object):
 
     def __init__(self):
+        self.nb_filter = [4]
+        self.filter_len = [8]
+        self.pool_len = [4]
         self.activation = 'relu'
-        self.nb_filter = 4
-        self.filter_len = 8
-        self.pool_len = 4
         self.nb_hidden = 32
         self.drop_in = 0.0
         self.drop_out = 0.2
+        self.l1 = 0.0
+        self.l2 = 0.0
         self.batch_norm = False
 
     def validate(self):
-        self.pool_len = min(self.pool_len, self.nb_filter)
+        for k in ['nb_filter', 'filter_len', 'pool_len']:
+            if not isinstance(self.__dict__[k], list):
+                self.__dict__[k] = [self.__dict__[k]]
+
+        for i in range(len(self.nb_filter)):
+            self.pool_len[i] = min(self.pool_len[i], self.nb_filter[i])
 
     def update(self, params):
+        for k, v in params.items():
+            if k in ['nb_filter', 'filter_len', 'pool_len']:
+                if not isinstance(v, list):
+                    params[k] = [v]
         self.__dict__.update(params)
 
     def __str__(self):
@@ -121,7 +132,11 @@ def sample_dict(param_dist):
         if isinstance(v, dict):
             sample[k] = sample_dict(v)
         elif isinstance(v, list):
-            sample[k] = v[np.random.randint(0, len(v))]
+            if len(v) > 0:
+                if hasattr(v[0], 'rvs'):
+                    sample[k] = [x.rvs() for x in v]
+                else:
+                    sample[k] = v[np.random.randint(0, len(v))]
         elif hasattr(v, 'rvs'):
             sample[k] = v.rvs()
         else:

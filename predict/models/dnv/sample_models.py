@@ -11,12 +11,26 @@ import scipy.stats as sps
 from predict.models.dnv.params import ParamSampler
 
 
+
+def eval_atom(v):
+    if isinstance(v, str) and v.startswith('sps.'):
+        v = eval(v)
+    return v
+
+
 def eval_dict(d):
-    for k, v in d.items():
-        if isinstance(v, str) and v.startswith('sps.'):
-            d[k] = eval(v)
-        elif isinstance(v, dict):
-            eval_dict(v)
+    if isinstance(d, list):
+        for i, v in enumerate(d):
+            if isinstance(v, list) or isinstance(v, dict):
+                eval_dict(v)
+            else:
+                d[i] = eval_atom(v)
+    elif isinstance(d, dict):
+        for k, v in d.items():
+            if isinstance(v, list) or isinstance(v, dict):
+                eval_dict(v)
+            else:
+                d[k] = eval_atom(v)
 
 
 class App(object):

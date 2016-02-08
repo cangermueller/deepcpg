@@ -195,8 +195,13 @@ class App(object):
                     idx.append(i)
             for k, v in labels.items():
                 labels[k] = [v[i] for i in idx]
-
         targets = labels['targets']
+
+        h = []
+        for f, t in zip(labels['files'], labels['targets']):
+            h.append('%s (%s)' % (f, t))
+        h = ', '.join(h)
+        print('Targets: %s' % (h))
 
         f = h5.File(opts.train_file)
         seq_len = f['/data/s_x'].shape[1]
@@ -246,7 +251,9 @@ class App(object):
         if model_params is not None:
             print('Model parameters:')
             print(model_params)
-            model_params.to_yaml(pt.join(opts.out_dir, 'model_params.yaml'))
+            h = pt.join(opts.out_dir, 'model_params.yaml')
+            if not pt.exists(h):
+                model_params.to_yaml(h)
             print()
 
         log.info('Setup training')
