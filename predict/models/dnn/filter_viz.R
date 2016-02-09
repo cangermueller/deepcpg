@@ -18,9 +18,9 @@ p$add_argument(
   'filt_file',
   help='Input file')
 p$add_argument(
-  '--filt_name',
-  default='s_c1',
-  help='Filter name')
+  '--weights',
+  default='/filter/weights',
+  help='HDF path to filter weights')
 p$add_argument(
   '-o', '--out_motifs',
   default='./motifs.pdf',
@@ -40,7 +40,7 @@ if (length(args) > 0) {
 } else {
   opts <- list()
   opts$filt_file <- './filters.h5'
-  opts$filt_name <- 's_c1'
+  opts$weights <- '/filter/weights'
   opts$out_motifs <- './filter_motifs.pdf'
   opts$out_heat <- './filter_heat.pdf'
   opts$verbose <- 0
@@ -49,13 +49,14 @@ if (length(args) > 0) {
 log <- function(x) {
   cat(x, fill=T)
 }
+
 if (opts$verbose == 1) {
   print(opts)
 }
 
 dat <- list()
 log('Read filters')
-dat$filt <- read_filt(opts$filt_file, group=paste0('/', opts$filt_name))
+dat$filt <- read_filt(opts$filt_file, group=opts$weights)
 dat$nb_filt <- length(levels(dat$filt$filt))
 dat$filt_len <- max(as.numeric(dat$filt$pos))
 

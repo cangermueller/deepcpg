@@ -1,0 +1,106 @@
+---
+title: "Evaluation"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: yes
+---
+
+```{r, include=F}
+library(knitr)
+opts_chunk$set(echo=F, warning=F, message=F)
+```
+
+```{r, include=F}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(RSQLite)
+library(xtable)
+library(grid)
+
+lib <- file.path(Sys.getenv('Pd'), 'R')
+source(file.path(lib, 'utils.R'))
+source(file.path(lib, 'eval_pred.R'))
+```
+
+```{r}
+options(xtable.type='html')
+```
+
+<style>
+img {
+    max-width: none;
+}
+</style>
+
+```{r}
+dat <- list()
+cmp <- list()
+opts <- list()
+opts$db_file <- './pred.sql'
+opts$annos <- NULL
+
+
+filter_data <- function(d) {
+  d <- d
+  return (d)
+}
+```
+
+```{r include=F}
+dat$global <- query_db(opts$db_file, 'global') %>% filter_data
+dat$annos <- query_db(opts$db_file, 'annos') %>% filter_data
+d <- dat$global %>% mutate(anno='global')
+dat$all <- rbind.data.frame(d, dat$annos) %>%
+  mutate(anno=factor(anno)) %>%
+  move_cols(c('model', 'anno'))
+nb_anno <- length(levels(dat$all$anno))
+nb_target <- length(levels(dat$all$target))
+```
+
+## wlen 3000
+
+```{r fig.width=nb_anno*0.4, fig.height=15}
+plot_yz(dat$all, 3000)
+```
+
+```{r fig.width=nb_anno*0.4, fig.height=12}
+plot_scores(dat$all, 3000)
+```
+
+## wlen 1000
+
+```{r fig.width=nb_anno*0.4, fig.height=15}
+plot_yz(dat$all, 1000)
+```
+
+```{r fig.width=nb_anno*0.4, fig.height=12}
+plot_scores(dat$all, 1000)
+```
+
+## wlen 5000
+
+```{r fig.width=nb_anno*0.4, fig.height=15}
+plot_yz(dat$all, 5000)
+```
+
+```{r fig.width=nb_anno*0.4, fig.height=12}
+plot_scores(dat$all, 5000)
+```
+
+## Stats
+
+```{r}
+cmp$stats <- dat$all %>%
+  spread(fun, value) %>%
+  select(-c(model, target, cell_type, wlen, type)) %>%
+  group_by(anno) %>%
+  summarise_each(funs(mean)) %>%
+  arrange(desc(mse)) %>% ungroup
+```
+
+```{r results='asis'}
+d <- cmp$stats
+xtable(d)
+```

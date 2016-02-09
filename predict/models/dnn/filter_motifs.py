@@ -74,8 +74,7 @@ class App(object):
             type=float)
         p.add_argument(
             '-m', '--meme_db',
-            help='MEME database used to annotate motifs',
-            default='%s/data/motif_databases/CIS-BP/Mus_musculus.meme' % os.getenv('Pr'))
+            help='MEME database used to annotate motifs')
         p.add_argument(
             '-t', '--trim_filters',
             help='Trim uninformative positions off the filter ends [Default: %default]',
@@ -152,6 +151,7 @@ class App(object):
             #  plot_corr_act_target(cor, pt.join(opts.out_dir,
                                             #  'filter_target_cors_max.pdf'))
 
+        os.makedirs(opts.out_dir, exist_ok=True)
         meme_out = meme_intro('%s/filters_meme.txt' % opts.out_dir, seqs)
 
         log.info('Analyze filters')
@@ -200,19 +200,20 @@ class App(object):
                             sep='\t', index=False)
 
         # run tomtom
-        log.info('Run tomtom')
-        cmd = 'tomtom -dist pearson -thresh 0.1 -oc %s/tomtom ' + \
-               '%s/filters_meme.txt %s 2> /dev/null'
-        cmd = cmd % (opts.out_dir, opts.out_dir, opts.meme_db)
-        subprocess.call(cmd, shell=True)
+        if opts.meme_db:
+            log.info('Run tomtom')
+            cmd = 'tomtom -dist pearson -thresh 0.1 -oc %s/tomtom ' + \
+                '%s/filters_meme.txt %s 2> /dev/null'
+            cmd = cmd % (opts.out_dir, opts.out_dir, opts.meme_db)
+            subprocess.call(cmd, shell=True)
 
-        # read in annotations
-        summary = filter_summary(pt.join(opts.out_dir, 'filter_stats.csv'),
-                                 pt.join(opts.out_dir, 'tomtom', 'tomtom.txt'),
-                                 pt.join(opts.out_dir, opts.meme_db))
-        summary.sort_values('acc_mean', ascending=False, inplace=True)
-        summary.to_csv(pt.join(opts.out_dir, 'summary.csv'), index=False,
-                       sep='\t', float_format='%.3f')
+            # read in annotations
+            summary = filter_summary(pt.join(opts.out_dir, 'filter_stats.csv'),
+                                    pt.join(opts.out_dir, 'tomtom', 'tomtom.txt'),
+                                    pt.join(opts.out_dir, opts.meme_db))
+            summary.sort_values('acc_mean', ascending=False, inplace=True)
+            summary.to_csv(pt.join(opts.out_dir, 'summary.csv'), index=False,
+                        sep='\t', float_format='%.3f')
 
         in_file.close()
         log.info('Done!')

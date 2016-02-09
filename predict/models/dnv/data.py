@@ -100,7 +100,25 @@ def chunk_size(shape, chunk_size):
         return None
 
 
-def approx_chunk_size(max_mem, nb_unit=1, nb_knn=None, seq_len=None):
+def approx_chunk_size2(max_mem, nb_unit=1, nb_knn=None, seq_len=None,
+                      max_chunk=4*10**9):
+    s = nb_unit
+    max_ = [max_chunk] # Max allowed HDF5 chunk size is 4GB
+    max_.append(max_mem // nb_unit)
+    if nb_knn:
+        t = 2 * nb_unit * nb_knn * 2
+        max_.append(max_mem // t)
+        s += t
+    if seq_len:
+        t = seq_len * 4
+        max_.append(max_mem // t)
+        s += t
+    max_.append(max_mem // s)
+    return np.min(max_)
+
+
+def approx_chunk_size(mem, nb_unit=1, nb_knn=None, seq_len=None,
+                      max_mem=4*10**9):
     s = nb_unit
     max_ = [max_mem // nb_unit]
     if nb_knn:
@@ -111,7 +129,7 @@ def approx_chunk_size(max_mem, nb_unit=1, nb_knn=None, seq_len=None):
         t = seq_len * 4
         max_.append(max_mem // t)
         s += t
-    max_.append(max_mem // s)
+    max_.append(mem // s)
     return np.min(max_)
 
 
@@ -289,7 +307,7 @@ class App(object):
 
         chunk_out = opts.chunk_out
         if not chunk_out and opts.max_mem is not None:
-            chunk_out = approx_chunk_size(max_mem=opts.max_mem * 10**6,
+            chunk_out = approx_chunk_size(opts.max_mem * 10**6,
                                           seq_len=seq_len)
         if chunk_out:
             log.info('Using chunk size of %d (%.2f MB)' % (

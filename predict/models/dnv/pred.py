@@ -39,7 +39,18 @@ class App(object):
             '--batch_size',
             help='Batch size',
             type=int,
-            default=1024)
+            default=128)
+        p.add_argument(
+            '--chromo',
+            help='Chromosome')
+        p.add_argument(
+            '--start',
+            help='Start position',
+            type=int)
+        p.add_argument(
+            '--end',
+            help='End position',
+            type=int)
         p.add_argument(
             '--nb_sample',
             help='Maximum # training samples',
@@ -94,6 +105,22 @@ class App(object):
         labels = ut.read_labels(opts.data_file)
         data_file, data = read_data(opts.data_file)
 
+        if opts.chromo is not None:
+            sel = data['chromo'].value == str(opts.chromo).encode()
+            if opts.start is not None:
+                sel &= data['pos'].value >= opts.start
+            if opts.end is not None:
+                sel &= data['pos'].value <= opts.end
+            if sel.sum() == 0:
+                log.warn('No samples satisfy filter!')
+                return 0
+            log.info('Select %d samples' % (sel.sum()))
+            for k in data.keys():
+                if len(data[k].shape) > 1:
+                    data[k] = data[k][sel, :]
+                else:
+                    data[k] = data[k][sel]
+
         def to_view(d):
             for k in d.keys():
                 d[k] = ut.ArrayView(d[k], stop=opts.nb_sample)
@@ -108,19 +135,10 @@ class App(object):
                 print('%5d / %d (%.1f%%)' % (batch, nb_batch,
                                              batch / nb_batch * 100))
 
-        batch_size = opts.batch_size
-        if batch_size is None:
-            if 'c_x' in model.input_order and 's_x' in model.input_order:
-                batch_size = 768
-            elif 's_x' in model.input_order:
-                batch_size = 1024
-            else:
-                batch_size = 2048
-
         log.info('Predict')
         z = model.predict(data, verbose=opts.verbose,
                           callbacks=[progress],
-                          batch_size=batch_size)
+                          batch_size=opts.batch_size)
         log.info('Write')
         ut.write_z(data, z, labels, opts.out_file)
 

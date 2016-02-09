@@ -37,7 +37,8 @@ def map_targets(targets, labels):
     return targets
 
 
-def write_z(data, z, labels, out_file, unlabeled=False, name='z'):
+def write_z(data, z, labels, out_file, unlabeled=False, name='z',
+            overwrite=True):
     target_map = dict()
     for x in zip(labels['targets'], labels['files']):
         target_map[x[0] + '_y'] = x[1]
@@ -73,7 +74,7 @@ def write_z(data, z, labels, out_file, unlabeled=False, name='z'):
             else:
                 gtc = gt.create_group(chromo)
             for k in dc.keys():
-                if k == name and k in gtc:
+                if k in gtc and (k == name or overwrite):
                     del gtc[k]
                 if k not in gtc and k != 'chromo':
                     gtc[k] = dc[k]

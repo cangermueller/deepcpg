@@ -80,8 +80,8 @@ eval_funs = [('auc', auc),
              ('cor', cor)]
 
 eval_funs_regress = [
+    ('rmse', rmse),
     ('mse', mse),
-    ('rrmse', rrmse),
     ('mad', mad),
     ('cor', cor)]
 

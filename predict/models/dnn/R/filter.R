@@ -7,8 +7,8 @@ filt_to_frame <- function(f) {
   return (f)
 }
 
-read_filt <- function(path, name='s_c1') {
-  d <- h5read(path, sprintf('/%s/weights', name))
+read_filt <- function(path, group='/filter/weights') {
+  d <- h5read(path, group)
   fs <- list()
   for (i in 1:dim(d)[4]) {
     f <- filt_to_frame(t(d[1,,,i]))
