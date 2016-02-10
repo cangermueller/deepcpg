@@ -7,7 +7,12 @@ query_db <- function(db_file, table, models=NULL) {
   }
   d <- d %>% select(-c(path, id)) %>%
     gather(fun, value, 1:9)
-  d <- d %>% format_target
+  d <- d %>%
+    separate(target, c('cell_type', 'wlen', 'type'), by='_', remove=F) %>%
+    mutate(
+      cell_type=factor(cell_type, levels=c('2i', 'ser'), labels=c('2i', 'serum')),
+      wlen=as.integer(sub('w', '', wlen))
+      )
   d <- d %>% char_to_factor %>% droplevels %>% tbl_df %>%
     move_cols(c('model', 'target', 'cell_type', 'wlen'))
   return (d)
