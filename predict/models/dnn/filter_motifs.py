@@ -68,10 +68,15 @@ class App(object):
             help='Weblogo plot format',
             default='pdf')
         p.add_argument(
-            '-a', '--act_t',
+            '-a', '--act_thr',
             help='Activation threshold (as proportion of max) to consider for PWM [Default: %default]',
             default=0.5,
             type=float)
+        p.add_argument(
+            '--act_nb',
+            help='Max number of sequences in PWM',
+            type=int,
+            default=25000)
         p.add_argument(
             '-m', '--meme_db',
             help='MEME database used to annotate motifs')
@@ -155,48 +160,52 @@ class App(object):
         meme_out = meme_intro('%s/filters_meme.txt' % opts.out_dir, seqs)
 
         log.info('Analyze filters')
-        stats = ['filt', 'motif', 'ic', 'acc_mean', 'acc_std']
-        filter_stats = {x: [] for x in stats}
+        filter_stats = []
         for f in filters_list:
             log.info('Filter %d' % f)
+            stats = pd.Series(index=['filt', 'motif', 'ic', 'act_mean',
+                                     'act_std'])
             fweights = filter_weights[f, :, :]
             fact = filter_act[:, :, f]
-            filter_stats['filt'].append(f)
-            filter_stats['motif'].append(filter_motif(fweights))
-            filter_stats['acc_mean'].append(fact.mean())
-            filter_stats['acc_std'].append(fact.std())
 
-            # plot weblogo of high scoring outputs
-            path = '%s/filter%d_logo.fa' % (opts.out_dir, f)
-            write_logo(fact, filter_size, seqs, path, maxpct_t=opts.act_t)
-            plot_logo(path, options=weblogo_opts)
+            stats.filt = f
+            stats.motif = filter_motif(fweights)
+            stats.act_mean = fact.mean()
+            stats.act_std = fact.std()
+            stats.ic = 0
+            filter_stats.append(stats)
+
+            if stats.act_std == 0:
+                # Dead filter
+                continue
 
             # score density
             plot_score_density(np.ravel(fact),
-                               '%s/filter%d_dens.pdf' % (opts.out_dir,f))
+                               '%s/filter%03d_dens.pdf' % (opts.out_dir,f))
 
             # write possum motif file
             write_possum(fweights, 'filter%d' % f,
-                         '%s/filter%d_possum.txt' % (opts.out_dir,f),
+                         '%s/filter%03d_possum.txt' % (opts.out_dir,f),
                          opts.trim_filters)
 
-            # make a PWM for the filter
-            t = '%s/filter%d_logo.fa' % (opts.out_dir, f)
-            filter_pwm, nsites = make_filter_pwm(t)
+            # plot weblogo of high scoring outputs
+            logo_file = '%s/filter%03d_logo.fa' % (opts.out_dir, f)
+            h = write_logo(fact, filter_size, seqs, logo_file,
+                           act_thr=opts.act_thr, act_nb=opts.act_nb)
+            if h  == 0:
+                continue
+            plot_logo(logo_file, options=weblogo_opts)
 
-            if nsites < 10:
-                # no information
-                filter_stats['ic'].append(0)
-            else:
-                # compute and save information content
-                filter_stats['ic'].append(info_content(filter_pwm))
-
-                # add to the meme motif file
+            filter_pwm, nsites = make_filter_pwm(logo_file)
+            if nsites > 10:
+                stats.ic = info_content(filter_pwm)
                 meme_add(meme_out, f, filter_pwm, nsites, opts.trim_filters)
 
         meme_out.close()
-        filter_stats = pd.DataFrame(filter_stats, columns=stats)
-        filter_stats.to_csv(pt.join(opts.out_dir, 'filter_stats.csv'),
+        filter_stats = pd.DataFrame(filter_stats)
+        filter_stats.sort_values('act_mean', ascending=False, inplace=True)
+        filter_stats.to_csv(pt.join(opts.out_dir, 'stats.csv'),
+                            float_format='%.4f',
                             sep='\t', index=False)
 
         # run tomtom
@@ -579,27 +588,34 @@ def plot_logo(fasta_file, out_file=None, format='pdf', options=''):
     subprocess.call(cmd, shell=True)
 
 
-def write_logo(filter_act, filter_size, seqs, out_file, maxpct_t=None):
-    raw_t = 0
-    if maxpct_t:
-        raw_t = filter_act.min() + maxpct_t * (filter_act.max() - filter_act.min())
-
-    # print fasta file of positive outputs
-    filter_fasta_out = open(out_file, 'w')
-    filter_count = 0
-
-    nb_sample = filter_act.shape[0]
+def write_logo(filter_act, filter_len, seqs, out_file,
+               act_thr=0.5, act_nb=25000):
     seq_len = filter_act.shape[1]
-    filter_del = filter_size // 2
-    for i in range(nb_sample):
-        for j in range(filter_del, seq_len - filter_del):
-            if filter_act[i,j] > raw_t:
-                kmer = seqs[i, (j - filter_del):(j + filter_del + filter_size % 2)]
-                kmer = int2char(kmer)
-                print('>%d_%d' % (i, j), file=filter_fasta_out)
-                print(kmer, file=filter_fasta_out)
-                filter_count += 1
-    filter_fasta_out.close()
+    filter_del = filter_len // 2
+    thr1 = 0.5 * (filter_act.min() + filter_act.max())
+    act_nb = min(act_nb, filter_act.size)
+    thr2 = np.percentile(filter_act, (1 - act_nb / filter_act.size) * 100)
+    thr = max(thr1, thr2)
+
+    idx = np.nonzero(filter_act > thr)
+    file_ = open(out_file, 'w')
+    nb_kmers = 0
+    for k in range(len(idx[0])):
+        i = int(idx[0][k])
+        j = int(idx[1][k])
+        if j < filter_del or j > (seq_len - filter_len - 1):
+            continue
+        assert filter_act[i, j] > thr
+        kmer = seqs[i, (j - filter_del):(j + filter_del + filter_len % 2)]
+        kmer = int2char(kmer)
+        print('>%d_%d' % (i, j), file=file_)
+        print(kmer, file=file_)
+        nb_kmers += 1
+    file_.close()
+    if nb_kmers == 0:
+        os.remove(out_file)
+    return nb_kmers
+
 
 
 ################################################################################

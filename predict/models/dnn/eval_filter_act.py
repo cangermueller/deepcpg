@@ -50,13 +50,17 @@ def evaluate(act, z, filts, targets):
             s.append(filt)
             s.append(target)
             s.append(act_filt.shape[0])
+            r = sps.pearsonr(act_filt, z[:, t])
+            s.append(r[0])
+            s.append(r[1])
             r = sps.spearmanr(act_filt, z[:, t])
             s.append(r[0])
             s.append(r[1])
             s.append(act_mean)
             stats.append(s)
-    stats = pd.DataFrame(stats, columns=['filt', 'target', 'n', 'r', 'r_pvalue',
-                                         'act_mean'])
+    h = ['filt', 'target', 'n', 'rp', 'rp_pvalue', 'rs', 'rs_pvalue',
+         'act_mean']
+    stats = pd.DataFrame(stats, columns=h)
     return stats
 
 
