@@ -68,7 +68,8 @@ class App(object):
         p.add_argument(
             '--batch_size',
             help='Batch size',
-            type=int)
+            type=int,
+            default=128)
         p.add_argument(
             '--max_batch_size',
             help='Maximum batch size',
