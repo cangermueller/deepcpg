@@ -45,6 +45,7 @@ def evaluate(act, z, filts, targets):
     for f, filt in enumerate(filts):
         act_filt = act[:, f]
         act_mean = act_filt.mean()
+        act_std = act_filt.std()
         for t, target in enumerate(targets):
             s = []
             s.append(filt)
@@ -57,6 +58,7 @@ def evaluate(act, z, filts, targets):
             s.append(r[0])
             s.append(r[1])
             s.append(act_mean)
+            s.append(act_std)
             stats.append(s)
     h = ['filt', 'target', 'n', 'rp', 'rp_pvalue', 'rs', 'rs_pvalue',
          'act_mean']
