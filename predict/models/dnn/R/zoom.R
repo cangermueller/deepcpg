@@ -28,6 +28,7 @@ plot_var <- function(d, span=0.05, degree=2) {
       size=1, se=F, method='loess', span=span,
       method.args=list(degree=degree)) +
     scale_color_manual(values=colors_$cell_type) +
+    guides(color=F) +
     xlab('') + ylab('Variance') +
     theme_pub() +
     theme(axis.title.x=element_blank(), legend.position='top') +
@@ -60,11 +61,10 @@ plot_seqmut <- function(d, span=0.05, degree=2, what='lor') {
     geom_smooth(aes(group=target, color=cell_type), size=0.5, se=F,
       method='loess', span=span, method.args=list(degree=degree)) +
     theme_pub() +
-    guides(color=F) +
     ylab('Effect') + xlab('') +
     scale_color_manual(values=colors_$cell_type) +
     scale_x_continuous(labels=comma) +
-    theme(axis.title.x=element_blank())
+    theme(axis.title.x=element_blank(), legend.position='top')
   return (p)
 }
 
@@ -180,7 +180,8 @@ get_plots <- function(region, span=0.1, nb_filt=20, effect='del') {
 }
 
 plot_grid <- function(p) {
-  grid.arrange(p$var, p$met, p$seqmut, p$filt_imp, p$filt_act, ncol=1)
+  grid.arrange(p$seqmut, p$var, p$met, p$seqmut, p$filt_imp, p$filt_act,
+    ncol=1)
 }
 
 get_tracks <- function(region) {
