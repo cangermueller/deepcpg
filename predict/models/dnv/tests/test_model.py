@@ -47,7 +47,7 @@ def test_seq():
     assert 't_h1b' not in m.nodes
 
 
-def test_joint():
+def test_all():
     p = pa.Params()
 
     p.seq = pa.SeqParams()

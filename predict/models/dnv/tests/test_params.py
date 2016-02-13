@@ -16,6 +16,7 @@ def test_params():
         'l1': 0,
         'l2': 0.5
     }
+
     target = {
         'nb_hidden': 10,
         'drop_out': 0.5,

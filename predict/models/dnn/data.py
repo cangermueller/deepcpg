@@ -166,6 +166,19 @@ def read_seq(path, chromo, pos=None, seq_len=None):
     return s
 
 
+def read_stat(stats_file, chromo, name, pos=None):
+    f = h5.File(stats_file, 'r')
+    g = f[chromo]
+    d = {k: g[k].value for k in [name, 'pos']}
+    f.close()
+    if pos is not None:
+        t = np.in1d(d['pos'], pos)
+        for k in d.keys():
+            d[k] = d[k][t]
+        assert np.all(d['pos'] == pos)
+    return d['pos'], d[name]
+
+
 def chunk_size(shape, chunk_size):
     if chunk_size:
         c = list(shape)
@@ -176,25 +189,32 @@ def chunk_size(shape, chunk_size):
         return None
 
 
-def approx_chunk_size(mem, nb_unit, nb_knn=None, seq_len=None,
-                      max_mem=4*10**9):
-    s = nb_unit
-    max_ = [max_mem // nb_unit]
-    if nb_knn:
+def approx_chunk_size(max_mem, nb_target=1, seq_len=None,
+                      nb_unit=None, nb_knn=None,
+                      max_chunk_mem=4*10**9):
+    # Maximum HDF chunk size is 4GB
+    max_ = [max_chunk_mem]
+    # Memory target vectors (float32)
+    s = nb_target * 2
+    max_.append(max_chunk_mem // s)
+    # Memory knn array
+    if nb_unit is not None:
         t = 2 * nb_unit * nb_knn * 2
-        max_.append(max_mem // t)
+        max_.append(max_chunk_mem // t)
         s += t
+    # Memory sequence array
     if seq_len:
         t = seq_len * 4
-        max_.append(max_mem // t)
+        max_.append(max_chunk_mem // t)
         s += t
-    max_.append(mem // s)
+    max_.append(max_mem // s)
     return np.min(max_)
 
 
-def approx_mem(chunk_size, nb_unit, nb_knn=None, seq_len=None):
+def approx_mem(chunk_size, nb_target=1, seq_len=None,
+               nb_unit=None, nb_knn=None):
     mem = 0
-    mem += chunk_size * nb_unit
+    mem += chunk_size * nb_target * 2
     if nb_knn:
         mem += chunk_size * 2 * nb_unit * nb_knn * 2
     if seq_len:
@@ -216,32 +236,24 @@ class App(object):
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
             description='Preprocess data')
         p.add_argument(
-            'data_files',
-            help='HDF path to data files',
+            '--cpg_knn',
+            help='CpG files to be used as knn',
             nargs='+')
         p.add_argument(
-            '--target_files',
-            help='Data files to be considered as targets',
+            '--cpg_targets',
+            help='CpG files to be used as targets',
             nargs='+')
         p.add_argument(
             '--seq_file',
             help='HDF path to seq file')
         p.add_argument(
-            '-o', '--out_file',
-            help='Output file')
+            '--stats_file',
+            help='Statistics file')
         p.add_argument(
-            '--chromos',
-            help='Chromosomes',
+            '--stats',
+            help='Target statistics',
             nargs='+',
-            default=['1'])
-        p.add_argument(
-            '--knn',
-            help='Max # CpGs',
-            type=int)
-        p.add_argument(
-            '--seq_len',
-            help='Sequence length',
-            type=int)
+            default=['w3000_var'])
         p.add_argument(
             '--annos_file',
             help='Annotation file')
@@ -254,6 +266,23 @@ class App(object):
             help='Operation to combine annos',
             choices=['and', 'or'],
             default='or')
+        p.add_argument(
+            '-o', '--out_file',
+            help='Output file',
+            default='./data.h5')
+        p.add_argument(
+            '--chromos',
+            help='Chromosomes',
+            nargs='+',
+            default=['1'])
+        p.add_argument(
+            '--seq_len',
+            help='Sequence length',
+            type=int)
+        p.add_argument(
+            '--knn',
+            help='Max # CpGs',
+            type=int)
         p.add_argument(
             '--knn_group',
             help='Name of knn group in HDF file',
@@ -307,60 +336,30 @@ class App(object):
         if opts.seed is not None:
             np.random.seed(opts.seed)
 
-        target_files = opts.target_files
-        if opts.target_files is None:
-            target_files = opts.data_files
+        if opts.cpg_knn is None and opts.seq_file is None:
+            raise 'No input given'
 
-        # Get parameters
-        nb_unit = len(opts.data_files)
+        if opts.cpg_targets is None and opts.stats_file is None:
+            raise 'No targets given!'
 
-        # KNN
-        nb_knn = opts.knn
-        if nb_knn is None:
-            f = h5.File(target_files[0])
-            nb_knn = f[
-                '%s/%s/knn' %
-                (opts.knn_group, opts.chromos[0])].shape[1]
-            f.close()
-
-        # Sequence length
-        if opts.seq_file is not None:
-            seq_len = opts.seq_len
-            if seq_len is None:
-                f = h5.File(opts.seq_file)
-                seq_len = f['/%s/seq' % opts.chromos[0]].shape[1]
-                f.close()
-        else:
-            seq_len = None
-
-        # Write target labels
-        f = h5.File(opts.out_file, 'w')
-        labels = dict()
-        lfiles = []
-        ltargets = []
-        ltargetsy = []
-        for i, target_file in enumerate(target_files):
-            lfiles.append(pt.splitext(pt.basename(target_file))[0])
-            t = 'u%d' % (i)
-            ltargets.append(t)
-            ltargetsy.append('%s_y' % (t))
-        labels = dict(files=lfiles, targets=ltargets)
-        for k, v in labels.items():
-            f['/labels/%s' % (k)] = [x.encode() for x in v]
-
-        # Get positions
-        chromos = opts.chromos
+        # Get target positions
         pos = dict()
-        for chromo in chromos:
-            pos[chromo] = read_pos_all(target_files, chromo,
-                                       nb_sample=opts.nb_sample)
+        chromos = opts.chromos
+        if opts.stats_file is not None:
+            stats_file = h5.File(opts.stats_file, 'r')
+            for chromo in chromos:
+                pos[chromo] = stats_file[chromo]['pos'].value
+        else:
+            for chromo in chromos:
+                pos[chromo] = read_pos_all(opts.cpg_targets, chromo,
+                                           nb_sample=opts.nb_sample)
 
         # Filter positions by annotations
         if opts.annos_file is not None:
             log.info('Filter positions by annotations')
-            fa = h5.File(opts.annos_file)
-            names = list(fa[chromos[0]].keys())
-            fa.close()
+            f = h5.File(opts.annos_file)
+            names = list(f[chromos[0]].keys())
+            f.close()
             if opts.annos is not None:
                 names = ut.filter_regex(names, opts.annos)
             for chromo in chromos:
@@ -381,47 +380,90 @@ class App(object):
             chromos_len[chromo] = len(pos[chromo])
             posc.append(pos[chromo])
         posc = np.hstack(posc)
-
-        # Initialize datasets
-        fp = f.create_group('pos')
         N = len(posc)
-        log.info('%d samples' % (N))
+        print('Number of samples: %d' % (N))
 
+        # Initialize variables
+        nb_unit = None
+        seq_len = None
+        if opts.cpg_knn is not None:
+            nb_unit = len(opts.cpg_knn)
+            nb_knn = opts.knn
+            if nb_knn is None:
+                f = h5.File(opts.cpg_knn[0])
+                nb_knn = f[
+                    '%s/%s/knn' %
+                    (opts.knn_group, opts.chromos[0])].shape[1]
+                f.close()
+        if opts.seq_file is not None:
+            seq_len = opts.seq_len
+            if seq_len is None:
+                f = h5.File(opts.seq_file)
+                seq_len = f['/%s/seq' % opts.chromos[0]].shape[1]
+                f.close()
+
+        target_ids = []
+        target_names = []
+        target_files = []
+        if opts.cpg_targets is not None:
+            for i, target in enumerate(opts.cpg_targets):
+                target_ids.append('c%d_y' % (i))
+                target_names.append(pt.splitext(pt.basename(target))[0])
+                target_files.append(target)
+        if opts.stats_file is not None:
+            for i, target in enumerate(opts.stats):
+                target_ids.append('s%d_y' % (i))
+                target_names.append(target)
+                target_files.append(opts.stats_file)
+        nb_target = len(target_names)
+        print('Targets:')
+        for target_id, target_name in zip(target_ids, target_names):
+            print('%s: %s' % (target_id, target_name))
+
+        log.info('Initialize data file')
+
+        # Write labels
+        out_file = h5.File(opts.out_file, 'w')
+        out_file['/targets/id'] = [x.encode() for x in target_ids]
+        out_file['/targets/name'] = [x.encode() for x in target_names]
+
+        # Write positions
+        fp = out_file.create_group('pos')
         fp.create_dataset('pos', shape=(N,), dtype='int32')
         fp.create_dataset('chromo', shape=(N,), dtype='S2', compression='gzip')
 
-        fd = f.create_group('data')
-
+        # Initialize datasets
+        fd = out_file.create_group('data')
         chunk_out = opts.chunk_out
         if not chunk_out and opts.max_mem and nb_knn > 0:
-            chunk_out = approx_chunk_size(opts.max_mem * 10**6, nb_unit,
-                                          nb_knn, seq_len)
+            chunk_out = approx_chunk_size(opts.max_mem * 10**6, nb_target,
+                                          seq_len, nb_unit, nb_knn)
         if chunk_out:
-            log.info('Using chunk size of %d (%.2f MB)' % (
-                chunk_out,
-                approx_mem(chunk_out, nb_unit, nb_knn, seq_len) / 10**6
-            ))
+            t = approx_mem(chunk_out, nb_target, seq_len, nb_unit, nb_knn)
+            t /= 10**6
+            print('Chunk size: %d (%.2f MB)' % (chunk_out, t))
 
-        for t in ltargetsy:
+        for t in target_ids:
             s = (N, 1)
-            fd.create_dataset(t, shape=s, dtype='int8',
+            if t.startswith('c'):
+                dtype = 'int8'
+            else:
+                dtype = 'float32'
+            fd.create_dataset(t, shape=s, dtype=dtype,
                               chunks=chunk_size(s, chunk_out))
 
         if nb_knn > 0:
             s = (N, 2, nb_unit, nb_knn)
-            fd.create_dataset('c_x',
-                            shape=s,
-                            chunks=chunk_size(s, chunk_out),
-                            dtype='float16')
+            fd.create_dataset('c_x', shape=s, chunks=chunk_size(s, chunk_out),
+                              dtype='float16')
 
-        if opts.seq_file:
+        if seq_len is not None:
             s = (N, seq_len, 4)
-            fd.create_dataset('s_x',
-                              shape=s,
-                              chunks=chunk_size(s, chunk_out),
+            fd.create_dataset('s_x', shape=s, chunks=chunk_size(s, chunk_out),
                               dtype='int8')
 
         # Write data
+        log.info('Write data')
         idx = 0
         for chromo in chromos:
             log.info('Chromosome %s' % (chromo))
@@ -437,12 +479,18 @@ class App(object):
             fp['pos'][s:e] = cpos[shuffle.argsort()]
             fp['chromo'][s:e] = chromo.encode()
 
-            log.info('Read target CpG sites')
-            for target, target_file in zip(ltargetsy, target_files):
-                t = read_cpg(target_file, chromo, cpos)
-                if len(target_files) == 1:
-                    assert np.all((t == 0) | (t == 1))
-                fd[target][s:e, 0] = t[shuffle.argsort()]
+            log.info('Write targets')
+            for i in range(nb_target):
+                target_id = target_ids[i]
+                target_name = target_names[i]
+                target_file = target_files[i]
+                if target_id.startswith('s'):
+                    t, d = read_stat(target_file, chromo, target_name, cpos)
+                else:
+                    d = read_cpg(target_file, chromo, cpos)
+                    if nb_target == 1:
+                        assert np.all((d == 0) | (d == 1))
+                fd[target_id][s:e, 0] = d[shuffle.argsort()]
 
             if nb_knn > 0:
                 chunk = 0
@@ -451,11 +499,10 @@ class App(object):
                     chunk += 1
                     log.info('Read KNN (%d/%d)' % (chunk, nb_chunk_in))
                     j = i + opts.chunk_in
-                    d = read_knn_all(opts.data_files,
-                                    chromo=chromo,
-                                    pos=cpos[i:j],
-                                    knn_group=opts.knn_group,
-                                    knn=nb_knn)
+                    d = read_knn_all(opts.cpg_knn, chromo=chromo,
+                                     pos=cpos[i:j],
+                                     knn_group=opts.knn_group,
+                                     knn=nb_knn)
                     j = i + d.shape[0]
                     k = shuffle[i:j]
                     log.info('Write KNN (%d/%d)' % (chunk, nb_chunk_in))
@@ -465,7 +512,7 @@ class App(object):
                     assert t.max() == s + j - 1
                     fd['c_x'][s+i:s+j] = d[k.argsort()]
 
-            if opts.seq_file is not None:
+            if seq_len is not None:
                 log.info('Read seq')
                 # Read integer sequence (not one-hot encoded)
                 ds = read_seq(opts.seq_file, chromo, cpos, seq_len=seq_len)
@@ -495,11 +542,9 @@ class App(object):
                 cpos = fp['pos'][i:j]
                 assert np.all(cpos[:-1] < cpos[1:])
                 i = j
-        f.close()
 
-
+        out_file.close()
         log.info('Done!')
-
         return 0
 
 
