@@ -29,11 +29,11 @@ class App(object):
         p.add_argument(
             '-t', '--temp_file',
             help='Training template file',
-            default='./temp/train.sh')
+            default='./temp/test.sh')
         p.add_argument(
             '-o', '--out_dir',
             help='Output director',
-            default='./train')
+            default='./models')
         p.add_argument(
             '-p', '--prefix',
             help='Model prefix')
@@ -52,6 +52,14 @@ class App(object):
             help='Maximum run time',
             type=int,
             default=12)
+        p.add_argument(
+            '--test',
+            help='Print command without executing',
+            action='store_true')
+        p.add_argument(
+            '-R', '--no_remove',
+            help='Do not remove directory if existing',
+            action='store_true')
         p.add_argument(
             '--verbose',
             help='More detailed log messages',
@@ -81,9 +89,12 @@ class App(object):
             out_dir = pt.join(opts.out_dir, name, 'train')
             log.info(out_dir)
 
+            if not opts.no_remove and pt.exists(out_dir):
+                shutil.rmtree(out_dir)
             os.makedirs(out_dir, exist_ok=True)
-            run_file = pt.join(out_dir, pt.basename(opts.temp_file))
+            run_file = pt.join(out_dir, 'train.sh')
             shutil.copyfile(opts.temp_file, run_file)
+            os.system('chmod 744 %s' % (run_file))
             shutil.copyfile(config_file, pt.join(out_dir, 'configs.yaml'))
             run_file = pt.basename(run_file)
             if opts.run == 'none':
@@ -102,9 +113,13 @@ class App(object):
                 cmd = cmd.format(job=name, log=run_file, time=opts.time,
                                     acc=account, sfile=sfile, rfile=run_file)
 
-            os.chdir(out_dir)
             print(cmd)
-            os.system(cmd)
+            if not opts.test:
+                h = os.getcwd()
+                os.chdir(out_dir)
+                os.system(cmd)
+                os.chdir(h)
+
 
         return 0
 

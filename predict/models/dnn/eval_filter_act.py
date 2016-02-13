@@ -61,7 +61,7 @@ def evaluate(act, z, filts, targets):
             s.append(act_std)
             stats.append(s)
     h = ['filt', 'target', 'n', 'rp', 'rp_pvalue', 'rs', 'rs_pvalue',
-         'act_mean']
+         'act_mean', 'act_std']
     stats = pd.DataFrame(stats, columns=h)
     return stats
 
