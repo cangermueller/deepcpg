@@ -91,7 +91,7 @@ class App(object):
                 data[k] = v
             return (f, data)
 
-        labels = ut.read_labels(opts.data_file)
+        labels = ut.read_targets(opts.data_file)
         data_file, data = read_data(opts.data_file)
 
         def to_view(d):

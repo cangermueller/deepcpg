@@ -9,6 +9,8 @@ import numpy as np
 import gc
 
 import predict.utils as ut
+from predict.models.dnn.utils import MASK
+
 
 MAX_DIST = 10**6
 
@@ -63,7 +65,7 @@ def read_pos_all(data_files, *args, **kwargs):
 
 def adjust_pos(y, p, q):
     yq = np.empty(len(q), dtype='int8')
-    yq.fill(-1)
+    yq.fill(MASK)
     t = np.in1d(q, p).nonzero()[0]
     yq.flat[t] = y
     return yq
@@ -250,7 +252,7 @@ class App(object):
             '--stats_file',
             help='Statistics file')
         p.add_argument(
-            '--stats',
+            '--stats_targets',
             help='Target statistics',
             nargs='+',
             default=['w3000_var'])
@@ -346,6 +348,7 @@ class App(object):
         pos = dict()
         chromos = opts.chromos
         if opts.stats_file is not None:
+            # Statistics determine positions if both stat and CpG targets
             stats_file = h5.File(opts.stats_file, 'r')
             for chromo in chromos:
                 pos[chromo] = stats_file[chromo]['pos'].value
@@ -353,7 +356,6 @@ class App(object):
             for chromo in chromos:
                 pos[chromo] = read_pos_all(opts.cpg_targets, chromo,
                                            nb_sample=opts.nb_sample)
-
         # Filter positions by annotations
         if opts.annos_file is not None:
             log.info('Filter positions by annotations')
@@ -386,6 +388,7 @@ class App(object):
         # Initialize variables
         nb_unit = None
         seq_len = None
+        nb_knn = None
         if opts.cpg_knn is not None:
             nb_unit = len(opts.cpg_knn)
             nb_knn = opts.knn
@@ -407,12 +410,12 @@ class App(object):
         target_files = []
         if opts.cpg_targets is not None:
             for i, target in enumerate(opts.cpg_targets):
-                target_ids.append('c%d_y' % (i))
+                target_ids.append('c%d' % (i))
                 target_names.append(pt.splitext(pt.basename(target))[0])
                 target_files.append(target)
         if opts.stats_file is not None:
-            for i, target in enumerate(opts.stats):
-                target_ids.append('s%d_y' % (i))
+            for i, target in enumerate(opts.stats_targets):
+                target_ids.append('s%d' % (i))
                 target_names.append(target)
                 target_files.append(opts.stats_file)
         nb_target = len(target_names)
@@ -435,7 +438,7 @@ class App(object):
         # Initialize datasets
         fd = out_file.create_group('data')
         chunk_out = opts.chunk_out
-        if not chunk_out and opts.max_mem and nb_knn > 0:
+        if not chunk_out and opts.max_mem:
             chunk_out = approx_chunk_size(opts.max_mem * 10**6, nb_target,
                                           seq_len, nb_unit, nb_knn)
         if chunk_out:
@@ -449,10 +452,10 @@ class App(object):
                 dtype = 'int8'
             else:
                 dtype = 'float32'
-            fd.create_dataset(t, shape=s, dtype=dtype,
+            fd.create_dataset('%s_y' % (t), shape=s, dtype=dtype,
                               chunks=chunk_size(s, chunk_out))
 
-        if nb_knn > 0:
+        if nb_knn is not None:
             s = (N, 2, nb_unit, nb_knn)
             fd.create_dataset('c_x', shape=s, chunks=chunk_size(s, chunk_out),
                               dtype='float16')
@@ -486,13 +489,16 @@ class App(object):
                 target_file = target_files[i]
                 if target_id.startswith('s'):
                     t, d = read_stat(target_file, chromo, target_name, cpos)
+                    assert np.all((d >= 0) & (d <= 1))
                 else:
                     d = read_cpg(target_file, chromo, cpos)
                     if nb_target == 1:
                         assert np.all((d == 0) | (d == 1))
-                fd[target_id][s:e, 0] = d[shuffle.argsort()]
+                    else:
+                        assert np.all((d == 0) | (d == 1) | (d == MASK))
+                fd['%s_y' % (target_id)][s:e, 0] = d[shuffle.argsort()]
 
-            if nb_knn > 0:
+            if nb_knn is not None:
                 chunk = 0
                 nb_chunk_in = int(np.ceil(len(cpos) / opts.chunk_in))
                 for i in range(0, len(cpos), opts.chunk_in):

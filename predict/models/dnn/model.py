@@ -175,10 +175,20 @@ def build(params, targets, seq_len=None, cpg_len=None, compile=True,
 
     if compile:
         optimizer = optimizer_from_params(params)
-        loss = {output: 'binary_crossentropy' for output in outputs}
+        loss = loss_from_ids(model.output_order)
         model.compile(loss=loss, optimizer=optimizer)
 
     return model
+
+
+def loss_from_ids(ids):
+    loss = dict()
+    for x in ids:
+        if x.startswith('c'):
+            loss[x] = 'binary_crossentropy'
+        else:
+            loss[x] = 'rmse'
+    return loss
 
 
 def model_from_json(json_file, weights_file=None, compile=True):
