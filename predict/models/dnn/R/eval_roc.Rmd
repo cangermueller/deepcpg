@@ -1,0 +1,76 @@
+---
+title: "ROC performance"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: yes
+---
+
+```{r, include=F}
+library(knitr)
+opts_chunk$set(echo=F, warning=F, message=F)
+```
+
+```{r, include=F}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(grid)
+library(rhdf5)
+library(ROCR)
+
+lib <- file.path(Sys.getenv('Pd'), 'R')
+source(file.path(lib, 'utils.R'))
+source(file.path(lib, 'eval_roc.R'))
+```
+
+```{r}
+options(xtable.type='html')
+```
+
+```{r}
+dat <- list()
+cmp <- list()
+opts <- list()
+opts$pred_files <- c(
+  'DeepCpG'='dnn.h5',
+  'RF'='rf_kseq.h5',
+  'WinAvg'='win_avg.h5'
+  )
+```
+
+```{r}
+d <- list()
+for (method in names(opts$pred_files)) {
+  h <- read_pred(opts$pred_files[method]) %>% mutate(method=method)
+  d[[length(d) + 1]] <- h
+}
+d <- do.call(rbind.data.frame, d) %>%
+  mutate(method=factor(method), cell_type=parse_cell_type(target))
+dat$pred <- d
+```
+
+```{r}
+fig.width <- 10
+fig.height <- 6
+```
+
+```{r}
+cmp$roc <- perf_curve(dat$pred, 'fpr', 'tpr')
+```
+
+```{r fig.width=fig.width, fig.height=fig.height}
+plot_roc(cmp$roc)
+```
+
+```{r}
+cmp$recall <- perf_curve(dat$pred, 'prec', 'tpr')
+```
+
+```{r fig.width=fig.width, fig.height=fig.height}
+plot_recall(cmp$recall)
+```
+
+```{r}
+d <- cmp$recall %>% filter(method=='DeepCpG', cell_type=='serum', y > 0.05)
+```
