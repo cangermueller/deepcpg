@@ -155,3 +155,19 @@ plot_pca_target <- function(pc, x=1, y=2) {
     theme_pub()
   return (p)
 }
+
+h5ls <- function(path, group='/') {
+  if (group[1] != '/') {
+    group <- paste0('/', group)
+  }
+  h <- sprintf('h5ls %s%s', path, group)
+  h <- system(h, intern=T)
+  h <- sapply(strsplit(h, '\\s+'), function(x) x[1])
+  return (h)
+}
+
+add_global <- function(to, global, name=c('anno'='global')) {
+  global[[names(name)[1]]] <- name[1]
+  to <- rbind.data.frame(global, to) %>% mutate(anno=factor(anno))
+  return (to)
+}

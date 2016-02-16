@@ -107,9 +107,9 @@ plot_annos_mean <- function(d) {
   return (p)
 }
 
-plot_annos_heat <- function(d, rev_colors=F, Rowv=T, Colv=T, lhei=c(1, 10), del=F) {
-  f <- ifelse(del, 'value_del', 'value_abs')
-  d$value <- d[[f]]
+plot_annos_heat <- function(d, rev_colors=F, Rowv=T, Colv=T, lhei=c(1, 10),
+  value='value_abs', del=F) {
+  d$value <- d[[value]]
   d <- d %>% group_by(anno, filt) %>% summarise(value=mean(value)) %>%
     spread(anno, value) %>% as.data.frame
   rownames(d) <- d$filt
