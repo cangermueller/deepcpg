@@ -11,23 +11,18 @@ import random
 import json
 from keras.callbacks import ModelCheckpoint
 
+import predict.evaluation as pe
 import predict.models.dnn.utils as ut
 import predict.models.dnn.callbacks as cbk
 import predict.models.dnn.model as mod
 from predict.models.dnn.params import Params
 
 
-def get_sample_weights(y, weight_classes=False):
-    y = y[:]
-    class_weights = {-1: 0, 0: 1, 1: 1}
-    if weight_classes:
-        t = y[y != ut.MASK].mean()
-        class_weights[0] = t
-        class_weights[1] = 1 - t
-    sample_weights = np.zeros(y.shape, dtype='float16')
-    for k, v in class_weights.items():
-        sample_weights[y == k] = v
-    return sample_weights
+def get_sample_weights(y):
+    y = y[:].ravel()
+    w = np.ones(len(y), dtype='int8')
+    w[y == ut.MASK] = 0
+    return w
 
 
 def perf_logs_str(logs):
@@ -35,8 +30,30 @@ def perf_logs_str(logs):
     return t
 
 
-class App(object):
+def filter_yz(y, z, prefix='c'):
+    yy = dict()
+    zz = dict()
+    for k in z.keys():
+        if k.startswith(prefix):
+            yy[k] = y[k]
+            zz[k] = z[k]
+    return (yy, zz)
 
+
+def evaluate(y, z, targets, prefix=None, *args, **kwargs):
+    if prefix is not None:
+        y, z = filter_yz(y, z, prefix)
+    if len(y) == 0:
+        return None
+    p = pe.evaluate_all(y, z, *args, **kwargs)
+    p.index = ut.target_id2name(p.index.values, targets)
+    p.index.name = 'target'
+    p.reset_index(inplace=True)
+    p.sort_values('target', inplace=True)
+    return p
+
+
+class App(object):
     def run(self, args):
         name = pt.basename(args[0])
         parser = self.create_parser(name)
@@ -58,6 +75,10 @@ class App(object):
             '-o', '--out_dir',
             help='Output directory')
         p.add_argument(
+            '--targets',
+            help='Target names',
+            nargs='+')
+        p.add_argument(
             '--params',
             help='Model parameters file')
         p.add_argument(
@@ -74,8 +95,7 @@ class App(object):
             nargs='+')
         p.add_argument(
             '--not_trainable',
-            help='Do not train modules starting with letter',
-            choices=['c', 's'],
+            help='Do not train nodes with given name',
             nargs='+')
         p.add_argument(
             '--nb_epoch',
@@ -86,6 +106,10 @@ class App(object):
             '--batch_size',
             help='Batch size',
             type=int)
+        p.add_argument(
+            '--batch_size_auto',
+            help='Determine maximum batch size automatically',
+            action='store_true')
         p.add_argument(
             '--early_stop',
             help='Early stopping patience',
@@ -106,13 +130,17 @@ class App(object):
             help='Data shuffling',
             default='batch')
         p.add_argument(
-            '--weight_classes',
-            help='Weight classes by frequency',
-            action='store_true')
-        p.add_argument(
             '--nb_sample',
             help='Maximum # training samples per epoch',
             type=int)
+        p.add_argument(
+            '--nb_val_sample',
+            help='Maximum # validation samples per epoch',
+            type=int)
+        p.add_argument(
+            '--no_jump',
+            help='Do not jump in training set',
+            action='store_true')
         p.add_argument(
             '--max_time',
             help='Maximum training time in hours',
@@ -123,8 +151,8 @@ class App(object):
             type=int,
             default=14000)
         p.add_argument(
-            '--no_jump',
-            help='Do not jump in training set',
+            '--compile',
+            help='Recompile pickled model',
             action='store_true')
         p.add_argument(
             '--seed',
@@ -142,11 +170,9 @@ class App(object):
 
     def adjust_batch_size(self, model, data, sample_weights):
         configs = [
-            (1024, 0.0001),
-            (768, 0.000125),
-            (512, 0.00025),
-            (256, 0.0005),
-            (128, 0.001),
+            (512, 0.000125),
+            (256, 0.00025),
+            (128, 0.0005),
             (64, 0.001),
             (32, 0.001),
             (16, 0.001)
@@ -191,14 +217,22 @@ class App(object):
         self.opts = opts
 
         # Initialize variables
-        labels = ut.read_labels(opts.train_file)
-        targets = labels['targets']
-
-        f = h5.File(opts.train_file)
-        seq_len = f['/data/s_x'].shape[1]
-        cpg_len = f['/data/c_x'].shape[3]
-        nb_unit = f['/data/c_x'].shape[2]
-        f.close()
+        targets = ut.read_targets(opts.train_file, opts.targets)
+        # TODO: Remove
+        #  targets['name'] = opts.targets
+        #  targets['id'] = ['c%d' % (i) for i in range(len(opts.targets))]
+        targets['bin'] = []
+        targets['reg'] = []
+        for target in targets['id']:
+            if target.startswith('s'):
+                targets['reg'].append(target)
+            else:
+                targets['bin'].append(target)
+        if len(targets['name']) == 0:
+            raise 'No targets match selection!'
+        print('Targets:')
+        for id_, name in zip(targets['id'], targets['name']):
+            print('%s: %s' % (id_, name))
 
         # Setup model
         if opts.params is not None:
@@ -210,7 +244,18 @@ class App(object):
             log.info('Build model')
             if model_params is None:
                 model_params = Params()
-            model = mod.build(model_params, targets, seq_len, cpg_len,
+            seq_len = None
+            cpg_len = None
+            nb_unit = None
+            f = h5.File(opts.train_file)
+            g = f['data']
+            if 's_x' in g:
+                seq_len = g['s_x'].shape[1]
+            if 'c_x' in g:
+                nb_unit = g['c_x'].shape[2]
+                cpg_len = g['c_x'].shape[3]
+            f.close()
+            model = mod.build(model_params, targets['id'], seq_len, cpg_len,
                               nb_unit=nb_unit, compile=False)
         else:
             log.info('Loading model')
@@ -220,38 +265,43 @@ class App(object):
             log.info('Copy cpg weights')
             cpg_model = mod.model_from_list(opts.cpg_model, compile=False)
             t = mod.copy_weights(cpg_model, model, 'c_')
-            log.info('Copied weight from %d nodes' % (t))
+            log.info('Weights copied from %d nodes' % (t))
 
         if opts.seq_model is not None:
             log.info('Copy seq weights')
             seq_model = mod.model_from_list(opts.seq_model, compile=False)
             t = mod.copy_weights(seq_model, model, 's_')
-            log.info('Copied weight from %d nodes' % (t))
+            log.info('Weights copied from %d nodes' % (t))
 
         if opts.not_trainable is not None:
+            print('\nNodes excluded from training:')
             for k, v in model.nodes.items():
-                if k[0] in opts.not_trainable:
-                    log.info("Won't train %s" % (k))
+                if k in opts.not_trainable:
+                    print(k)
                     v.trainable = False
 
-        log.info('Compile model')
-        if model_params is None:
-            with open(opts.model[0]) as f:
-                config = json.loads(f.read())
-            optimizer = mod.optimizer_from_config(config)
-        else:
-            optimizer = mod.optimizer_from_params(model_params)
-        loss = {x: 'binary_crossentropy' for x in model.output_order}
-        model.compile(loss=loss, optimizer=optimizer)
+        if opts.compile or opts.model is None or len(opts.model) > 1:
+            # opts.model not pickled
+            log.info('Compile model')
+            if model_params is None:
+                with open(opts.model[0]) as f:
+                    config = json.loads(f.read())
+                optimizer = mod.optimizer_from_config(config)
+            else:
+                optimizer = mod.optimizer_from_params(model_params)
+            loss = mod.loss_from_ids(model.output_order)
+            model.compile(loss=loss, optimizer=optimizer)
 
         log.info('Save model')
         mod.model_to_pickle(model, pt.join(opts.out_dir, 'model.pkl'))
         mod.model_to_json(model, pt.join(opts.out_dir, 'model.json'))
 
         if model_params is not None:
-            print('Model parameters:')
+            print('\nModel parameters:')
             print(model_params)
-            model_params.to_yaml(pt.join(opts.out_dir, 'model_params.yaml'))
+            h = pt.join(opts.out_dir, 'configs.yaml')
+            if not pt.exists(h):
+                model_params.to_yaml(h)
             print()
 
         log.info('Setup training')
@@ -274,7 +324,7 @@ class App(object):
             print('Learning rate dropped from %g to %g' % (old_lr, new_lr))
 
         cb.append(cbk.LearningRateScheduler(lr_schedule,
-                                           patience=opts.lr_schedule))
+                                            patience=opts.lr_schedule))
 
         if opts.max_time is not None:
             cb.append(cbk.Timer(opts.max_time * 3600 * 0.8))
@@ -294,6 +344,9 @@ class App(object):
             data = dict()
             for k, v in f['data'].items():
                 data[k] = v
+                if k.endswith('_y'):
+                    kk = k.replace('c', 'u')
+                    data[kk] = v
             for k, v in f['pos'].items():
                 data[k] = v
             return (f, data)
@@ -301,8 +354,7 @@ class App(object):
         train_file, train_data = read_data(opts.train_file)
         train_weights = dict()
         for k in model.output_order:
-            train_weights[k] = get_sample_weights(train_data[k],
-                                                  opts.weight_classes)
+            train_weights[k] = get_sample_weights(train_data[k])
 
         if opts.val_file is None:
             val_data = train_data
@@ -312,8 +364,7 @@ class App(object):
             val_file, val_data = read_data(opts.val_file)
             val_weights = dict()
             for k in model.output_order:
-                val_weights[k] = get_sample_weights(val_data[k],
-                                                    opts.weight_classes)
+                val_weights[k] = get_sample_weights(val_data[k])
 
         def to_view(d):
             for k in d.keys():
@@ -329,17 +380,20 @@ class App(object):
             to_view(val_data)
             to_view(val_weights)
             views = list(val_data.values()) + list(val_weights.values())
-            cb.append(cbk.DataJumper(views, nb_sample=opts.nb_sample, verbose=1,
+            nb_sample = opts.nb_val_sample
+            if nb_sample is None:
+                nb_sample = opts.nb_sample
+            cb.append(cbk.DataJumper(views, nb_sample=nb_sample, verbose=1,
                                      jump=False))
 
         print('%d training samples' % (list(train_data.values())[0].shape[0]))
         print('%d validation samples' % (list(val_data.values())[0].shape[0]))
 
-        batch_size = opts.batch_size
-        if batch_size is None:
+        if opts.batch_size:
+            batch_size = opts.batch_size
+        elif opts.batch_size_auto:
             log.info('Adjust batch size')
-            batch_size, lr = self.adjust_batch_size(model,
-                                                    train_data,
+            batch_size, lr = self.adjust_batch_size(model, train_data,
                                                     train_weights)
             if batch_size is None:
                 log.error('GPU memory to small')
@@ -347,9 +401,35 @@ class App(object):
             log.info('Use batch size %d' % (batch_size))
             log.info('Use batch lr %f' % (lr))
             model.optimizer.lr.set_value(lr)
+        else:
+            batch_size = model_params.batch_size
 
         def logger(x):
             log.debug(x)
+
+        #TODO: remove
+        #  for o in model.output_order:
+            #  y = train_data[o][:].ravel()
+            #  w = train_weights[o][:].ravel()
+            #  if o.startswith('s'):
+                #  assert np.all(w == 1)
+                #  assert np.all(y != ut.MASK)
+            #  else:
+                #  h = y == ut.MASK
+                #  assert np.all(w[h] == 0)
+                #  assert np.all(w[~h] == 1)
+
+        #TODO: remove
+        #  for o in model.output_order:
+            #  y = val_data[o][:].ravel()
+            #  w = val_weights[o][:].ravel()
+            #  if o.startswith('s'):
+                #  assert np.all(w == 1)
+                #  assert np.all(y != ut.MASK)
+            #  else:
+                #  h = y == ut.MASK
+                #  assert np.all(w[h] == 0)
+                #  assert np.all(w[~h] == 1)
 
         log.info('Train model')
         model.fit(data=train_data,
@@ -373,20 +453,34 @@ class App(object):
         print('\n\nLearning curve:')
         print(perf_logs_str(perf_logger.frame()))
 
-        print('\nValidation set performance:')
+        log.info('Evaluate validation set performance')
         z = model.predict(val_data, batch_size=batch_size)
-        ut.write_z(val_data, z, labels, pt.join(opts.out_dir, 'z_val.h5'))
+        if np.any(np.isnan(list(z.values())[0])):
+            log.info('Abort due to nan!')
+            return 0
+        ut.write_z(val_data, z, targets, pt.join(opts.out_dir, 'z_val.h5'))
 
-        p = ut.evaluate_all(val_data, z)
-        loss = model.evaluate(val_data, sample_weight=val_weights)
-        p['loss'] = loss
-        p.index = ut.map_targets(p.index.values, labels)
-        p.index.name = 'target'
-        p.reset_index(inplace=True)
-        p.sort_values('target', inplace=True)
-        print(p.to_string(index=False))
-        with open(pt.join(opts.out_dir, 'perf_val.csv'), 'w') as f:
-            f.write(p.to_csv(None, sep='\t', index=False))
+        e = evaluate(val_data, z, targets, prefix='c', funs=pe.eval_funs,
+                     mask=ut.MASK)
+        if e is not None:
+            print('\n\nValidation set performance (binary):')
+            print(e.to_string(index=False))
+            pe.eval_to_file(e, pt.join(opts.out_dir, 'perf_val_bin.csv'))
+
+        e = evaluate(val_data, z, targets, prefix='s',
+                     funs=pe.eval_funs_regress, mask=None)
+        if e is not None:
+            print('\n\nValidation set performance (regression):')
+            print(e.to_string(index=False))
+            pe.eval_to_file(e, pt.join(opts.out_dir, 'perf_val_reg.csv'))
+
+        log.info('Training set performance')
+        z = model.predict(train_data, batch_size=batch_size)
+        e = evaluate(train_data, z, targets, prefix='c', funs=pe.eval_funs,
+                     mask=ut.MASK)
+        print('\n\nTraining set performance (binary):')
+        print(e.to_string(index=False))
+        pe.eval_to_file(e, pt.join(opts.out_dir, 'perf_train_bin.csv'))
 
         train_file.close()
         if val_file:

@@ -4,6 +4,7 @@ from keras.models import CpgGraph
 from keras.layers import core as kcore
 from keras.layers import convolutional as kconv
 from keras.layers import normalization as knorm
+import keras.regularizers as kr
 import keras.optimizers as kopt
 
 
@@ -12,15 +13,20 @@ def cpg_layers(params):
     if params.drop_in:
         layer = kcore.Dropout(params.drop_in)
         layers.append(('xd', layer))
-    layer = kconv.Convolution2D(nb_filter=params.nb_filter,
-                                nb_row=1,
-                                nb_col=params.filter_len,
-                                activation=params.activation,
-                                init='glorot_uniform',
-                                border_mode='same')
-    layers.append(('c1', layer))
-    layer = kconv.MaxPooling2D(pool_size=(1, params.pool_len))
-    layers.append(('p1', layer))
+    nb_layer = len(params.nb_filter)
+    w_reg = kr.WeightRegularizer(l1=params.l1, l2=params.l2)
+    for l in range(nb_layer):
+        layer = kconv.Convolution2D(nb_filter=params.nb_filter[l],
+                                    nb_row=1,
+                                    nb_col=params.filter_len[l],
+                                    activation=params.activation,
+                                    init='glorot_uniform',
+                                    W_regularizer=w_reg,
+                                    border_mode='same')
+        layers.append(('c%d' % (l + 1), layer))
+        layer = kconv.MaxPooling2D(pool_size=(1, params.pool_len[l]))
+        layers.append(('p%d' % (l + 1), layer))
+
     layer = kcore.Flatten()
     layers.append(('f1', layer))
     if params.drop_out:
@@ -47,14 +53,19 @@ def seq_layers(params):
     if params.drop_in:
         layer = kcore.Dropout(params.drop_in)
         layers.append(('xd', layer))
-    layer = kconv.Convolution1D(nb_filter=params.nb_filter,
-                                filter_length=params.filter_len,
-                                activation=params.activation,
-                                init='glorot_uniform',
-                                border_mode='same')
-    layers.append(('c1', layer))
-    layer = kconv.MaxPooling1D(pool_length=params.pool_len)
-    layers.append(('p1', layer))
+    nb_layer = len(params.nb_filter)
+    w_reg = kr.WeightRegularizer(l1=params.l1, l2=params.l2)
+    for l in range(nb_layer):
+        layer = kconv.Convolution1D(nb_filter=params.nb_filter[l],
+                                    filter_length=params.filter_len[l],
+                                    activation=params.activation,
+                                    init='glorot_uniform',
+                                    W_regularizer=w_reg,
+                                    border_mode='same')
+        layers.append(('c%d' % (l + 1), layer))
+        layer = kconv.MaxPooling1D(pool_length=params.pool_len[l])
+        layers.append(('p%d' % (l + 1), layer))
+
     layer = kcore.Flatten()
     layers.append(('f1', layer))
     if params.drop_out:
@@ -73,6 +84,23 @@ def seq_layers(params):
         if params.drop_out:
             layer = kcore.Dropout(params.drop_out)
             layers.append(('h1d', layer))
+    return layers
+
+
+def joint_layers(params):
+    layers = []
+    layer = kcore.Dense(params.nb_hidden,
+                        activation='linear',
+                        init='glorot_uniform')
+    layers.append(('h1', layer))
+    if params.batch_norm:
+        layer = knorm.BatchNormalization()
+        layers.append(('h1b', layer))
+    layer = kcore.Activation(params.activation)
+    layers.append(('h1a', layer))
+    if params.drop_out:
+        layer = kcore.Dropout(params.drop_out)
+        layers.append(('h1d', layer))
     return layers
 
 
@@ -98,71 +126,69 @@ def target_layers(params):
     return layers
 
 
+def add_layers(model, layers, prev_nodes, prefix):
+    for layer in layers:
+        cur_node, cur_layer = layer
+        cur_node = '%s_%s' % (prefix, cur_node)
+        if len(prev_nodes) > 1:
+            model.add_node(inputs=prev_nodes, name=cur_node, layer=cur_layer)
+        else:
+            model.add_node(input=prev_nodes[0], name=cur_node, layer=cur_layer)
+        prev_nodes = [cur_node]
+    return prev_nodes
+
+
 def build(params, targets, seq_len=None, cpg_len=None, compile=True,
           nb_unit=None):
-    if nb_unit is None:
-        nb_unit = len(targets)
 
     model = CpgGraph()
-    prev_nodes = []
+    branch_nodes = []
     if params.seq:
         assert seq_len is not None, 'seq_len required!'
-
-        def label(x):
-            return 's_%s' % (x)
-
+        prev_nodes = ['s_x']
+        model.add_input(prev_nodes[0], input_shape=(seq_len, 4))
         layers = seq_layers(params.seq)
-        prev_node = label('x')
-        model.add_input(prev_node, input_shape=(seq_len, 4))
-        for layer in layers:
-            cur_node = label(layer[0])
-            model.add_node(input=prev_node, name=cur_node, layer=layer[1])
-            prev_node = cur_node
-        prev_nodes.append(prev_node)
+        prev_nodes = add_layers(model, layers, prev_nodes, 's')
+        branch_nodes.extend(prev_nodes)
 
     if params.cpg:
         assert cpg_len is not None, 'cpg_len required!'
-
-        def label(x):
-            return 'c_%s' % (x)
-
+        if nb_unit is None:
+            nb_unit = len(targets)
+        prev_nodes = ['c_x']
+        model.add_input(prev_nodes[0], input_shape=(2, nb_unit, cpg_len))
         layers = cpg_layers(params.cpg)
-        prev_node = label('x')
-        model.add_input(prev_node, input_shape=(2, nb_unit, cpg_len))
-        for layer in layers:
-            cur_node = label(layer[0])
-            model.add_node(input=prev_node, name=cur_node, layer=layer[1])
-            prev_node = cur_node
-        prev_nodes.append(prev_node)
+        prev_nodes = add_layers(model, layers, prev_nodes, 'c')
+        branch_nodes.extend(prev_nodes)
+
+    if params.joint and params.joint.nb_hidden > 0:
+        layers = joint_layers(params.joint)
+        branch_nodes = add_layers(model, layers, branch_nodes, 'j')
 
     outputs = []
     for target in targets:
-        def label(x):
-            return '%s_%s' % (target, x)
-
         layers = target_layers(params.target)
-        layer = layers[0]
-        cur_node = label(layer[0])
-        if len(prev_nodes) > 1:
-            model.add_node(inputs=prev_nodes, name=cur_node, layer=layer[1])
-        else:
-            model.add_node(input=prev_nodes[0], name=cur_node, layer=layer[1])
-        prev_node = cur_node
-        layers = layers[1:]
-        for layer in layers:
-            cur_node = label(layer[0])
-            model.add_node(input=prev_node, name=cur_node, layer=layer[1])
-            prev_node = cur_node
-        output = label('y')
-        model.add_output(input=prev_node, name=output)
+        branch_nodes = add_layers(model, layers, branch_nodes, target)
+        output = '%s_%s' % (target, 'y')
+        model.add_output(input=branch_nodes[0], name=output)
         outputs.append(output)
 
     if compile:
         optimizer = optimizer_from_params(params)
-        loss = {output: 'binary_crossentropy' for output in outputs}
+        loss = loss_from_ids(model.output_order)
         model.compile(loss=loss, optimizer=optimizer)
 
     return model
+
+
+def loss_from_ids(ids):
+    loss = dict()
+    for x in ids:
+        if x.startswith('c'):
+            loss[x] = 'binary_crossentropy'
+        else:
+            loss[x] = 'rmse'
+    return loss
 
 
 def model_from_json(json_file, weights_file=None, compile=True):

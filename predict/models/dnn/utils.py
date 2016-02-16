@@ -1,8 +1,9 @@
 import h5py as h5
 import pandas as pd
 import numpy as np
+import re
 
-from predict.evaluation import evaluate
+import predict.evaluation as pe
 import predict.models.dnn.callbacks as cbk
 
 MASK = -1
@@ -12,35 +13,34 @@ def make_cbk():
     return cbk.EarlyStopping()
 
 
-def evaluate_all(y, z):
-    keys = sorted(z.keys())
-    p = [evaluate(y[k][:], z[k][:]) for k in keys]
-    p = pd.concat(p)
-    p.index = keys
-    return p
-
-
-def read_labels(path):
+def read_targets(path, targets=None):
     f = h5.File(path)
-    g = f['labels']
-    l = dict()
+    g = f['targets']
+    tar = dict()
     for k in g.keys():
-        l[k] = [x.decode() for x in g[k].value]
+        tar[k] = [x.decode() for x in g[k].value]
     f.close()
-    return l
+    if targets is not None:
+        idx = []
+        for i, x in enumerate(tar['name']):
+            for target in targets:
+                if re.search(target, x):
+                    idx.append(i)
+        for k, v in tar.items():
+            tar[k] = [v[i] for i in idx]
+    return tar
 
 
-def map_targets(targets, labels):
-    targets = [x.replace('_y', '') for x in targets]
-    targets_map = {x[0]: x[1] for x in zip(labels['targets'], labels['files'])}
-    targets = [targets_map[x] for x in targets]
-    return targets
+def target_id2name(ids, targets):
+    targets_map = {x[0]: x[1] for x in zip(targets['id'], targets['name'])}
+    names = [targets_map[x.replace('_y', '')] for x in ids]
+    return names
 
 
-def write_z(data, z, labels, out_file, unlabeled=False, name='z',
+def write_z(data, z, targets, out_file, unlabeled=False, name='z',
             overwrite=True):
     target_map = dict()
-    for x in zip(labels['targets'], labels['files']):
+    for x in zip(targets['id'], targets['name']):
         target_map[x[0] + '_y'] = x[1]
 
     f = h5.File(out_file, 'a')

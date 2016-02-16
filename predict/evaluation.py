@@ -109,6 +109,12 @@ def evaluate_all(y, z, *args, **kwargs):
     return p
 
 
-def eval_to_str(e, index=False):
-    s = e.to_csv(None, sep='\t', index=index, float_format='%.4f')
+def eval_to_str(e, index=False, *args, **kwargs):
+    s = e.to_csv(None, sep='\t', index=index, float_format='%.4f', *args,
+                 **kwargs)
     return s
+
+
+def eval_to_file(e, path, *args, **kwargs):
+    with open(path, 'w') as f:
+        f.write(eval_to_str(e, *args, **kwargs))

@@ -252,7 +252,7 @@ class App(object):
         if model_params is not None:
             print('Model parameters:')
             print(model_params)
-            h = pt.join(opts.out_dir, 'model_params.yaml')
+            h = pt.join(opts.out_dir, 'configs.yaml')
             if not pt.exists(h):
                 model_params.to_yaml(h)
             print()
