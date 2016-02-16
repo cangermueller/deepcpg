@@ -75,6 +75,8 @@ def write_sliced(data, path, group, slice_=None, nb_max=None):
     out_file = h5.File(path, 'a')
     for k, v in data.items():
         h = pt.join(group, k)
+        if h in out_file:
+            del out_file[h]
         out_file.create_dataset(h, data=v, compression='gzip')
     out_file.close()
 
@@ -126,7 +128,7 @@ class App(object):
             type=int,
             default=5)
         p.add_argument(
-            '--sample',
+            '--nb_sample',
             help='Sample that many observations',
             type=int)
         p.add_argument(
@@ -156,7 +158,7 @@ class App(object):
 
         log.info('Global')
         write_sliced(data, opts.out_file, '%s/global' % (target),
-                     nb_max=opts.sample)
+                     nb_max=opts.nb_sample)
 
         if opts.annos_file is not None:
             f = h5.File(opts.annos_file)
@@ -173,7 +175,7 @@ class App(object):
                 if idx.sum() > 10:
                     h = '%s/annos/%s' % (target, anno)
                     write_sliced(data, opts.out_file, h, idx,
-                                 nb_max=opts.sample)
+                                 nb_max=opts.nb_sample)
 
         if opts.stats_file is not None:
             if opts.stats is None:
@@ -204,7 +206,7 @@ class App(object):
                     idx = bins == bin_
                     h = '%s/stats/%s/%s' % (target, stat, bin_)
                     write_sliced(data, opts.out_file, h, idx,
-                                 nb_max=opts.sample)
+                                 nb_max=opts.nb_sample)
 
     def main(self, name, opts):
         logging.basicConfig(filename=opts.log_file,
