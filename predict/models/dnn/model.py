@@ -161,7 +161,7 @@ def build(params, targets, seq_len=None, cpg_len=None, compile=True,
         prev_nodes = add_layers(model, layers, prev_nodes, 'c')
         branch_nodes.extend(prev_nodes)
 
-    if params.joint:
+    if params.joint and params.joint.nb_hidden > 0:
         layers = joint_layers(params.joint)
         branch_nodes = add_layers(model, layers, branch_nodes, 'j')
 

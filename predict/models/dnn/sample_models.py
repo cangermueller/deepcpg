@@ -91,6 +91,7 @@ class App(object):
         with open(opts.temp_file) as f:
             temp = yaml.load(f.read())
         eval_dict(temp)
+        import ipdb; ipdb.set_trace()
 
         for i, param in enumerate(ParamSampler(temp, opts.nb_sample)):
             t = '%s%03d.yaml' % (opts.out_base, opts.offset + i)

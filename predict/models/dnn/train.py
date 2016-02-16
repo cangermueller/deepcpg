@@ -95,8 +95,7 @@ class App(object):
             nargs='+')
         p.add_argument(
             '--not_trainable',
-            help='Do not train modules starting with letter',
-            choices=['c', 's'],
+            help='Do not train nodes with given name',
             nargs='+')
         p.add_argument(
             '--nb_epoch',
@@ -219,6 +218,9 @@ class App(object):
 
         # Initialize variables
         targets = ut.read_targets(opts.train_file, opts.targets)
+        # TODO: Remove
+        #  targets['name'] = opts.targets
+        #  targets['id'] = ['c%d' % (i) for i in range(len(opts.targets))]
         targets['bin'] = []
         targets['reg'] = []
         for target in targets['id']:
@@ -263,18 +265,19 @@ class App(object):
             log.info('Copy cpg weights')
             cpg_model = mod.model_from_list(opts.cpg_model, compile=False)
             t = mod.copy_weights(cpg_model, model, 'c_')
-            log.info('Copied weight from %d nodes' % (t))
+            log.info('Weights copied from %d nodes' % (t))
 
         if opts.seq_model is not None:
             log.info('Copy seq weights')
             seq_model = mod.model_from_list(opts.seq_model, compile=False)
             t = mod.copy_weights(seq_model, model, 's_')
-            log.info('Copied weight from %d nodes' % (t))
+            log.info('Weights copied from %d nodes' % (t))
 
         if opts.not_trainable is not None:
+            print('\nNodes excluded from training:')
             for k, v in model.nodes.items():
-                if k[0] in opts.not_trainable:
-                    log.info("Won't train %s" % (k))
+                if k in opts.not_trainable:
+                    print(k)
                     v.trainable = False
 
         if opts.compile or opts.model is None or len(opts.model) > 1:
@@ -294,7 +297,7 @@ class App(object):
         mod.model_to_json(model, pt.join(opts.out_dir, 'model.json'))
 
         if model_params is not None:
-            print('Model parameters:')
+            print('\nModel parameters:')
             print(model_params)
             h = pt.join(opts.out_dir, 'configs.yaml')
             if not pt.exists(h):
@@ -341,6 +344,9 @@ class App(object):
             data = dict()
             for k, v in f['data'].items():
                 data[k] = v
+                if k.endswith('_y'):
+                    kk = k.replace('c', 'u')
+                    data[kk] = v
             for k, v in f['pos'].items():
                 data[k] = v
             return (f, data)
@@ -401,10 +407,22 @@ class App(object):
         def logger(x):
             log.debug(x)
 
-        # TODO: remove
+        #TODO: remove
         #  for o in model.output_order:
             #  y = train_data[o][:].ravel()
             #  w = train_weights[o][:].ravel()
+            #  if o.startswith('s'):
+                #  assert np.all(w == 1)
+                #  assert np.all(y != ut.MASK)
+            #  else:
+                #  h = y == ut.MASK
+                #  assert np.all(w[h] == 0)
+                #  assert np.all(w[~h] == 1)
+
+        #TODO: remove
+        #  for o in model.output_order:
+            #  y = val_data[o][:].ravel()
+            #  w = val_weights[o][:].ravel()
             #  if o.startswith('s'):
                 #  assert np.all(w == 1)
                 #  assert np.all(y != ut.MASK)
@@ -455,6 +473,14 @@ class App(object):
             print('\n\nValidation set performance (regression):')
             print(e.to_string(index=False))
             pe.eval_to_file(e, pt.join(opts.out_dir, 'perf_val_reg.csv'))
+
+        log.info('Training set performance')
+        z = model.predict(train_data, batch_size=batch_size)
+        e = evaluate(train_data, z, targets, prefix='c', funs=pe.eval_funs,
+                     mask=ut.MASK)
+        print('\n\nTraining set performance (binary):')
+        print(e.to_string(index=False))
+        pe.eval_to_file(e, pt.join(opts.out_dir, 'perf_train_bin.csv'))
 
         train_file.close()
         if val_file:
