@@ -28,70 +28,73 @@ library(rhdf5)
 lib <- file.path(Sys.getenv('Pd'), 'R')
 source(file.path(lib, 'utils.R'))
 source(file.path(lib, 'filter.R'))
-source(file.path(lib, 'filter_inspect.R'))
+lib <- file.path(Sys.getenv('Pv'), 'R')
+source(file.path(lib, 'utils.R'))
+source(file.path(lib, 'filter_motifs.R'))
 ```
 
 ```{r}
 options(xtable.type='html')
 ```
 
+<style>
+img {
+    max-width: none;
+}
+</style>
+
 ```{r}
 opts <- list()
-opts$db_file <- './eval.sql'
-opts$filt_file <- './filter.h5'
-opts$filt_name <- 's_c1'
-opts$effect <- 'abs_lor'
-opts$anno <- NULL
-opts$cell_type <- NULL
-opts$nb_sel <- 45
+opts$weights_file <- './filter_weights.h5'
+opts$weights_path <- '/s_c1/weights'
+opts$act_file <- './filter_act.sql'
+opts$tomtom_file <- './tomtom/tomtom.csv'
 dat <- list()
 ```
 
 ```{r}
-dat$filt <- read_filt(opts$filt_file, group=paste0('/', opts$filt_name))
-
-filt_motif <- function(d, filt, ...) {
-  d <- filt_pwm(d, filt)
-  return (paste0(rownames(d)[apply(d, 2, which.max)], collapse=''))
-}
-
+dat$filt <- read_filt(opts$weights_file, group=opts$weights_path)
 dat$motifs <- dat$filt %>% group_by(filt) %>%
   summarise(motif=filt_motif(dat$filt, filt)) %>%
   mutate(
     motif=factor(motif),
     label=factor(paste(as.vector(filt), as.vector(motif), sep=': '))
   )
+dat$tab <- dat$motifs %>% select(-motif)
 ```
 
-```{r}
-d <- query_db(opts$db_file, effect=opts$effect, anno=opts$anno) %>%
-  left_join(dat$motifs, by='filt')
+```{r eval=!(is.null(opts$act_file))}
+dat$act <- query_db(opts$act_file)
+h <- dat$act %>% select(-c(target, n)) %>%
+  filter(act_mean != 0) %>%
+  mutate(filt=factor(filt)) %>%
+  group_by(filt) %>% summarise_each(funs(mean(., na.rm=T)))
+dat$tab <- dat$tab %>% inner_join(h) %>% arrange(desc(abs(rs)))
+```
 
-dat$stats <- d %>% group_by(filt) %>%
-  summarise_each(funs(mean), mean_, var_, rank_) %>% ungroup %>%
-  arrange(desc(mean_)) %>% ungroup %>%
-  left_join(dat$motifs, by='filt') %>%
-  select(-motif) %>% move_cols('label') %>%
-  mutate(
-    filt=factor(filt, levels=filt),
-    label=factor(label, levels=label)
-    )
+```{r eval=!is.null(opts$tomtom_file)}
+dat$tomtom_all <- read_tomtom(opts$tomtom_file, all=T)
+dat$tomtom <- read_tomtom(opts$tomtom_file) %>% select(-nb_hits)
+dat$tab <- dat$tab %>% left_join(dat$tomtom)
+```
 
-dat$sel <- dat$stats
-if (!is.null(opts$nb_sel)) {
-  dat$sel <- dat$sel %>% head(opts$nb_sel) %>% droplevels
-}
-d <- d %>% semi_join(dat$sel, by='filt')
-d$label <- factor(d$label, levels=levels(dat$sel$label))
-dat$imp <- d
+```{r results='asis'}
+d <- dat$tab %>% select(-filt)
+print(xtable(d, digits=4, include.rownames=F))
 ```
 
 ```{r motifs, results='asis'}
-filts <- dat$sel$filt
-for (f in filts) {
+for (f in dat$tab$filt) {
+  cat('<br><br><hr>', fill=T)
   d <- filt_pwm(dat$filt, f)
   seqLogo(d)
-  h <- dat$stats %>% filter(filt == f)
+  h <- dat$tab %>% filter(filt == f)
   print(xtable(h))
+  cat('<br>', fill=T)
+  if (!is.null(dat$tomtom)) {
+    h <- dat$tomtom_all %>% filter(filt == f) %>%
+      select(-c(filt, Orientation, Query.ID, Optimal.offset))
+    print(xtable(h, digits=2))
+  }
 }
 ```

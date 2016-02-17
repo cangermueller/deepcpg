@@ -43,8 +43,13 @@ perf_curve_ <- function(d, x.axis='fpr', y.axis='tpr') {
   return (d)
 }
 
-perf_curve <- function(d, x.axis='fpr', y.axis='tpr') {
-  d <- d %>% group_by(method, cell_type) %>%
+perf_curve <- function(d, x.axis='fpr', y.axis='tpr', cell_type=TRUE) {
+  if (cell_type) {
+    d <- d %>% group_by(method, cell_type)
+  } else {
+    d <- d %>% group_by(method)
+  }
+  d <- d %>%
     do(perf_curve_(., x.axis, y.axis)) %>%
     arrange(x) %>%
     ungroup
@@ -53,8 +58,12 @@ perf_curve <- function(d, x.axis='fpr', y.axis='tpr') {
 
 curve_data <- function(d, nb_sample=NULL) {
   if (!is.null(nb_sample)) {
-    d <- d %>% group_by(method, cell_type) %>% sample_n(nb_sample) %>%
-      arrange(x) %>% ungroup
+    if ('cell_type' %in% names(d)) {
+      d <- d %>% group_by(method, cell_type)
+    } else {
+      d <- d %>% group_by(method)
+    }
+    d <- d %>% sample_n(nb_sample) %>% arrange(x) %>% ungroup
   }
   d <- d %>% filter(y > 0.05)
   return (d)
@@ -66,9 +75,11 @@ plot_roc <- function(d, ...) {
     geom_abline(slope=1, linetype='dashed', color='lightgrey') +
     geom_smooth(aes(color=method), size=1.3) +
     xlab('False Positive Rate') + ylab('True Positive Rate') +
-    facet_wrap(~cell_type, scale='free') +
     theme_pub() +
     theme(legend.position='top')
+  if ('cell_type' %in% names(d)) {
+    p <- p + facet_wrap(~cell_type, scale='free')
+  }
   return (p)
 }
 
@@ -77,8 +88,10 @@ plot_recall <- function(d, ...) {
   p <- ggplot(d, aes(x=x, y=y)) +
     geom_smooth(aes(color=method), size=1.3) +
     xlab('Precision') + ylab('Recall') +
-    facet_wrap(~cell_type, scale='free') +
     theme_pub() +
     theme(legend.position='top')
+  if ('cell_type' %in% names(d)) {
+    p <- p + facet_wrap(~cell_type, scale='free')
+  }
   return (p)
 }
