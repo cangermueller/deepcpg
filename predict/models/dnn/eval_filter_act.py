@@ -274,8 +274,6 @@ class App(object):
                 t = t.max(axis=1)
             data['act'][s] = t
 
-        print(data['act'].shape)
-        print(nb_sample)
         log.info('Evaluate global')
         e = eval_global(data['act'], data['z'], filts, data['targets'])
         if opts.verbose:

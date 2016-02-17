@@ -30,11 +30,13 @@ def perf_logs_str(logs):
     return t
 
 
-def filter_yz(y, z, prefix='c'):
+def filter_yz(y, z, prefix=['c', 'u']):
+    if not isinstance(prefix, list):
+        prefix = list(prefix)
     yy = dict()
     zz = dict()
     for k in z.keys():
-        if k.startswith(prefix):
+        if k[0] in prefix:
             yy[k] = y[k]
             zz[k] = z[k]
     return (yy, zz)
@@ -344,9 +346,6 @@ class App(object):
             data = dict()
             for k, v in f['data'].items():
                 data[k] = v
-                if k.endswith('_y'):
-                    kk = k.replace('c', 'u')
-                    data[kk] = v
             for k, v in f['pos'].items():
                 data[k] = v
             return (f, data)
@@ -450,8 +449,9 @@ class App(object):
         log.info('Save model')
         mod.model_to_pickle(model, pt.join(opts.out_dir, 'model.pkl'))
 
-        print('\n\nLearning curve:')
-        print(perf_logs_str(perf_logger.frame()))
+        if opts.nb_epoch > 0:
+            print('\n\nLearning curve:')
+            print(perf_logs_str(perf_logger.frame()))
 
         log.info('Evaluate validation set performance')
         z = model.predict(val_data, batch_size=batch_size)
@@ -460,7 +460,7 @@ class App(object):
             return 0
         ut.write_z(val_data, z, targets, pt.join(opts.out_dir, 'z_val.h5'))
 
-        e = evaluate(val_data, z, targets, prefix='c', funs=pe.eval_funs,
+        e = evaluate(val_data, z, targets, prefix=['c', 'u'], funs=pe.eval_funs,
                      mask=ut.MASK)
         if e is not None:
             print('\n\nValidation set performance (binary):')
@@ -476,11 +476,12 @@ class App(object):
 
         log.info('Training set performance')
         z = model.predict(train_data, batch_size=batch_size)
-        e = evaluate(train_data, z, targets, prefix='c', funs=pe.eval_funs,
+        e = evaluate(train_data, z, targets, prefix=['c', 'u'], funs=pe.eval_funs,
                      mask=ut.MASK)
-        print('\n\nTraining set performance (binary):')
-        print(e.to_string(index=False))
-        pe.eval_to_file(e, pt.join(opts.out_dir, 'perf_train_bin.csv'))
+        if e is not None:
+            print('\n\nTraining set performance (binary):')
+            print(e.to_string(index=False))
+            pe.eval_to_file(e, pt.join(opts.out_dir, 'perf_train_bin.csv'))
 
         train_file.close()
         if val_file:

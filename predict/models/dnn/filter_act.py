@@ -124,7 +124,7 @@ class App(object):
                 data[k] = v
             return (f, data)
 
-        labels = ut.read_labels(opts.data_file)
+        targets = ut.read_targets(opts.data_file)
         data_file, data = read_data(opts.data_file)
 
         if opts.chromo is not None:
@@ -167,7 +167,7 @@ class App(object):
         f_z = model._predict
         ins = data
         nb_sample = ins[model.input_order[0]].shape[0]
-        targets = ut.map_targets(model.output_order, labels)
+        targets = ut.target_id2name(model.output_order, targets)
         out_group['targets'] = [x.encode() for x in targets]
 
         def write_hdf(x, path, idx, dtype=None, compression=None):

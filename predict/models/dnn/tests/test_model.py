@@ -185,3 +185,36 @@ def test_all():
         assert n[label('h1a')].activation is kact.tanh
         assert label('h1d') not in n.keys()
         assert n[label('o')].activation is kact.sigmoid
+
+
+def test_outputs():
+    p = pa.Params()
+    p.cpg = False
+    p.seq = pa.CpgParams()
+    ps = p.seq
+    ps.nb_filter = [2]
+    ps.filter_len = [4]
+    ps.pool_len = [2]
+    ps.activation = 'sigmoid'
+    ps.nb_hidden = 0
+    ps.drop_in = 0.5
+    ps.drop_out = 0.1
+
+    targets = ['c0', 'c1', 'u0', 'u1', 's0', 's1']
+    model = mod.build(p, targets, 10, compile=True)
+    for target in targets:
+        no = '%s_o' % (target)
+        ny = '%s_y' % (target)
+        assert no in model.nodes
+        assert ny in model.outputs
+        assert model.nodes[no] is model.outputs[ny]
+        assert model.nodes[no].activation is kact.sigmoid
+    assert len(model.output_order) == len(targets)
+    if hasattr(model, 'loss'):
+        assert len(model.loss) == len(targets)
+        for target in targets:
+            ny = '%s_y' % (target)
+            if target.startswith('s'):
+                assert model.loss[ny] == 'rmse'
+            else:
+                assert model.loss[ny] == 'binary_crossentropy'

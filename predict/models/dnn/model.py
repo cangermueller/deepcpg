@@ -184,10 +184,10 @@ def build(params, targets, seq_len=None, cpg_len=None, compile=True,
 def loss_from_ids(ids):
     loss = dict()
     for x in ids:
-        if x.startswith('c'):
-            loss[x] = 'binary_crossentropy'
-        else:
+        if x.startswith('s'):
             loss[x] = 'rmse'
+        else:
+            loss[x] = 'binary_crossentropy'
     return loss
 
 
