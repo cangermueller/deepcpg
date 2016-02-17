@@ -226,7 +226,7 @@ plot_annos <- function(d) {
   return (p)
 }
 
-plot_annos_bar <- function(d, ver=F) {
+plot_annos_bar <- function(d, ver=F, points=T) {
   annos <- d %>% group_by(anno) %>%
     summarise(auc=mean(auc)) %>% arrange(desc(auc)) %>% select(anno) %>% unlist
   if (ver) {
@@ -235,9 +235,6 @@ plot_annos_bar <- function(d, ver=F) {
   d <- d %>% mutate(anno=factor(anno, levels=annos))
   p <- ggplot(d, aes(x=anno, y=auc, fill=model)) +
     geom_boxplot(outlier.shape=NA) +
-    geom_point(aes(fill=model, color=cell_type), size=0.5,
-      position=position_jitterdodge(jitter.width=0.1, jitter.height=0, dodge.width=0.8)) +
-    scale_color_manual(values=colors_$cell_type) +
     theme_pub() +
     theme(
       panel.grid.major=element_line(colour="grey60", size=0.1, linetype='solid'),
@@ -247,6 +244,11 @@ plot_annos_bar <- function(d, ver=F) {
       legend.position='top'
     ) +
     xlab('') + ylab('AUC')
+  if (points) {
+    p <- p + geom_point(aes(fill=model, color=cell_type), size=0.3,
+      position=position_jitterdodge(jitter.width=0.1, jitter.height=0, dodge.width=0.8)) +
+      scale_color_manual(values=colors_$cell_type)
+  }
   if (ver) {
     p <- p +
       theme(
