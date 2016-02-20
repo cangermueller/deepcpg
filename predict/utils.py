@@ -148,3 +148,10 @@ def rolling_apply(d, delta, fun, level=None):
         rv[i] = rvi
     rv = pd.DataFrame(rv, index=d.index, columns=d.columns)
     return rv
+
+
+def dict_to_str(d):
+    s = []
+    for k in sorted(d.keys()):
+        s.append('%s: %s' % (k, str(d[k])))
+    return '\n'.join(s)

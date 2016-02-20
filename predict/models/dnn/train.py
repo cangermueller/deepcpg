@@ -3,26 +3,42 @@
 import argparse
 import sys
 import logging
+import os
 import os.path as pt
 import pandas as pd
 import numpy as np
 import h5py as h5
 import random
-import json
+import re
 from keras.callbacks import ModelCheckpoint
 
 import predict.evaluation as pe
+import predict.utils as pu
 import predict.models.dnn.utils as ut
 import predict.models.dnn.callbacks as cbk
 import predict.models.dnn.model as mod
 from predict.models.dnn.params import Params
 
 
-def get_sample_weights(y):
-    y = y[:].ravel()
-    w = np.ones(len(y), dtype='int8')
-    w[y == ut.MASK] = 0
-    return w
+def get_sample_weights(y, weight_classes=False):
+    y = y[:]
+    class_weights = {-1: 0, 0: 1, 1: 1}
+    if weight_classes:
+        t = y[y != ut.MASK].mean()
+        class_weights[0] = t
+        class_weights[1] = 1 - t
+    sample_weights = np.zeros(y.shape, dtype='float16')
+    for k, v in class_weights.items():
+        sample_weights[y == k] = v
+    return sample_weights
+
+
+def check_weights(model, y, weights):
+    for output in model.output_order:
+        h = y[output][:] == ut.MASK
+        w = weights[output][:]
+        assert np.all(w[h] == 0)
+        assert np.all(w[~h] == 1)
 
 
 def perf_logs_str(logs):
@@ -30,29 +46,93 @@ def perf_logs_str(logs):
     return t
 
 
-def filter_yz(y, z, prefix=['c', 'u']):
-    if not isinstance(prefix, list):
-        prefix = list(prefix)
-    yy = dict()
-    zz = dict()
-    for k in z.keys():
-        if k[0] in prefix:
-            yy[k] = y[k]
-            zz[k] = z[k]
-    return (yy, zz)
-
-
-def evaluate(y, z, targets, prefix=None, *args, **kwargs):
-    if prefix is not None:
-        y, z = filter_yz(y, z, prefix)
-    if len(y) == 0:
-        return None
+def evaluate(y, z, targets, *args, **kwargs):
     p = pe.evaluate_all(y, z, *args, **kwargs)
     p.index = ut.target_id2name(p.index.values, targets)
     p.index.name = 'target'
     p.reset_index(inplace=True)
     p.sort_values('target', inplace=True)
     return p
+
+
+def eval_io(model, y, z, out_base, targets):
+    if np.any(np.isnan(list(z.values())[0])):
+        return None
+    ut.write_z(y, z, targets, '%s_z.h5' % (out_base))
+    cla = []
+    reg = []
+    for k, v in model.loss.items():
+        if re.match('mse', v):
+            reg.append(k)
+        else:
+            cla.append(k)
+    p = []
+    if len(cla):
+        ys = {k: y[k] for k in cla}
+        zs = {k: z[k] for k in cla}
+        e = evaluate(ys, zs, targets, funs=pe.eval_funs, mask=ut.MASK)
+        if e is not None:
+            print('Classification:')
+            print(e.to_string(index=False))
+            pe.eval_to_file(e, '%s_cla.csv' % (out_base))
+        p.append(e)
+    else:
+        p.append(None)
+
+    if len(reg):
+        ys = {k: y[k] for k in cla}
+        zs = {k: z[k] for k in cla}
+        e = evaluate(ys, zs, targets, funs=pe.eval_funs_regress)
+        if e is not None:
+            print('Regression:')
+            print(e.to_string(index=False))
+            pe.eval_to_file(e, '%s_reg.csv' % (out_base))
+        p.append(e)
+    else:
+        p.append(None)
+
+
+def build_model(params, data_file, targets):
+    seq_len = None
+    cpg_len = None
+    nb_unit = None
+    f = h5.File(data_file, 'r')
+    g = f['data']
+    if 's_x' in g:
+        seq_len = g['s_x'].shape[1]
+    if 'c_x' in g:
+        nb_unit = g['c_x'].shape[2]
+        cpg_len = g['c_x'].shape[3]
+    f.close()
+    model = mod.build(params, targets, seq_len, cpg_len,
+                      nb_unit=nb_unit, compile=False)
+    return model
+
+
+def read_hdf(path, cache_size):
+    f = ut.open_hdf(path, cache_size=cache_size)
+    data = dict()
+    for k, v in f['data'].items():
+        data[k] = v
+    for k, v in f['pos'].items():
+        data[k] = v
+    return (f, data)
+
+
+def to_view(d):
+    for k in d.keys():
+        d[k] = ut.ArrayView(d[k])
+
+
+def read_data(path, model, cache_size=None):
+    file_, data = read_hdf(path, cache_size)
+    weights = dict()
+    for k in model.output_order:
+        weights[k] = get_sample_weights(data[k])
+    to_view(data)
+    to_view(weights)
+    check_weights(model, data, weights)
+    return (file_, data, weights)
 
 
 class App(object):
@@ -76,6 +156,11 @@ class App(object):
         p.add_argument(
             '-o', '--out_dir',
             help='Output directory')
+        p.add_argument(
+            '-p', '--out_pickle',
+            help='Pickle model',
+            default='model.pkl',
+            nargs='?')
         p.add_argument(
             '--targets',
             help='Target names',
@@ -154,8 +239,14 @@ class App(object):
             default=14000)
         p.add_argument(
             '--compile',
-            help='Recompile pickled model',
+            help='Force model compilation',
             action='store_true')
+        p.add_argument(
+            '--eval',
+            help='Evaluate performance after training',
+            choices=['train', 'val'],
+            default='val',
+            nargs='+')
         p.add_argument(
             '--seed',
             help='Seed of rng',
@@ -180,8 +271,11 @@ class App(object):
             (16, 0.001)
         ]
         idx = None
+        nb_sample = list(data.values())[0].shape[0]
         for i in range(len(configs)):
             batch_size = configs[i][0]
+            if batch_size > nb_sample:
+                continue
             self.log.info('Try batch size %d' % (batch_size))
             batch_data = {k: v[:batch_size] for k, v in data.items()}
             batch_weights = dict()
@@ -199,6 +293,43 @@ class App(object):
         else:
             return (configs[idx])
 
+    def callbacks(self, model):
+        opts = self.opts
+        cbacks = []
+
+        cbacks.append(cbk.ProgressLogger())
+        cbacks.append(cbk.EarlyStopping(patience=opts.early_stop, verbose=1))
+        if opts.max_time is not None:
+            cbacks.append(cbk.Timer(opts.max_time * 3600 * 0.8))
+
+        h = ModelCheckpoint(pt.join(opts.out_dir, 'model_weights_last.h5'),
+                            save_best_only=False)
+        cbacks.append(h)
+        h = ModelCheckpoint(pt.join(opts.out_dir, 'model_weights.h5'),
+                            save_best_only=True, verbose=1)
+        cbacks.append(h)
+
+        def lr_schedule():
+            old_lr = model.optimizer.lr.get_value()
+            new_lr = old_lr * opts.lr_decay
+            model.optimizer.lr.set_value(new_lr)
+            print('Learning rate dropped from %g to %g' % (old_lr, new_lr))
+
+        h = cbk.LearningRateScheduler(lr_schedule, patience=opts.lr_schedule)
+        cbacks.append(h)
+
+        def save_lc():
+            log = {'lc.csv': perf_logger.frame(),
+                   'lc_batch.csv': perf_logger.batch_frame()}
+            for k, v in log.items():
+                with open(pt.join(opts.out_dir, k), 'w') as f:
+                    f.write(perf_logs_str(v))
+
+        perf_logger = cbk.PerformanceLogger(callbacks=[save_lc])
+        cbacks.append(perf_logger)
+
+        return cbacks
+
     def main(self, name, opts):
         logging.basicConfig(filename=opts.log_file,
                             format='%(levelname)s (%(asctime)s): %(message)s')
@@ -207,7 +338,6 @@ class App(object):
             log.setLevel(logging.DEBUG)
         else:
             log.setLevel(logging.INFO)
-            log.debug(opts)
 
         if opts.seed is not None:
             np.random.seed(opts.seed)
@@ -218,47 +348,24 @@ class App(object):
         self.log = log
         self.opts = opts
 
-        # Initialize variables
+        # Create output directory if not existing
+        if not pt.exists(opts.out_dir):
+            os.makedirs(opts.out_dir, exist_ok=True)
+
+        # Build model
         targets = ut.read_targets(opts.train_file, opts.targets)
-        # TODO: Remove
-        #  targets['name'] = opts.targets
-        #  targets['id'] = ['c%d' % (i) for i in range(len(opts.targets))]
-        targets['bin'] = []
-        targets['reg'] = []
-        for target in targets['id']:
-            if target.startswith('s'):
-                targets['reg'].append(target)
-            else:
-                targets['bin'].append(target)
         if len(targets['name']) == 0:
             raise 'No targets match selection!'
-        print('Targets:')
-        for id_, name in zip(targets['id'], targets['name']):
-            print('%s: %s' % (id_, name))
-
-        # Setup model
         if opts.params is not None:
             model_params = Params.from_yaml(opts.params)
         else:
             model_params = None
 
         if opts.model is None:
-            log.info('Build model')
+            log.info('Build model from scratch')
             if model_params is None:
-                model_params = Params()
-            seq_len = None
-            cpg_len = None
-            nb_unit = None
-            f = h5.File(opts.train_file)
-            g = f['data']
-            if 's_x' in g:
-                seq_len = g['s_x'].shape[1]
-            if 'c_x' in g:
-                nb_unit = g['c_x'].shape[2]
-                cpg_len = g['c_x'].shape[3]
-            f.close()
-            model = mod.build(model_params, targets['id'], seq_len, cpg_len,
-                              nb_unit=nb_unit, compile=False)
+                assert 'Parameter file needed!'
+            model = build_model(model_params, opts.train_file, targets['id'])
         else:
             log.info('Loading model')
             model = mod.model_from_list(opts.model, compile=False)
@@ -282,154 +389,83 @@ class App(object):
                     print(k)
                     v.trainable = False
 
-        if opts.compile or opts.model is None or len(opts.model) > 1:
-            # opts.model not pickled
+        # Compile model
+        if opts.compile or not hasattr(model, 'loss'):
             log.info('Compile model')
             if model_params is None:
-                with open(opts.model[0]) as f:
-                    config = json.loads(f.read())
-                optimizer = mod.optimizer_from_config(config)
+                optimizer = mod.optimizer_from_json(opts.model[0])
             else:
                 optimizer = mod.optimizer_from_params(model_params)
             loss = mod.loss_from_ids(model.output_order)
             model.compile(loss=loss, optimizer=optimizer)
 
         log.info('Save model')
-        mod.model_to_pickle(model, pt.join(opts.out_dir, 'model.pkl'))
         mod.model_to_json(model, pt.join(opts.out_dir, 'model.json'))
+        model.save_weights(pt.join(opts.out_dir, 'model_weights.h5'),
+                           overwrite=True)
 
-        if model_params is not None:
-            print('\nModel parameters:')
-            print(model_params)
-            h = pt.join(opts.out_dir, 'configs.yaml')
-            if not pt.exists(h):
-                model_params.to_yaml(h)
-            print()
+        # Setup callbacks
+        log.info('Setup callbacks')
+        cbacks = self.callbacks(model)
 
-        log.info('Setup training')
+        # Read Training data
+        log.info('Read training data')
+        train_file, train_data, train_weights = read_data(opts.train_file,
+                                                          model, opts.max_mem)
+        views = list(train_data.values()) + list(train_weights.values())
+        h = cbk.DataJumper(views, nb_sample=opts.nb_sample, verbose=1,
+                           jump=not opts.no_jump)
+        cbacks.append(h)
 
-        model_weights_last = pt.join(opts.out_dir, 'model_weights_last.h5')
-        model_weights_best = pt.join(opts.out_dir, 'model_weights.h5')
-
-        cb = []
-        cb.append(cbk.ProgressLogger())
-        cb.append(ModelCheckpoint(model_weights_last,
-                                  save_best_only=False))
-        cb.append(ModelCheckpoint(model_weights_best,
-                                  save_best_only=True, verbose=1))
-        cb.append(cbk.EarlyStopping(patience=opts.early_stop, verbose=1))
-
-        def lr_schedule():
-            old_lr = model.optimizer.lr.get_value()
-            new_lr = old_lr * opts.lr_decay
-            model.optimizer.lr.set_value(new_lr)
-            print('Learning rate dropped from %g to %g' % (old_lr, new_lr))
-
-        cb.append(cbk.LearningRateScheduler(lr_schedule,
-                                            patience=opts.lr_schedule))
-
-        if opts.max_time is not None:
-            cb.append(cbk.Timer(opts.max_time * 3600 * 0.8))
-
-        def save_lc():
-            log = {'lc.csv': perf_logger.frame(),
-                   'lc_batch.csv': perf_logger.batch_frame()}
-            for k, v in log.items():
-                with open(pt.join(opts.out_dir, k), 'w') as f:
-                    f.write(perf_logs_str(v))
-
-        perf_logger = cbk.PerformanceLogger(callbacks=[save_lc])
-        cb.append(perf_logger)
-
-        def read_data(path):
-            f = ut.open_hdf(path, cache_size=opts.max_mem)
-            data = dict()
-            for k, v in f['data'].items():
-                data[k] = v
-            for k, v in f['pos'].items():
-                data[k] = v
-            return (f, data)
-
-        train_file, train_data = read_data(opts.train_file)
-        train_weights = dict()
-        for k in model.output_order:
-            train_weights[k] = get_sample_weights(train_data[k])
-
+        # Validation data
+        log.info('Read validation data')
         if opts.val_file is None:
             val_data = train_data
             val_weights = train_weights
             val_file = None
         else:
-            val_file, val_data = read_data(opts.val_file)
-            val_weights = dict()
-            for k in model.output_order:
-                val_weights[k] = get_sample_weights(val_data[k])
-
-        def to_view(d):
-            for k in d.keys():
-                d[k] = ut.ArrayView(d[k])
-
-        to_view(train_data)
-        to_view(train_weights)
-        views = list(train_data.values()) + list(train_weights.values())
-        cb.append(cbk.DataJumper(views, nb_sample=opts.nb_sample, verbose=1,
-                                 jump=not opts.no_jump))
-
-        if val_data is not train_data:
-            to_view(val_data)
-            to_view(val_weights)
+            val_file, val_data, val_weights = read_data(opts.val_file, model,
+                                                        opts.max_mem)
             views = list(val_data.values()) + list(val_weights.values())
             nb_sample = opts.nb_val_sample
             if nb_sample is None:
                 nb_sample = opts.nb_sample
-            cb.append(cbk.DataJumper(views, nb_sample=nb_sample, verbose=1,
-                                     jump=False))
+            h = cbk.DataJumper(views, nb_sample=nb_sample, verbose=1,
+                               jump=False)
+            cbacks.append(h)
 
-        print('%d training samples' % (list(train_data.values())[0].shape[0]))
-        print('%d validation samples' % (list(val_data.values())[0].shape[0]))
-
+        # Define batch size
         if opts.batch_size:
             batch_size = opts.batch_size
-        elif opts.batch_size_auto:
+        elif opts.batch_size_auto or model_params is None:
             log.info('Adjust batch size')
             batch_size, lr = self.adjust_batch_size(model, train_data,
                                                     train_weights)
             if batch_size is None:
                 log.error('GPU memory to small')
                 return 1
-            log.info('Use batch size %d' % (batch_size))
-            log.info('Use batch lr %f' % (lr))
             model.optimizer.lr.set_value(lr)
         else:
             batch_size = model_params.batch_size
 
-        def logger(x):
-            log.debug(x)
+        # Print infos
+        print('\nInput arguments:')
+        print(pu.dict_to_str(opts.__dict__))
 
-        #TODO: remove
-        #  for o in model.output_order:
-            #  y = train_data[o][:].ravel()
-            #  w = train_weights[o][:].ravel()
-            #  if o.startswith('s'):
-                #  assert np.all(w == 1)
-                #  assert np.all(y != ut.MASK)
-            #  else:
-                #  h = y == ut.MASK
-                #  assert np.all(w[h] == 0)
-                #  assert np.all(w[~h] == 1)
+        if model_params is not None:
+            print('\nModel parameters:')
+            print(model_params)
 
-        #TODO: remove
-        #  for o in model.output_order:
-            #  y = val_data[o][:].ravel()
-            #  w = val_weights[o][:].ravel()
-            #  if o.startswith('s'):
-                #  assert np.all(w == 1)
-                #  assert np.all(y != ut.MASK)
-            #  else:
-                #  h = y == ut.MASK
-                #  assert np.all(w[h] == 0)
-                #  assert np.all(w[~h] == 1)
+        print('\nTargets:')
+        for output in model.output_order:
+            h = targets['id'].index(output.replace('_y', ''))
+            print('%s: %s' % (targets['id'][h], targets['name'][h]))
 
+        print()
+        print('%d training samples' % (list(train_data.values())[0].shape[0]))
+        print('%d validation samples' % (list(val_data.values())[0].shape[0]))
+
+        # Train model
         log.info('Train model')
         model.fit(data=train_data,
                   sample_weight=train_weights,
@@ -438,50 +474,42 @@ class App(object):
                   batch_size=batch_size,
                   shuffle=opts.shuffle,
                   nb_epoch=opts.nb_epoch,
-                  callbacks=cb,
+                  callbacks=cbacks,
                   verbose=0,
-                  logger=logger)
+                  logger=lambda x: log.debug(x))
 
         # Use best weights on validation set
-        if pt.isfile(model_weights_best):
-            model.load_weights(model_weights_best)
+        h = pt.join(opts.out_dir, 'model_weights.h5')
+        if pt.isfile(h):
+            model.load_weights(h)
 
-        log.info('Save model')
-        mod.model_to_pickle(model, pt.join(opts.out_dir, 'model.pkl'))
+        if opts.out_pickle is not None:
+            log.info('Pickle model')
+            h = opts.out_pickle
+            if pt.dirname(opts.out_pickle) == '':
+                h = pt.join(opts.out_dir, h)
+            mod.model_to_pickle(model, h)
 
         if opts.nb_epoch > 0:
             print('\n\nLearning curve:')
-            print(perf_logs_str(perf_logger.frame()))
+            for cback in cbacks:
+                if isinstance(cback, cbk.PerformanceLogger):
+                    h = cback
+                    break
+            print(perf_logs_str(h.frame()))
 
-        log.info('Evaluate validation set performance')
-        z = model.predict(val_data, batch_size=batch_size)
-        if np.any(np.isnan(list(z.values())[0])):
-            log.info('Abort due to nan!')
-            return 0
-        ut.write_z(val_data, z, targets, pt.join(opts.out_dir, 'z_val.h5'))
+        if opts.eval is not None and 'train' in opts.eval:
+            log.info('Evaluate training set performance')
+            z = model.predict(train_data, batch_size=batch_size)
+            print('\nTraining set performance:')
+            eval_io(model, train_data, z, pt.join(opts.out_dir, 'train'),
+                    targets)
 
-        e = evaluate(val_data, z, targets, prefix=['c', 'u'], funs=pe.eval_funs,
-                     mask=ut.MASK)
-        if e is not None:
-            print('\n\nValidation set performance (binary):')
-            print(e.to_string(index=False))
-            pe.eval_to_file(e, pt.join(opts.out_dir, 'perf_val_bin.csv'))
-
-        e = evaluate(val_data, z, targets, prefix='s',
-                     funs=pe.eval_funs_regress, mask=None)
-        if e is not None:
-            print('\n\nValidation set performance (regression):')
-            print(e.to_string(index=False))
-            pe.eval_to_file(e, pt.join(opts.out_dir, 'perf_val_reg.csv'))
-
-        log.info('Training set performance')
-        z = model.predict(train_data, batch_size=batch_size)
-        e = evaluate(train_data, z, targets, prefix=['c', 'u'], funs=pe.eval_funs,
-                     mask=ut.MASK)
-        if e is not None:
-            print('\n\nTraining set performance (binary):')
-            print(e.to_string(index=False))
-            pe.eval_to_file(e, pt.join(opts.out_dir, 'perf_train_bin.csv'))
+        if opts.eval is not None and 'val' in opts.eval:
+            log.info('Evaluate validation set performance')
+            z = model.predict(val_data, batch_size=batch_size)
+            print('\nValidation set performance:')
+            eval_io(model, val_data, z, pt.join(opts.out_dir, 'val'), targets)
 
         train_file.close()
         if val_file:

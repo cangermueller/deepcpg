@@ -12,6 +12,7 @@ import predict.models.dnn.model as mod
 
 
 def copy_weights(src_nodes, dst_nodes, nodes=None):
+    nb_copy = 0
     for src_name, src_node in src_nodes.items():
         if nodes is not None and src_name not in nodes:
             continue
@@ -20,7 +21,22 @@ def copy_weights(src_nodes, dst_nodes, nodes=None):
             dst_name = dst_name.replace('u', 'c')
         if dst_name not in dst_nodes:
             continue
-        src_node.set_weights(dst_nodes[dst_name])
+        dst_nodes[dst_name].set_weights(src_node.get_weights())
+        nb_copy += 1
+    return nb_copy
+
+
+def check_weights(src_nodes, dst_nodes, nodes=None):
+    if nodes is None:
+        nodes = dst_nodes.keys()
+    for n in nodes:
+        ws = src_nodes[n].get_weights()
+        wd = dst_nodes[n].get_weights()
+        if not isinstance(ws, list):
+            ws = list(ws)
+            wd = list(wd)
+        for i in range(len(ws)):
+            assert np.all(ws[i] == wd[i])
 
 
 class App(object):
@@ -36,30 +52,30 @@ class App(object):
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
             description='Build model')
         p.add_argument(
-            'dst_model',
+            '-s', '--src_model',
+            help='Source model',
+            nargs='+')
+        p.add_argument(
+            '-d', '--dst_model',
             help='Destination model',
             nargs='+')
         p.add_argument(
-            '--src_model',
-            help='Source model')
+            '--nodes',
+            help='Only copy weights from these nodes',
+            nargs='+')
         p.add_argument(
-            '--src_nodes',
-            help='Only copy weights from these nodes')
+            '-c', '--compile',
+            help='Compile model',
+            action='store_true')
         p.add_argument(
-            '--out_json',
-            help='Output json file',
-            nargs='?',
-            default='./model.json')
+            '-j', '--out_json',
+            help='Output json file')
         p.add_argument(
-            '--out_weights',
-            help='Output weights file',
-            nargs='?',
-            default='./model_weights.h5')
+            '-w', '--out_weights',
+            help='Output weights file')
         p.add_argument(
-            '--out_pickle',
-            help='Output pickle file',
-            nargs='?',
-            default='./model.h5')
+            '-p', '--out_pickle',
+            help='Output pickle file')
         p.add_argument(
             '--seed',
             help='Seed of rng',
@@ -89,20 +105,27 @@ class App(object):
             random.seed(opts.seed)
         sys.setrecursionlimit(10**6)
 
-        log.info('Loading destination model')
-        dst_model = mod.model_from_list(opts.dst_model, compile=False)
+        if opts.src_model is None:
+            raise 'No source model given!'
+        if opts.dst_model is None:
+            raise 'No destination model given!'
 
         log.info('Loading source model')
         src_model = mod.model_from_list(opts.src_model, compile=False)
 
+        log.info('Loading destination model')
+        dst_model = mod.model_from_list(opts.dst_model, compile=False)
+
         log.info('Copy weights')
-        copy_weights(src_model, dst_model, opts.nodes)
+        h = copy_weights(src_model.nodes, dst_model.nodes, opts.nodes)
+        log.info('Weights copied from %d nodes' % (h))
+        #  check_weights(src_model.nodes, dst_model.nodes, opts.nodes)
 
         log.info('Save model')
         if opts.out_json is not None:
-            mod.model_to_json(dst_model, pt.join(opts.out_dir, 'model.json'))
+            mod.model_to_json(dst_model, opts.out_json)
         if opts.out_weights is not None:
-            dst_model.save_weights(opts.out_weights)
+            dst_model.save_weights(opts.out_weights, overwrite=True)
         if opts.out_pickle is not None:
             mod.model_to_pickle(dst_model, opts.out_pickle)
 

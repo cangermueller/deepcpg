@@ -5,9 +5,9 @@ import sys
 import logging
 import os.path as pt
 import numpy as np
-import pickle
 
 import predict.models.dnn.model as mod
+
 
 class App(object):
 
@@ -21,14 +21,20 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Pickle model')
+            description='Convert model files')
         p.add_argument(
             'model',
             help='Model files',
             nargs='+')
         p.add_argument(
-            '-o', '--out_file',
-            help='Output file')
+            '-j', '--out_json',
+            help='Output json file')
+        p.add_argument(
+            '-w', '--out_weights',
+            help='Output weights file')
+        p.add_argument(
+            '-p', '--out_pickle',
+            help='Output pickle file')
         p.add_argument(
             '--seed',
             help='Seed of rng',
@@ -55,19 +61,23 @@ class App(object):
 
         if opts.seed is not None:
             np.random.seed(opts.seed)
+        sys.setrecursionlimit(10**6)
 
         log.info('Load model')
         model = mod.model_from_list(opts.model)
 
-        sys.setrecursionlimit(10**6)
-        log.info('Pickle model')
-        with open(pt.join(opts.out_file), 'wb') as f:
-            pickle.dump(model, f)
+        log.info('Save model')
+        if opts.out_json is not None:
+            mod.model_to_json(model, opts.out_json)
+        if opts.out_weights is not None:
+            model.save_weights(opts.out_weights, overwrite=True)
+        if opts.out_pickle is not None:
+            mod.model_to_pickle(model, opts.out_pickle)
 
         log.info('Done!')
         return 0
 
 
 if __name__ == '__main__':
-    app=App()
+    app = App()
     app.run(sys.argv)

@@ -168,9 +168,9 @@ def build(params, targets, seq_len=None, cpg_len=None, compile=True,
     outputs = []
     for target in targets:
         layers = target_layers(params.target)
-        branch_nodes = add_layers(model, layers, branch_nodes, target)
+        last = add_layers(model, layers, branch_nodes, target)
         output = '%s_%s' % (target, 'y')
-        model.add_output(input=branch_nodes[0], name=output)
+        model.add_output(input=last[0], name=output)
         outputs.append(output)
 
     if compile:
@@ -223,6 +223,12 @@ def optimizer_from_config(config):
     optimizer_name = optimizer_params.pop('name')
     optimizer = kopt.get(optimizer_name, optimizer_params)
     return optimizer
+
+
+def optimizer_from_json(path):
+    with open(path, 'r') as f:
+        config = f.read()
+    return optimizer_from_config(config)
 
 
 def optimizer_from_params(params):

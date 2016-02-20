@@ -32,31 +32,22 @@ class App(object):
             'data_file',
             help='Data file')
         p.add_argument(
-            '-o', '--out_dir',
-            help='Output directory')
-        p.add_argument(
             '--targets',
             help='Target names',
             nargs='+')
         p.add_argument(
-            '--compile',
+            '-j', '--out_json',
+            help='Output json file')
+        p.add_argument(
+            '-w', '--out_weights',
+            help='Output weights file')
+        p.add_argument(
+            '-p', '--out_pickle',
+            help='Output pickle file')
+        p.add_argument(
+            '-c', '--compile',
             help='Compile model',
             action='store_true')
-        p.add_argument(
-            '--out_json',
-            help='Output json file',
-            nargs='?',
-            default='./model.json')
-        p.add_argument(
-            '--out_weights',
-            help='Output weights file',
-            nargs='?',
-            default='./model_weights.h5')
-        p.add_argument(
-            '--out_pickle',
-            help='Output pickle file',
-            nargs='?',
-            default='./model.h5')
         p.add_argument(
             '--seed',
             help='Seed of rng',
@@ -101,15 +92,15 @@ class App(object):
             cpg_len = g['c_x'].shape[3]
         f.close()
 
-        log.info('Build mode')
+        log.info('Build model')
         model = mod.build(model_params, targets['id'], seq_len, cpg_len,
                           nb_unit=nb_unit, compile=opts.compile)
 
         log.info('Save model')
         if opts.out_json is not None:
-            mod.model_to_json(model, pt.join(opts.out_dir, 'model.json'))
+            mod.model_to_json(model, opts.out_json)
         if opts.out_weights is not None:
-            model.save_weights(opts.out_weights)
+            model.save_weights(opts.out_weights, overwrite=True)
         if opts.out_pickle is not None:
             mod.model_to_pickle(model, opts.out_pickle)
 

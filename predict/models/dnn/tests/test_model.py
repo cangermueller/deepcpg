@@ -1,4 +1,5 @@
 import keras.activations as kact
+import keras.layers.core as kcore
 
 import predict.models.dnn.model as mod
 import predict.models.dnn.params as pa
@@ -190,25 +191,33 @@ def test_all():
 def test_outputs():
     p = pa.Params()
     p.cpg = False
-    p.seq = pa.CpgParams()
+    p.joint = False
+    p.target.nb_hidden = 0
+
+    p.seq = pa.SeqParams()
     ps = p.seq
     ps.nb_filter = [2]
     ps.filter_len = [4]
     ps.pool_len = [2]
     ps.activation = 'sigmoid'
-    ps.nb_hidden = 0
+    ps.nb_hidden = 128
     ps.drop_in = 0.5
     ps.drop_out = 0.1
 
     targets = ['c0', 'c1', 'u0', 'u1', 's0', 's1']
-    model = mod.build(p, targets, 10, compile=True)
+    model = mod.build(p, targets, 10, compile=False)
     for target in targets:
         no = '%s_o' % (target)
         ny = '%s_y' % (target)
         assert no in model.nodes
         assert ny in model.outputs
-        assert model.nodes[no] is model.outputs[ny]
-        assert model.nodes[no].activation is kact.sigmoid
+
+        n = model.nodes[no]
+        assert n is model.outputs[ny]
+        assert n.activation is kact.sigmoid
+        assert isinstance(n.previous, kcore.Dropout)
+        assert n.input_shape == (None, ps.nb_hidden)
+
     assert len(model.output_order) == len(targets)
     if hasattr(model, 'loss'):
         assert len(model.loss) == len(targets)

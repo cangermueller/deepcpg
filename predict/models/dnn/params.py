@@ -72,8 +72,8 @@ class TargetParams(object):
 
     def __init__(self):
         self.activation = 'relu'
-        self.nb_hidden = 16
-        self.drop_out = 0.2
+        self.nb_hidden = 0
+        self.drop_out = 0.25
         self.batch_norm = False
 
     def update(self, params):
