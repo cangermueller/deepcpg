@@ -109,28 +109,13 @@ def build_model(params, data_file, targets):
     return model
 
 
-def read_hdf(path, cache_size):
-    f = ut.open_hdf(path, cache_size=cache_size)
-    data = dict()
-    for k, v in f['data'].items():
-        data[k] = v
-    for k, v in f['pos'].items():
-        data[k] = v
-    return (f, data)
-
-
-def to_view(d):
-    for k in d.keys():
-        d[k] = ut.ArrayView(d[k])
-
-
 def read_data(path, model, cache_size=None):
-    file_, data = read_hdf(path, cache_size)
+    file_, data = ut.read_hdf(path, cache_size)
     weights = dict()
     for k in model.output_order:
         weights[k] = get_sample_weights(data[k])
-    to_view(data)
-    to_view(weights)
+    ut.to_view(data)
+    ut.to_view(weights)
     check_weights(model, data, weights)
     return (file_, data, weights)
 

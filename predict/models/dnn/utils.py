@@ -1,9 +1,7 @@
 import h5py as h5
-import pandas as pd
 import numpy as np
 import re
 
-import predict.evaluation as pe
 import predict.models.dnn.callbacks as cbk
 
 MASK = -1
@@ -186,3 +184,32 @@ class ArrayView(object):
     @property
     def shape(self):
         return tuple([len(self)] + list(self.data.shape[1:]))
+
+
+def read_hdf(path, cache_size):
+    f = open_hdf(path, cache_size=cache_size)
+    data = dict()
+    for k, v in f['data'].items():
+        data[k] = v
+    for k, v in f['pos'].items():
+        data[k] = v
+    return (f, data)
+
+
+def to_view(d, *args, **kwargs):
+    for k in d.keys():
+        d[k] = ArrayView(d[k], *args, **kwargs)
+
+
+def select_cpos(data, chromo, start=None, end=None):
+    sel = data['chromo'].value == str(chromo).encode()
+    if start is not None:
+        sel &= data['pos'].value >= start
+    if end is not None:
+        sel &= data['pos'].value <= end
+    for k in data.keys():
+        if len(data[k].shape) > 1:
+            data[k] = data[k][sel, :]
+        else:
+            data[k] = data[k][sel]
+    return data

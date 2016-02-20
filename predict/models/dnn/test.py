@@ -39,7 +39,7 @@ class App(object):
             '--batch_size',
             help='Batch size',
             type=int,
-            default=1024)
+            default=128)
         p.add_argument(
             '--nb_sample',
             help='Maximum # training samples',
@@ -81,48 +81,24 @@ class App(object):
         model = mod.model_from_list(opts.model)
 
         log.info('Load data')
+        targets = ut.read_targets(opts.data_file)
+        data_file, data = ut.read_hdf(opts.data_file, opts.max_mem)
+        ut.to_view(data, stop=opts.nb_sample)
 
-        def read_data(path):
-            f = ut.open_hdf(path, cache_size=opts.max_mem)
-            data = dict()
-            for k, v in f['data'].items():
-                data[k] = v
-            for k, v in f['pos'].items():
-                data[k] = v
-            return (f, data)
+        print('%d samples' % (list(data.values())[0].shape[0]))
+        print()
 
-        labels = ut.read_targets(opts.data_file)
-        data_file, data = read_data(opts.data_file)
-
-        def to_view(d):
-            for k in d.keys():
-                d[k] = ut.ArrayView(d[k], stop=opts.nb_sample)
-
-        to_view(data)
-        log.info('%d samples' % (list(data.values())[0].shape[0]))
-
-        def progress(batch, nb_batch):
-            batch += 1
-            c = max(1, int(np.ceil(nb_batch / 50)))
-            if batch == 1 or batch == nb_batch or batch % c == 0:
-                print('%5d / %d (%.1f%%)' % (batch, nb_batch,
-                                             batch / nb_batch * 100))
-
-        batch_size = opts.batch_size
-        if batch_size is None:
-            if 'c_x' in model.input_order and 's_x' in model.input_order:
-                batch_size = 768
-            elif 's_x' in model.input_order:
-                batch_size = 1024
-            else:
-                batch_size = 2048
+        def progress(*args, **kwargs):
+            h = mod.progress(*args, **kwargs)
+            if h is not None:
+                print(h)
 
         log.info('Predict')
         z = model.predict(data, verbose=opts.verbose,
                           callbacks=[progress],
-                          batch_size=batch_size)
+                          batch_size=opts.batch_size)
         log.info('Write')
-        ut.write_z(data, z, labels, opts.out_file)
+        ut.write_z(data, z, targets, opts.out_file)
 
         data_file.close()
         log.info('Done!')

@@ -164,7 +164,7 @@ class App(object):
         p.add_argument(
             '--annos',
             help='Regex of annotations to be considered',
-            default=[r'^loc.+', r'^chipseq.+', r'^uw.+', r'^psu.+', r'^licr.+'],
+            default=['^loc.+', 'H3', 'dnase'],
             nargs='+')
         p.add_argument(
             '--stats_file',

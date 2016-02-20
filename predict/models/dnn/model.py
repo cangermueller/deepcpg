@@ -1,5 +1,7 @@
 import pickle
+import numpy as np
 
+import keras.models as km
 from keras.models import CpgGraph
 from keras.layers import core as kcore
 from keras.layers import convolutional as kconv
@@ -254,3 +256,66 @@ def model_to_json(model, json_file, weights_file=None):
         f.write(model.to_json())
     if weights_file is not None:
         model.save_weights(weights_file, overwrite=True)
+
+
+def progress(batch_index, nb_batch, s=20):
+    s = max(1, int(np.ceil(nb_batch / s)))
+    f = None
+    batch_index += 1
+    if batch_index == 1 or batch_index == nb_batch or batch_index % s == 0:
+        f = '%5d / %d (%.1f%%)' % (batch_index, nb_batch,
+                                   batch_index / nb_batch * 100)
+    return f
+
+
+def predict_loop(model, data, batch_size=128, callbacks=[], log=print, f=None):
+    if f is None:
+        f = model._predict
+    ins = [data[name] for name in model.input_order]
+    nb_sample = len(ins[0])
+    outs = []
+    batches = km.make_batches(nb_sample, batch_size)
+    index_array = np.arange(nb_sample)
+    nb_batch = len(batches)
+    for batch_index, (batch_start, batch_end) in enumerate(batches):
+        if log is not None:
+            s = progress(batch_index, nb_batch)
+            if s is not None:
+                log(s)
+        for callback in callbacks:
+            callback(batch_index, len(batches))
+        batch_ids = list(index_array[batch_start:batch_end])
+        ins_batch = km.slice_X(ins, batch_ids)
+
+        batch_outs = f(*ins_batch)
+        if type(batch_outs) != list:
+            batch_outs = [batch_outs]
+
+        if batch_index == 0:
+            for batch_out in batch_outs:
+                shape = (nb_sample,) + batch_out.shape[1:]
+                outs.append(np.zeros(shape))
+
+        for i, batch_out in enumerate(batch_outs):
+            outs[i][batch_start:batch_end] = batch_out
+
+    return dict(zip(model.output_order, outs))
+
+
+def write_loop(ins, fun, write_fun, batch_size=128, callbacks=[], log=print):
+    nb_sample = len(ins[0])
+    batches = km.make_batches(nb_sample, batch_size)
+    index_array = np.arange(nb_sample)
+    nb_batch = len(batches)
+    for batch_index, (batch_start, batch_end) in enumerate(batches):
+        if log is not None:
+            s = progress(batch_index, nb_batch)
+            if s is not None:
+                log(s)
+        for callback in callbacks:
+            callback(batch_index, len(batches))
+        batch_ids = list(index_array[batch_start:batch_end])
+        ins_batch = km.slice_X(ins, batch_ids)
+
+        batch_outs = fun(*ins_batch)
+        write_fun(batch_outs, batch_start, batch_end)

@@ -5,7 +5,7 @@ out_dir="."
 mkdir -p $out_dir
 
 src_dir=$Pd
-data_file="$Ev/data/2iser_w501_train.h5"
+data_file="$E2d/w501_train.h5"
 motif_dbs="$Pmotifs/CIS-BP/Mus_musculus.meme
   $Pmotifs/JASPAR/JASPAR_CORE_2016_vertebrates.meme
   $Pmotifs/MOUSE/uniprobe_mouse.meme
@@ -33,9 +33,9 @@ function run {
 
 model_file="$model_dir/model_cpu.pkl"
 if [ ! -e $model_file ]; then
-  cmd="$src_dir/pkl.py
+  cmd="$src_dir/convert.py
        $model_dir/model.json $model_dir/model_weights.h5
-       -o $model_file"
+       -p $model_file"
   run $cmd
 fi
 
@@ -93,3 +93,7 @@ cmd="$Pv/R/run_filter_act.R
   -o $out_dir/filter_act.html
   "
 run $cmd
+
+rmd_file="$out_dir/filter_act.Rmd"
+cp $Pvr/filter_act.Rmd $rmd_file &&
+Rscript -e "library(methods); rmarkdown::run('$rmd_file'$args)"

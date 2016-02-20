@@ -4,91 +4,12 @@ import argparse
 import sys
 import logging
 import os.path as pt
-import pandas as pd
 import numpy as np
-import keras.models as km
-import theano as th
 import h5py as h5
+import theano as th
 
-import predict.models.dnn.utils as ut
 import predict.models.dnn.model as mod
-
-
-def format_progress(batch_index, nb_batch, s=20):
-    s = max(1, int(np.ceil(nb_batch / s)))
-    f = None
-    if batch_index == 1 or batch_index == nb_batch or batch_index % s == 0:
-        f = '%5d / %d (%.1f%%)' % (batch_index, nb_batch,
-                                   batch_index / nb_batch * 100)
-    return f
-
-
-def predict_loop(model, data, batch_size=128, callbacks=[], log=print, f=None):
-    if f is None:
-        f = model._predict
-    ins = [data[name] for name in model.input_order]
-    nb_sample = len(ins[0])
-    outs = []
-    batches = km.make_batches(nb_sample, batch_size)
-    index_array = np.arange(nb_sample)
-    nb_batch = len(batches)
-    for batch_index, (batch_start, batch_end) in enumerate(batches):
-        if log is not None:
-            s = format_progress(batch_index, nb_batch)
-            if s is not None:
-                log(s)
-        for callback in callbacks:
-            callback(batch_index, len(batches))
-        batch_ids = list(index_array[batch_start:batch_end])
-        ins_batch = km.slice_X(ins, batch_ids)
-
-        batch_outs = f(*ins_batch)
-        if type(batch_outs) != list:
-            batch_outs = [batch_outs]
-
-        if batch_index == 0:
-            for batch_out in batch_outs:
-                shape = (nb_sample,) + batch_out.shape[1:]
-                outs.append(np.zeros(shape))
-
-        for i, batch_out in enumerate(batch_outs):
-            outs[i][batch_start:batch_end] = batch_out
-
-    return dict(zip(model.output_order, outs))
-
-
-def write_loop(ins, fun, write_fun, batch_size=128, callbacks=[], log=print):
-    nb_sample = len(ins[0])
-    batches = km.make_batches(nb_sample, batch_size)
-    index_array = np.arange(nb_sample)
-    nb_batch = len(batches)
-    for batch_index, (batch_start, batch_end) in enumerate(batches):
-        if log is not None:
-            s = format_progress(batch_index, nb_batch)
-            if s is not None:
-                log(s)
-        for callback in callbacks:
-            callback(batch_index, len(batches))
-        batch_ids = list(index_array[batch_start:batch_end])
-        ins_batch = km.slice_X(ins, batch_ids)
-
-        batch_outs = fun(*ins_batch)
-        write_fun(batch_outs, batch_start, batch_end)
-
-
-def read_hdf(path, cache_size):
-    f = ut.open_hdf(path, cache_size=cache_size)
-    data = dict()
-    for k, v in f['data'].items():
-        data[k] = v
-    for k, v in f['pos'].items():
-        data[k] = v
-    return (f, data)
-
-
-def to_view(d, *args, **kwargs):
-    for k in d.keys():
-        d[k] = ut.ArrayView(d[k], *args, **kwargs)
+import predict.models.dnn.utils as ut
 
 
 class App(object):
@@ -178,8 +99,8 @@ class App(object):
         fun = th.function(ins, node.get_output(train=False))
 
         log.info('Load data')
-        data_file, data = read_hdf(opts.data_file, opts.max_mem)
-        to_view(data, stop=opts.nb_sample)
+        data_file, data = ut.read_hdf(opts.data_file, opts.max_mem)
+        ut.to_view(data, stop=opts.nb_sample)
         nb_sample = data[model.input_order[0]].shape[0]
         log.info('%d samples' % (nb_sample))
 
@@ -201,7 +122,7 @@ class App(object):
 
         log.info('Compute activations')
         ins = [data[x] for x in model.input_order]
-        write_loop(ins, fun, write_fun, batch_size=opts.batch_size)
+        mod.write_loop(ins, fun, write_fun, batch_size=opts.batch_size)
 
         data_file.close()
         log.info('Done!')
