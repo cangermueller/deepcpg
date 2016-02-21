@@ -89,7 +89,9 @@ class App(object):
         print()
 
         def progress(*args, **kwargs):
-            h = mod.progress(*args, **kwargs))
+            h = mod.progress(*args, **kwargs)
+            if h is not None:
+                print(h)
 
         log.info('Predict')
         z = model.predict(data, verbose=opts.verbose,

@@ -388,6 +388,10 @@ class App(object):
         mod.model_to_json(model, pt.join(opts.out_dir, 'model.json'))
         model.save_weights(pt.join(opts.out_dir, 'model_weights.h5'),
                            overwrite=True)
+        if model_params is not None:
+            h = pt.join(opts.out_dir, 'configs.yaml')
+            if not pt.exists(h):
+                model_params.to_yaml(h)
 
         # Setup callbacks
         log.info('Setup callbacks')
