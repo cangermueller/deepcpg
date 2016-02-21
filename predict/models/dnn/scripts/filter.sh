@@ -88,12 +88,8 @@ cmd="$src_dir/eval_filter_act.py
 "
 run $cmd
 
-cmd="$Pv/R/run_filter_act.R
-  $out_dir/filter_act.sql
-  -o $out_dir/filter_act.html
+cmd="rmd.py
+  $Pd/R/filter_motifs.Rmd
+  --copy filter_motifs.Rmd
   "
 run $cmd
-
-rmd_file="$out_dir/filter_act.Rmd"
-cp $Pvr/filter_act.Rmd $rmd_file &&
-Rscript -e "library(methods); rmarkdown::run('$rmd_file'$args)"

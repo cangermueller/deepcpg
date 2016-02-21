@@ -49,6 +49,12 @@ opts$weights_file <- './filter_weights.h5'
 opts$weights_path <- '/s_c1/weights'
 opts$act_file <- './filter_act.sql'
 opts$tomtom_file <- './tomtom/tomtom.csv'
+if (exists('args')) {
+  for (n in names(args)) {
+    opts[[n]] <- args[[n]]
+  }
+}
+
 dat <- list()
 ```
 
