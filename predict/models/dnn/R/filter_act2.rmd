@@ -1,0 +1,256 @@
+---
+title: Filter activation
+author: "Christof Angermueller"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: yes
+---
+
+```{r, include=F}
+library(knitr)
+opts_chunk$set(echo=F, warning=F, message=F)
+```
+
+```{r, include=F}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(grid)
+library(gridExtra)
+library(scales)
+library(xtable)
+library(gplots)
+library(RColorBrewer)
+library(seqLogo)
+library(rhdf5)
+
+lib <- file.path(Sys.getenv('Pd'), 'R')
+source(file.path(lib, 'utils.R'))
+```
+
+```{r}
+options(xtable.type='html')
+```
+
+```{r}
+opts <- list()
+opts$db_file <- './filter_act.sql'
+opts$nb_sel <- 50
+opts$annos <- "loc%"
+opts$rank <- F
+dat <- list()
+cmp <- list()
+
+filter_data <- function(d) {
+  d <- d %>% filter(!is.na(rs), !is.na(rp), act_mean > 0) %>% droplevels
+  return (d)
+}
+```
+
+<style>
+img {
+    max-width: none;
+}
+</style>
+
+```{r}
+query_db <- function(db_file, table='global', cond=NULL) {
+  con <- src_sqlite(db_file)
+  h <- sprintf('SELECT * FROM %s', table)
+  if (!is.null(cond)) {
+    h <- sprintf('%s WHERE %s', h, cond)
+  }
+  d <- tbl(con, sql(h))
+  d <- d %>% collect %>% select(-path, -id)
+  d <- d %>% mutate(filt=factor(filt), cell_type=parse_cell_type(target))
+  d <- d %>% char_to_factor %>% droplevels %>% tbl_df
+  return (d)
+}
+
+plot_heat_annos <- function(d, value='act_mean', del=F, rank=F,
+  Rowv=T, Colv=T, lhei=NULL, ...) {
+  d$value <- d[[value]]
+  if (!del) {
+    d$value <- abs(d$value)
+  }
+  d <- d %>% group_by(anno, filt) %>% summarise(value=mean(value)) %>% ungroup
+  if (rank) {
+    d <- d %>% group_by(filt) %>% mutate(value=rank(value)) %>% ungroup
+  }
+  d <- d %>% spread(anno, value) %>% as.data.frame
+  rownames(d) <- d$filt
+  d <- d %>% select(-filt) %>% as.matrix
+
+  if (del) {
+    colors <- rev(brewer.pal(11, 'RdBu'))
+  } else {
+    colors <- brewer.pal(9, 'YlGnBu')
+  }
+  colors <- colorRampPalette(colors)(50)
+  dendro <- 'column'
+  if (!is.null(Rowv)) {
+    dendro <- 'both'
+  }
+
+  p <- heatmap.2(d, density.info='none', trace='none', col=colors,
+    Rowv=Rowv, Colv=Colv, keysize=1.0, dendrogram=dendro,
+    margins=c(8, 8), lhei=lhei,
+    key.title='', srtCol=45, key.xlab='value')
+  return (p)
+}
+
+plot_heat_targets <- function(d, value='rs', del=F, rank=F,
+  Rowv=T, Colv=T, lhei=NULL, ...) {
+  d$value <- d[[value]]
+  if (!del) {
+    d$value <- abs(d$value)
+  }
+  d <- d %>% group_by(filt, target) %>% summarise(value=mean(value)) %>% ungroup
+  if (rank) {
+    d <- d %>% group_by(filt) %>% mutate(value=rank(value)) %>% ungroup
+  }
+  d <- d %>% spread(target, value) %>% as.data.frame
+  rownames(d) <- d$filt
+  d <- d %>% select(-filt) %>% as.matrix
+
+  type <- factor(grepl('2i', colnames(d)), levels=c(T, F), labels=c('2i', 'serum'))
+  col_colors <- colors_$cell_type[type]
+
+  if (del) {
+    colors <- rev(brewer.pal(11, 'RdBu'))
+  } else {
+    colors <- brewer.pal(9, 'YlGnBu')
+  }
+  colors <- colorRampPalette(colors)(50)
+  dendro <- 'column'
+  if (!is.null(Rowv)) {
+    dendro <- 'both'
+  }
+
+  p <- heatmap.2(d, density.info='none', trace='none', col=colors,
+    Rowv=Rowv, Colv=Colv, keysize=1.0, dendrogram=dendro,
+    margins=c(8, 8), lhei=lhei,
+    key.title='', srtCol=45, key.xlab='value', ColSideColors=col_colors)
+  return (p)
+}
+```
+
+# Global
+
+```{r fig.width=10, height=5}
+dat$global <- query_db(opts$db_file) %>% filter_data
+stopifnot(sum(is.na(dat$global)) == 0)
+```
+
+```{r}
+cmp$rank <- dat$global %>% group_by(filt) %>%
+  summarise(act=mean(abs(act_mean)), rs=mean(abs(rs)), rp=mean(abs(rp))) %>%
+  mutate(act=act/max(act), rs=rs/max(rs), rp=rp/max(rs)) %>%
+  arrange(desc(act)) %>%
+  mutate(filt=factor(filt, levels=filt))
+cmp$sel <- levels(cmp$rank$filt)
+cmp$nb_sel <- length(cmp$sel)
+```
+
+```{r}
+bar_width <- cmp$nb_sel * 0.3
+bar_height <- 6
+```
+
+
+```{r fig.width=bar_width, fig.height=bar_height}
+d <- cmp$rank %>% gather(fun, value, -filt)
+ggplot(d, aes(x=filt, y=value)) +
+  geom_bar(aes(fill=fun), stat='identity', position=position_dodge()) +
+  xlab('') + ylab('Normalized value') +
+  theme_pub() +
+  theme(legend.position='top')
+```
+
+# Annotations
+
+```{r}
+dat$annos <- query_db(opts$db_file, 'annos') %>% filter_data
+d <- dat$global %>% mutate(anno='global')
+dat$annos <- rbind.data.frame(d, dat$annos) %>%
+  filter(filt %in% cmp$sel) %>% droplevels %>%
+  mutate(anno=factor(anno))
+```
+
+```{r}
+cmp$astats <- dat$annos %>%
+  select(anno, act_mean, rp, rs) %>%
+  group_by(anno) %>%
+  summarise_each(funs(mean(abs(.)))) %>%
+  arrange(desc(abs(act_mean))) %>%
+  mutate(anno=factor(anno, levels=anno))
+```
+
+```{r include=F, results='asis'}
+xtable(cmp$astats, digis=3)
+```
+
+```{r fig.width=cmp$nb_sel*0.25, height=6}
+d <- cmp$astats %>% gather(fun, value, -anno) %>%
+  group_by(fun) %>% mutate(value=value/max(value)) %>% ungroup
+d$anno <- factor(d$anno, levels=cmp$astats$anno)
+
+ggplot(d, aes(x=anno, y=value)) +
+  geom_bar(aes(fill=fun), stat='identity', position=position_dodge()) +
+  xlab('') + ylab('Normalized value') +
+  theme(axis.text.x=element_text(angle=30, hjust=1)) +
+  theme_pub() +
+  theme(legend.position='top')
+```
+
+```{r}
+heat_width <- 10
+heat_height <- cmp$nb_sel * 0.25
+```
+
+
+## Activation
+```{r fig.width=heat_width, fig.height=heat_height}
+p <- plot_heat_annos(dat$annos, 'act_mean', rank=F)
+```
+
+## Activation rank
+```{r fig.width=heat_width, fig.height=heat_height}
+p <- plot_heat_annos(dat$annos, 'act_mean', rank=T)
+```
+
+## Spearman
+```{r fig.width=heat_width, fig.height=heat_height}
+p <- plot_heat_annos(dat$annos, 'rs', rank=F)
+```
+
+## Spearman rank
+```{r fig.width=heat_width, fig.height=heat_height}
+p <- plot_heat_annos(dat$annos, 'rs', rank=T)
+```
+
+# Targets
+
+## Spearman
+```{r fig.width=heat_width, fig.height=heat_height}
+d <- dat$annos %>% filter(anno=='global')
+p <- plot_heat_targets(d, 'rs', rank=F)
+```
+
+## Spearman rank
+```{r fig.width=heat_width, fig.height=heat_height}
+d <- dat$annos %>% filter(anno=='global')
+p <- plot_heat_targets(d, 'rs', rank=T)
+```
+
+## Annotation specific
+```{r fig.width=heat_width, fig.height=heat_height}
+annos <- c('loc_CGI', 'loc_Intergenic', 'loc_Active_enhancers')
+for (anno_ in annos) {
+  print(anno_)
+  d <- dat$annos %>% filter(anno == anno_) %>% droplevels
+  p <- plot_heat_targets(d, 'rs', rank=F)
+  p <- plot_heat_targets(d, 'rs', rank=T)
+}
+```
