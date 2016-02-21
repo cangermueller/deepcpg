@@ -28,9 +28,6 @@ library(rhdf5)
 lib <- file.path(Sys.getenv('Pd'), 'R')
 source(file.path(lib, 'utils.R'))
 source(file.path(lib, 'filter.R'))
-lib <- file.path(Sys.getenv('Pv'), 'R')
-source(file.path(lib, 'utils.R'))
-source(file.path(lib, 'filter_motifs.R'))
 ```
 
 ```{r}
@@ -59,6 +56,33 @@ dat <- list()
 ```
 
 ```{r}
+query_db <- function(db_file, table='global', cond=NULL) {
+  con <- src_sqlite(db_file)
+  h <- sprintf('SELECT * FROM %s', table)
+  if (!is.null(cond)) {
+    h <- sprintf('%s WHERE %s', h, cond)
+  }
+  d <- tbl(con, sql(h))
+  d <- d %>% collect %>% select(-path, -id)
+  d <- d %>% char_to_factor %>% droplevels %>% tbl_df
+  return (d)
+}
+
+read_tomtom <- function(path, all=F) {
+  h <- read.table(path, sep='\t', head=T) %>% tbl_df %>%
+    mutate(filt=factor(sub('filter', '', Query.ID))) %>%
+    group_by(filt) %>% arrange(q.value) %>% ungroup
+  if (all) {
+    return (h)
+  }
+  d <- h %>% group_by(filt) %>% arrange(q.value) %>% slice(1) %>% ungroup %>%
+    select(filt, Target.name, Target.ID, p.value, E.value, q.value, URL)
+  d <- d %>% inner_join(group_by(h, filt) %>% summarise(nb_hits=n()))
+  return (d)
+}
+```
+
+```{r}
 dat$filt <- read_filt(opts$weights_file, group=opts$weights_path)
 dat$motifs <- dat$filt %>% group_by(filt) %>%
   summarise(motif=filt_motif(dat$filt, filt)) %>%
@@ -72,20 +96,25 @@ dat$tab <- dat$motifs %>% select(-motif)
 ```{r eval=!(is.null(opts$act_file))}
 dat$act <- query_db(opts$act_file)
 h <- dat$act %>% select(-c(target, n)) %>%
-  filter(act_mean != 0) %>%
+  filter(!is.na(rs), act_mean > 0) %>%
   mutate(filt=factor(filt)) %>%
   group_by(filt) %>% summarise_each(funs(mean(., na.rm=T)))
-dat$tab <- dat$tab %>% inner_join(h) %>% arrange(desc(abs(rs)))
+dat$tab <- dat$tab %>% inner_join(h) %>% arrange(desc(abs(act_mean)))
 ```
 
 ```{r eval=!is.null(opts$tomtom_file)}
 dat$tomtom_all <- read_tomtom(opts$tomtom_file, all=T)
 dat$tomtom <- read_tomtom(opts$tomtom_file) %>% select(-nb_hits)
 dat$tab <- dat$tab %>% left_join(dat$tomtom)
+dat$tab <- dat$tab %>%
+  mutate(
+    file_logo=sprintf('motifs/filter%03d_logo.pdf', as.numeric(filt)),
+    file_dens=sprintf('motifs/filter%03d_dens.pdf', as.numeric(filt))
+    )
 ```
 
 ```{r results='asis'}
-d <- dat$tab %>% select(-filt)
+d <- dat$tab %>% select(-filt, -starts_with('file'))
 print(xtable(d, digits=4, include.rownames=F))
 ```
 
@@ -94,13 +123,21 @@ for (f in dat$tab$filt) {
   cat('<br><br><hr>', fill=T)
   d <- filt_pwm(dat$filt, f)
   seqLogo(d)
-  h <- dat$tab %>% filter(filt == f)
-  print(xtable(h))
-  cat('<br>', fill=T)
+
+  ftab <- dat$tab %>% filter(filt == f)
+  cat(sprintf('<br><a href="%s">Weblogo</a>', ftab$file_logo))
+  cat(sprintf('<br/><a href="%s">Density</a>', ftab$file_dens))
+  cat('<br/><br/')
+  h <- ftab %>% select(-starts_with('file'))
+  print(xtable(h, digits=4, include.rownames=F))
+
   if (!is.null(dat$tomtom)) {
     h <- dat$tomtom_all %>% filter(filt == f) %>%
       select(-c(filt, Orientation, Query.ID, Optimal.offset))
-    print(xtable(h, digits=2))
+    if (nrow(h) > 0) {
+      cat('<br>', fill=T)
+      print(xtable(h, digits=2))
+    }
   }
 }
 ```
