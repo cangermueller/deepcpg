@@ -115,15 +115,13 @@ stats_global <- function(d) {
   return (d)
 }
 
-plot_global <- function(d, metric=NULL) {
+plot_global <- function(d, metrics=c('auc', 'mcc', 'tpr', 'tnr', 'acc')) {
   d <- d  %>% droplevels %>%
     arrange(desc(auc)) %>%
     mutate(model=factor(model, levels=unique(model)))
-  d <- d %>% select(-c(path, id, trial, eval))
+  cols <- c(c('model', 'target', 'cell_type'), metrics)
+  d <- d[,cols]
   d <- d %>% gather(metric, value, -c(model, target, cell_type))
-  if (!is.null(metric)) {
-    d <- d %>% filter_(sprintf('metric == "%s"', metric))
-  }
   p <- ggplot(d, aes(x=model, y=value)) +
     geom_boxplot(aes(fill=model), alpha=1.0, outlier.shape=NA) +
     geom_jitter(aes(color=cell_type),
