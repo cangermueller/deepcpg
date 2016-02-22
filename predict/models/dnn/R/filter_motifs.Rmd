@@ -127,7 +127,7 @@ for (f in dat$tab$filt) {
   ftab <- dat$tab %>% filter(filt == f)
   cat(sprintf('<br><a href="%s">Weblogo</a>', ftab$file_logo))
   cat(sprintf('<br/><a href="%s">Density</a>', ftab$file_dens))
-  cat('<br/><br/')
+  cat('<br/><br/>')
   h <- ftab %>% select(-starts_with('file'))
   print(xtable(h, digits=4, include.rownames=F))
 
