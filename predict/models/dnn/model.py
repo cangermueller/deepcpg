@@ -238,12 +238,12 @@ def optimizer_from_params(params):
 
 
 def copy_weights(src, dst, prefix):
-    n = 0
+    copied = []
     for k, v in src.nodes.items():
         if k.startswith(prefix) and k in dst.nodes:
             dst.nodes[k].set_weights(src.nodes[k].get_weights())
-            n += 1
-    return n
+            copied.append(k)
+    return copied
 
 
 def model_to_pickle(model, path):

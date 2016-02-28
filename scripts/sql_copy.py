@@ -69,7 +69,7 @@ class App(object):
 
         for src_file in opts.src_files:
             log.info(src_file)
-            src_db = sql.connect(opts.src_file)
+            src_db = sql.connect(src_file)
             models = opts.models
             if models is None:
                 models = list(pd.read_sql('SELECT distinct(model) from global',

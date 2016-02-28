@@ -96,6 +96,10 @@ def logodds_ratio(p, q):
 
 
 def filter_regex(x, regexs):
+    if not isinstance(x, list):
+        x = [x]
+    if not isinstance(regexs, list):
+        regexs = [regexs]
     xf = set()
     for xi in x:
         for regex in regexs:

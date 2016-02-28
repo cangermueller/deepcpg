@@ -8,6 +8,10 @@ import pandas as pd
 import numpy as np
 
 
+def model_name(train_dir):
+    return pt.basename(pt.dirname(train_dir))
+
+
 def read_file(dnames, fname, exists=False):
     ds = []
     for dname in dnames:
@@ -15,7 +19,7 @@ def read_file(dnames, fname, exists=False):
         if not exists and not pt.isfile(h):
             continue
         d = pd.read_table(h)
-        d['model'] = pt.basename(dname)
+        d['model'] = model_name(dname)
         ds.append(d)
     ds = pd.concat(ds)
     return ds
@@ -68,6 +72,14 @@ class App(object):
             help='Minimum epoch',
             type=float)
         p.add_argument(
+            '--lc_file',
+            help='Filename learning curve',
+            default='lc.csv')
+        p.add_argument(
+            '--val_file',
+            help='Filename validation performance',
+            default='val_cla.csv')
+        p.add_argument(
             '--seed',
             help='Seed of rng',
             type=int,
@@ -94,14 +106,14 @@ class App(object):
         if opts.seed is not None:
             np.random.seed(opts.seed)
 
-        d = read_lc(opts.train_dirs)
-
-        models = [pt.basename(x) for x in opts.train_dirs]
+        d = read_lc(opts.train_dirs, fname=opts.lc_file)
+        models = [model_name(x) for x in opts.train_dirs]
         for m in filter(lambda x: not np.any(d.model == x), models):
             log.warn('%s incomplete!' % m)
 
-        d = pd.merge(d, read_perf(opts.train_dirs), on='model', how='left')
-        asc = opts.sort.find('loss') == -1
+        v = read_perf(opts.train_dirs, fname=opts.val_file)
+        d = pd.merge(d, v, on='model', how='left')
+        asc = opts.sort.find('loss') != -1
         d.sort_values(opts.sort, inplace=True, ascending=asc)
         if opts.early is not None:
             t = d['auc'].isnull()
