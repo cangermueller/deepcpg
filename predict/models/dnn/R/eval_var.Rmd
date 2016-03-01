@@ -1,3 +1,57 @@
+---
+title: "Evaluation"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: yes
+---
+
+```{r, include=F}
+library(knitr)
+opts_chunk$set(echo=F, warning=F, message=F)
+```
+
+```{r, include=F}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(RSQLite)
+library(xtable)
+library(grid)
+
+lib <- file.path(Sys.getenv('Pd'), 'R')
+source(file.path(lib, 'utils.R'))
+# source(file.path(lib, 'eval_var.R'))
+```
+
+```{r}
+options(xtable.type='html')
+```
+
+<style>
+img {
+    max-width: none;
+}
+</style>
+
+```{r}
+dat <- list()
+cmp <- list()
+opts <- list()
+opts$db_file <- './test.sql'
+opts$annos <- NULL
+opts$wlen <- 3000
+
+
+filter_data <- function(d) {
+  if (!is.null(opts$wlen)) {
+    d <- d %>% filter(wlen == opts$wlen)
+  }
+  return (d)
+}
+```
+
+```{r}
 format_target <- function(d) {
     d <- d %>%
       separate(target, c('cell_type', 'wlen', 'metric'), by='_', remove=F) %>%
@@ -74,3 +128,41 @@ plot_yz <- function(d, metric_='mean', median=F) {
     facet_wrap(~cell_type, ncol=1, scale='free')
   return (p)
 }
+```
+
+```{r include=F}
+dat$global <- query_db(opts$db_file, 'global') %>% filter_data
+dat$annos <- query_db(opts$db_file, 'annos') %>% filter_data
+d <- dat$global %>% mutate(anno='global')
+dat$all <- rbind.data.frame(d, dat$annos) %>%
+  mutate(anno=factor(anno)) %>%
+  move_cols(c('model', 'anno'))
+```
+
+```{r}
+cmp$sv <- stats(dat$all, 'var')
+cmp$sm <- stats(dat$all, 'mean')
+cmp$order <- as.vector(cmp$sv$anno)
+dat$all <- dat$all %>% mutate(anno=factor(anno, levels=cmp$order))
+```
+
+```{r}
+fig.width <- length(levels(dat$all$anno)) * 0.4
+fig.height <- 8
+```
+
+## Predicted vs. true methylation rate
+```{r fig.width=fig.width, fig.height=fig.height}
+plot_yz(dat$all, 'mean', F)
+```
+
+## Predicted vs. true variance
+```{r fig.width=fig.width, fig.height=fig.height}
+plot_yz(dat$all, 'var', F)
+```
+
+## Metrices
+
+```{r fig.width=fig.width, fig.height=fig.height}
+plot_annos_funs(dat$all)
+```

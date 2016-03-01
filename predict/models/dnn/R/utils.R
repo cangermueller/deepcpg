@@ -26,6 +26,7 @@ colors_$cell_type <- c(
   '2i'='#377eb8',
   'serum'='#e41a1c'
   )
+colors_$yz <- c('y'='#1b9e77', 'z'='#d95f02')
 
 linetypes <- list()
 linetypes$cell_type <- c(
