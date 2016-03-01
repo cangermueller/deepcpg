@@ -115,10 +115,13 @@ stats_global <- function(d) {
   return (d)
 }
 
-plot_global <- function(d, metrics=c('auc', 'mcc', 'tpr', 'tnr', 'acc')) {
-  d <- d  %>% droplevels %>%
-    arrange(desc(auc)) %>%
-    mutate(model=factor(model, levels=unique(model)))
+plot_global <- function(d, metrics=c('auc', 'mcc', 'tpr', 'tnr', 'acc'),
+  sort=T) {
+  if (sort) {
+    d <- d  %>% droplevels %>%
+      arrange(desc(auc)) %>%
+      mutate(model=factor(model, levels=unique(model)))
+  }
   cols <- c(c('model', 'target', 'cell_type'), metrics)
   d <- d[,cols]
   d <- d %>% gather(metric, value, -c(model, target, cell_type))
@@ -127,15 +130,11 @@ plot_global <- function(d, metrics=c('auc', 'mcc', 'tpr', 'tnr', 'acc')) {
     geom_jitter(aes(color=cell_type),
       position=position_jitter(width=0.1, height=0), size=1.2) +
     scale_color_manual(values=colors_$cell_type) +
+    facet_wrap(~metric, ncol=1, scales='free') +
     xlab('') + ylab('') +
     theme_pub() +
     theme(legend.position='right') +
     theme(axis.text.x=element_text(angle=40, hjust=1))
-  if (is.null(metric)) {
-    p <- p + facet_wrap(~metric, ncol=1, scales='free')
-  } else {
-    p <- p + ylab(toupper(metric))
-  }
   return (p)
 }
 
@@ -238,7 +237,7 @@ plot_annos_bar <- function(d, ver=F, points=T) {
       panel.grid.major=element_line(colour="grey60", size=0.1, linetype='solid'),
       panel.grid.minor=element_line(colour="grey60", size=0.1, linetype='dotted'),
       axis.text.x=element_text(angle=30, hjust=1),
-      axis.text=element_text(size=rel(1.5)),
+      axis.text=element_text(size=rel(1.2)),
       legend.position='top'
     ) +
     xlab('') + ylab('AUC')

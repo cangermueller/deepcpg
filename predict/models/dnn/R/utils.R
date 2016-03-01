@@ -171,3 +171,20 @@ add_global <- function(to, global, name=c('anno'='global')) {
   to <- rbind.data.frame(global, to) %>% mutate(anno=factor(anno))
   return (to)
 }
+
+grep_all <- function(a, b, value=T) {
+  h <- NULL
+  for (aa in a) {
+    hh <- grep(aa, b, value=F)
+    if (is.null(h)) {
+      h <- hh
+    } else {
+      h <- union(h, hh)
+    }
+  }
+  h <- sort(h)
+  if (value) {
+    h <- b[h]
+  }
+  return (h)
+}
