@@ -88,7 +88,8 @@ dat$motifs <- dat$filt %>% group_by(filt) %>%
   summarise(motif=filt_motif(dat$filt, filt)) %>%
   mutate(
     motif=factor(motif),
-    label=factor(paste(as.vector(filt), as.vector(motif), sep=': '))
+    label=factor(sprintf('[%d] %s',
+        as.numeric(as.vector(filt)), as.vector(motif)))
   )
 dat$tab <- dat$motifs %>% select(-motif)
 ```
@@ -108,29 +109,42 @@ dat$tomtom <- read_tomtom(opts$tomtom_file) %>% select(-nb_hits)
 dat$tab <- dat$tab %>% left_join(dat$tomtom)
 dat$tab <- dat$tab %>%
   mutate(
-    file_logo=sprintf('motifs/filter%03d_logo.pdf', as.numeric(filt)),
-    file_dens=sprintf('motifs/filter%03d_dens.pdf', as.numeric(filt))
+    file_logo=sprintf('motifs/filter%03d_logo', as.numeric(filt)),
+    file_dens=sprintf('motifs/filter%03d_dens', as.numeric(filt))
     )
+dat$tab <- dat$tab %>% arrange(q.value, desc(abs(rs)))
 ```
 
-```{r results='asis'}
-d <- dat$tab %>% select(-filt, -starts_with('file'))
-print(xtable(d, digits=4, include.rownames=F))
+```{r}
+d <- dat$tab
+d[is.na(d$q.value), 'q.value'] <- 1.0
+ggplot(d, aes(x=act_mean, y=abs(rs))) +
+  geom_point(aes(color=-log(q.value))) +
+  scale_color_gradient2(low='black', mid='orange', high='red', midpoint=.5) +
+  geom_text(aes(label=filt), size=2, hjust=0, vjust=-0.3) +
+  theme_pub()
 ```
 
 ```{r motifs, results='asis'}
 for (f in dat$tab$filt) {
-  cat('<br><br><hr>', fill=T)
-  d <- filt_pwm(dat$filt, f)
-  seqLogo(d)
-
+  # d <- filt_pwm(dat$filt, f)
+  # seqLogo(d)
   ftab <- dat$tab %>% filter(filt == f)
-  cat(sprintf('<br><a href="%s">Weblogo</a>', ftab$file_logo))
-  cat(sprintf('<br/><a href="%s">Density</a>', ftab$file_dens))
-  cat('<br/><br/>')
+  ftab <- ftab %>% mutate(sel=(act_mean >= 0.001 && abs(rs) >= 0.1))
   h <- ftab %>% select(-starts_with('file'))
   print(xtable(h, digits=4, include.rownames=F))
-
+  cat('<table>')
+  cat('<tr>')
+  cat(sprintf('<td><img src="%s.png"/></td>', ftab$file_logo))
+  cat(sprintf('<td><img src="%s.png" width="300"/></td>', ftab$file_dens))
+  cat('</tr>')
+  cat('<tr>')
+  cat(sprintf('<td><center><a href="%s.pdf">Weblogo</a></center></td>', ftab$file_logo))
+  cat(sprintf('<td><center><a href="%s.pdf">Activation</a></center></td>', ftab$file_logo))
+  cat('</tr>')
+  cat('<tr>')
+  cat('</tr>')
+  cat('</table>')
   if (!is.null(dat$tomtom)) {
     h <- dat$tomtom_all %>% filter(filt == f) %>%
       select(-c(filt, Orientation, Query.ID, Optimal.offset))
@@ -139,5 +153,11 @@ for (f in dat$tab$filt) {
       print(xtable(h, digits=2))
     }
   }
+  cat('<br/><hr/><br/>')
 }
+```
+
+```{r results='asis'}
+d <- dat$tab %>% select(-filt, -starts_with('file'))
+print(xtable(d, digits=4, include.rownames=F))
 ```

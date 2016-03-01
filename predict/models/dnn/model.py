@@ -177,19 +177,26 @@ def build(params, targets, seq_len=None, cpg_len=None, compile=True,
 
     if compile:
         optimizer = optimizer_from_params(params)
-        loss = loss_from_ids(model.output_order)
+        loss = loss_from_ids(model.output_order, params.loss)
         model.compile(loss=loss, optimizer=optimizer)
 
     return model
 
 
-def loss_from_ids(ids):
+def loss_from_ids(ids, spec=None):
     loss = dict()
     for x in ids:
         if x.startswith('s'):
-            loss[x] = 'rmse'
+            loss[x] = 'mse'
         else:
             loss[x] = 'binary_crossentropy'
+    if spec is not None:
+        if isinstance(spec, dict):
+            for k, v in spec.items():
+                loss[k] = v
+        else:
+            for k in loss.keys():
+                loss[k] = spec
     return loss
 
 

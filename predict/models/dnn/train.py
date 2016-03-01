@@ -62,10 +62,10 @@ def eval_io(model, y, z, out_base, targets):
     cla = []
     reg = []
     for k, v in model.loss.items():
-        if re.search('mse', v):
-            reg.append(k)
-        else:
+        if re.search('binary_crossentropy', v):
             cla.append(k)
+        else:
+            reg.append(k)
     p = []
     if len(cla):
         ys = {k: y[k] for k in cla}
@@ -104,7 +104,7 @@ def build_model(params, data_file, targets):
         nb_unit = g['c_x'].shape[2]
         cpg_len = g['c_x'].shape[3]
     f.close()
-    model = mod.build(params, targets, seq_len, cpg_len,
+    model = mod.build(params, targets['id'], seq_len, cpg_len,
                       nb_unit=nb_unit, compile=False)
     return model
 
@@ -354,7 +354,7 @@ class App(object):
             log.info('Build model from scratch')
             if model_params is None:
                 assert 'Parameter file needed!'
-            model = build_model(model_params, opts.train_file, targets['id'])
+            model = build_model(model_params, opts.train_file, targets)
         else:
             log.info('Loading model')
             model = mod.model_from_list(opts.model, compile=False)
@@ -387,9 +387,11 @@ class App(object):
             log.info('Compile model')
             if model_params is None:
                 optimizer = mod.optimizer_from_json(opts.model[0])
+                loss = None
             else:
                 optimizer = mod.optimizer_from_params(model_params)
-            loss = mod.loss_from_ids(model.output_order)
+                loss = model_params.loss
+            loss = mod.loss_from_ids(model.output_order, loss)
             model.compile(loss=loss, optimizer=optimizer)
         if opts.lr is not None:
             log.info('Set learning rate to %f' % (opts.lr))
