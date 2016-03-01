@@ -36,7 +36,7 @@ class App(object):
             '--cmd',
             help='R command')
         p.add_argument(
-            '--copy',
+            '-c', '--copy',
             help='Copy to file')
         p.add_argument(
             '--test',
@@ -63,8 +63,9 @@ class App(object):
 
         rmd_file = opts.rmd_file
         if opts.copy:
-            shutil.copyfile(rmd_file, opts.copy)
-            rmd_file = opts.copy
+            dst_file = opts.copy
+            shutil.copyfile(rmd_file, dst_file)
+            rmd_file = dst_file
         _format = opts.format
         out_file = opts.out_file
         if out_file is None:
