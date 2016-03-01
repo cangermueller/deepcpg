@@ -9,18 +9,21 @@ import random
 import re
 
 import predict.models.dnn.model as mod
+import predict.utils as pu
 
 
 def copy_weights(src_nodes, dst_nodes, nodes=None):
     nb_copy = 0
     for src_name, src_node in src_nodes.items():
-        if nodes is not None and src_name not in nodes:
-            continue
+        if nodes is not None:
+            if len(pu.filter_regex(src_name, nodes)) == 0:
+                continue
         dst_name = src_name
         if re.match('^u\d+_o', dst_name):
             dst_name = dst_name.replace('u', 'c')
         if dst_name not in dst_nodes:
             continue
+        print('%s -> %s' % (src_name, dst_name))
         dst_nodes[dst_name].set_weights(src_node.get_weights())
         nb_copy += 1
     return nb_copy
@@ -60,7 +63,7 @@ class App(object):
             help='Destination model',
             nargs='+')
         p.add_argument(
-            '--nodes',
+            '-n', '--nodes',
             help='Only copy weights from these nodes',
             nargs='+')
         p.add_argument(

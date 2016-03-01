@@ -103,7 +103,7 @@ class App(object):
                 cmd='bash %s' % (run_file)
             else:
                 cmd = 'sbatch --mem=32000 -J {job} -o {log}.out -e {log}.err' +\
-                    ' --time={time}:00:00 -A {acc} {sfile} {rfile}'
+                    ' --time={time}:00:00 -A {acc} {sfile} ./{rfile}'
                 if opts.run == 'cpu':
                     account = 'STEGLE-SL3'
                     sfile = os.getenv('scpu')

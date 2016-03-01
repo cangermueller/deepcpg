@@ -12,7 +12,7 @@ def make_cbk():
 
 
 def read_targets(path, targets=None):
-    f = h5.File(path)
+    f = h5.File(path, 'r')
     g = f['targets']
     tar = dict()
     for k in g.keys():

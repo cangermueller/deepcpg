@@ -22,12 +22,12 @@ from predict.models.dnn.params import Params
 
 def get_sample_weights(y, weight_classes=False):
     y = y[:]
-    class_weights = {-1: 0, 0: 1, 1: 1}
+    class_weights = {ut.MASK: 0}
     if weight_classes:
         t = y[y != ut.MASK].mean()
         class_weights[0] = t
         class_weights[1] = 1 - t
-    sample_weights = np.zeros(y.shape, dtype='float16')
+    sample_weights = np.ones(y.shape, dtype='float16')
     for k, v in class_weights.items():
         sample_weights[y == k] = v
     return sample_weights
@@ -62,10 +62,10 @@ def eval_io(model, y, z, out_base, targets):
     cla = []
     reg = []
     for k, v in model.loss.items():
-        if re.match('mse', v):
-            reg.append(k)
-        else:
+        if re.search('binary_crossentropy', v):
             cla.append(k)
+        else:
+            reg.append(k)
     p = []
     if len(cla):
         ys = {k: y[k] for k in cla}
@@ -80,8 +80,8 @@ def eval_io(model, y, z, out_base, targets):
         p.append(None)
 
     if len(reg):
-        ys = {k: y[k] for k in cla}
-        zs = {k: z[k] for k in cla}
+        ys = {k: y[k] for k in reg}
+        zs = {k: z[k] for k in reg}
         e = evaluate(ys, zs, targets, funs=pe.eval_funs_regress)
         if e is not None:
             print('Regression:')
@@ -104,7 +104,7 @@ def build_model(params, data_file, targets):
         nb_unit = g['c_x'].shape[2]
         cpg_len = g['c_x'].shape[3]
     f.close()
-    model = mod.build(params, targets, seq_len, cpg_len,
+    model = mod.build(params, targets['id'], seq_len, cpg_len,
                       nb_unit=nb_unit, compile=False)
     return model
 
@@ -167,7 +167,7 @@ class App(object):
             nargs='+')
         p.add_argument(
             '--not_trainable',
-            help='Do not train nodes with given name',
+            help='Regex of nodes that are not trained',
             nargs='+')
         p.add_argument(
             '--nb_epoch',
@@ -187,6 +187,10 @@ class App(object):
             help='Early stopping patience',
             type=int,
             default=3)
+        p.add_argument(
+            '--lr',
+            help='Learning rate',
+            type=float)
         p.add_argument(
             '--lr_schedule',
             help='Learning rate scheduler patience',
@@ -350,7 +354,7 @@ class App(object):
             log.info('Build model from scratch')
             if model_params is None:
                 assert 'Parameter file needed!'
-            model = build_model(model_params, opts.train_file, targets['id'])
+            model = build_model(model_params, opts.train_file, targets)
         else:
             log.info('Loading model')
             model = mod.model_from_list(opts.model, compile=False)
@@ -358,19 +362,23 @@ class App(object):
         if opts.cpg_model is not None:
             log.info('Copy cpg weights')
             cpg_model = mod.model_from_list(opts.cpg_model, compile=False)
-            t = mod.copy_weights(cpg_model, model, 'c_')
-            log.info('Weights copied from %d nodes' % (t))
+            nodes = mod.copy_weights(cpg_model, model, 'c_')
+            for node in nodes:
+                print(node)
+            log.info('Weights copied from %d nodes' % (len(nodes)))
 
         if opts.seq_model is not None:
             log.info('Copy seq weights')
             seq_model = mod.model_from_list(opts.seq_model, compile=False)
-            t = mod.copy_weights(seq_model, model, 's_')
-            log.info('Weights copied from %d nodes' % (t))
+            nodes = mod.copy_weights(seq_model, model, 's_')
+            for node in nodes:
+                print(node)
+            log.info('Weights copied from %d nodes' % (len(nodes)))
 
         if opts.not_trainable is not None:
             print('\nNodes excluded from training:')
             for k, v in model.nodes.items():
-                if k in opts.not_trainable:
+                if len(pu.filter_regex(k, opts.not_trainable)) > 0:
                     print(k)
                     v.trainable = False
 
@@ -379,10 +387,15 @@ class App(object):
             log.info('Compile model')
             if model_params is None:
                 optimizer = mod.optimizer_from_json(opts.model[0])
+                loss = None
             else:
                 optimizer = mod.optimizer_from_params(model_params)
-            loss = mod.loss_from_ids(model.output_order)
+                loss = model_params.loss
+            loss = mod.loss_from_ids(model.output_order, loss)
             model.compile(loss=loss, optimizer=optimizer)
+        if opts.lr is not None:
+            log.info('Set learning rate to %f' % (opts.lr))
+            model.optimizer.lr.set_value(opts.lr)
 
         log.info('Save model')
         mod.model_to_json(model, pt.join(opts.out_dir, 'model.json'))

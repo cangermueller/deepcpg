@@ -75,8 +75,7 @@ def write_sliced(data, path, group, slice_=None, nb_max=None):
     out_file = h5.File(path, 'a')
     for k, v in data.items():
         h = pt.join(group, k)
-        if h in out_file:
-            del out_file[h]
+        # Checking if h exists leads to huge files
         out_file.create_dataset(h, data=v, compression='gzip')
     out_file.close()
 

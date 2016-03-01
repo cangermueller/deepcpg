@@ -98,8 +98,9 @@ class Params(object):
         self.optimizer = 'Adam'
         self.optimizer_params = {'lr': 0.001}
         self.batch_size = 128
+        self.loss = None
 
-    def validate(self, nb_hidden=True):
+    def validate(self, nb_hidden=False):
         for k in ['seq', 'cpg', 'joint', 'target']:
             if hasattr(vars(self)[k], 'validate'):
                 vars(self)[k].validate()
@@ -140,7 +141,7 @@ class Params(object):
                     vself[k].update(params[k])
                 else:
                     vself[k] = v
-            elif k in vself.keys():
+            else:
                 vself[k] = v
 
     def __str__(self):

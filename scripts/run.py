@@ -46,7 +46,7 @@ class App(object):
         p.add_argument(
             '-A', '--account',
             help='SLURM account',
-            choices=['SL2', 'SL3'],
+            choices=['SL2', 'SL3', 'SL4'],
             default='SL3')
         p.add_argument(
             '-t', '--time',
@@ -105,7 +105,7 @@ class App(object):
             if opts.run == 'none':
                 continue
             elif opts.run == 'local':
-                cmd = 'bash %s' % (run_file_local)
+                cmd = 'bash ./%s' % (run_file_local)
             else:
                 cmd = 'sbatch --mem={mem} -J {job} -o {log}.out -e {log}.err' +\
                     ' --time={time}:00:00 -A {acc} {args} {sfile} ./{rfile}'
