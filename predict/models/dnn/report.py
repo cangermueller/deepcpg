@@ -58,7 +58,8 @@ class App(object):
             nargs='+')
         p.add_argument(
             '-r', '--regression',
-            help='Evaluate regression performance')
+            help='Evaluate regression performance',
+            action='store_true')
         p.add_argument(
             '-s', '--sort',
             help='Sort ascending',

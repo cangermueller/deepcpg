@@ -21,6 +21,7 @@ import matplotlib
 matplotlib.use('pdf')
 import matplotlib.pyplot as plt
 import seaborn as sns
+sns.set_style('darkgrid')
 
 
 weblogo_opts = '-X NO -Y NO --errorbars NO --fineprint ""'

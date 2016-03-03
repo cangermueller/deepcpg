@@ -95,7 +95,6 @@ cmd="rmd.py
   "
 run $cmd
 
-
 cmd="rmd.py
   $Pd/R/filter_act2.Rmd
   --copy filter_act.Rmd

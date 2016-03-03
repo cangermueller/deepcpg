@@ -24,8 +24,8 @@ class EarlyStopping(Callback):
         if np.isnan(score):
             if self.verbose > 0:
                 print("Epoch %d: stop due to nan" % (epoch))
-                self.model.stop_training = True
-        elif score <= self.best_score:
+            self.model.stop_training = True
+        elif score < self.best_score:
             self.counter = 0
             self.best_score = score
         else:

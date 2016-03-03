@@ -32,7 +32,7 @@ if [ ! -e $model_file ]; then
   run $cmd
 fi
 
-cmd="python -u $Pd/test.py
+cmd="$Pd/test.py
   $Ev/data/2iser_w501_test.h5
   --model $model_file
   -o $out_dir/test.h5

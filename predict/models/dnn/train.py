@@ -19,6 +19,11 @@ import predict.models.dnn.callbacks as cbk
 import predict.models.dnn.model as mod
 from predict.models.dnn.params import Params
 
+import matplotlib
+matplotlib.use('pdf')
+import seaborn as sns
+sns.set_style('darkgrid')
+
 
 def get_sample_weights(y, weight_classes=False):
     y = y[:]
@@ -493,12 +498,18 @@ class App(object):
             mod.model_to_pickle(model, h)
 
         if opts.nb_epoch > 0:
-            print('\n\nLearning curve:')
             for cback in cbacks:
                 if isinstance(cback, cbk.PerformanceLogger):
-                    h = cback
+                    perf_logger = cback
                     break
-            print(perf_logs_str(h.frame()))
+            lc = perf_logger.frame()
+            print('\n\nLearning curve:')
+            print(perf_logs_str(lc))
+            if len(lc) > 5:
+                lc = lc.loc[lc.epoch > 2]
+            lc.set_index('epoch', inplace=True)
+            ax = lc.plot(figsize=(10, 6))
+            ax.get_figure().savefig(pt.join(opts.out_dir, 'lc.png'))
 
         if opts.eval is not None and 'train' in opts.eval:
             log.info('Evaluate training set performance')
