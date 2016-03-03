@@ -67,7 +67,7 @@ query_db <- function(db_file, table='global', cond=NULL) {
 }
 
 plot_heat_annos <- function(d, value='act_mean', del=F, rank=F,
-  Rowv=T, Colv=T, lhei=c(1, 10), lwid=c(2, 10), ...) {
+  Rowv=T, Colv=T, lhei=c(2, 10), lwid=c(2, 10), ...) {
   d$value <- d[[value]]
   if (!del) {
     d$value <- abs(d$value)
@@ -100,7 +100,7 @@ plot_heat_annos <- function(d, value='act_mean', del=F, rank=F,
 }
 
 plot_heat_targets <- function(d, value='rs', del=F, rank=F,
-  Rowv=T, Colv=T, lhei=c(1, 10), lwid=c(2, 10), ...) {
+  Rowv=T, Colv=T, lhei=c(2, 10), lwid=c(2, 10), ...) {
   d$value <- d[[value]]
   if (!del) {
     d$value <- abs(d$value)
@@ -221,7 +221,7 @@ ggplot(d, aes(x=act, y=abs(rs))) +
 ```
 
 ```{r}
-bar_width <- cmp$nb_sel * 0.3
+bar_width <- max(6, cmp$nb_sel * 0.4)
 bar_height <- 6
 ```
 
@@ -261,7 +261,7 @@ cmp$astats <- dat$annos %>%
 xtable(cmp$astats, digis=3)
 ```
 
-```{r fig.width=cmp$nb_sel*0.25, height=6}
+```{r fig.width=max(6, cmp$nb_sel*0.45), height=6}
 d <- cmp$astats %>% gather(fun, value, -anno) %>%
   group_by(fun) %>% mutate(value=value/max(value)) %>% ungroup
 d$anno <- factor(d$anno, levels=cmp$astats$anno)
@@ -276,7 +276,7 @@ ggplot(d, aes(x=anno, y=value)) +
 
 ```{r}
 heat_width <- 9
-heat_height <- cmp$nb_sel * 0.25
+heat_height <- max(10, cmp$nb_sel * 0.25)
 ```
 
 

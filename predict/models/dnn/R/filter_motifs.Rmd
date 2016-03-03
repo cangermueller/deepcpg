@@ -130,6 +130,10 @@ for (f in dat$tab$filt) {
   # d <- filt_pwm(dat$filt, f)
   # seqLogo(d)
   ftab <- dat$tab %>% filter(filt == f)
+  if (!file.exists(sprintf('%s.fa', ftab$file_logo))) {
+    message(sprintf('Skipping %s', ftab$file_logo))
+    next
+  }
   ftab <- ftab %>% mutate(sel=(act_mean >= 0.001 && abs(rs) >= 0.1))
   h <- ftab %>% select(-starts_with('file'))
   print(xtable(h, digits=4, include.rownames=F))
