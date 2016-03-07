@@ -8,6 +8,7 @@ import os.path as pt
 import h5py as h5
 import pandas as pd
 import numpy as np
+import scipy.stats as sps
 
 import predict.utils as ut
 import predict.evaluation as ev
@@ -71,13 +72,22 @@ def evaluate(y, z):
     funs = [
         ('rmse', ev.rmse),
         ('mse', ev.mse),
-        ('mad', ev.mad),
-        ('cor', ev.cor)]
+        ('mad', ev.mad)]
     e = ev.evaluate(y, z, funs=funs, mask=None)
+    r = sps.pearsonr(y, z)
     e['y'] = np.mean(y)
     e['z'] = np.mean(z)
     e['ymed'] = np.median(y)
     e['zmed'] = np.median(z)
+    e['rp'] = r[0]
+    e['rp_pvalue'] = r[1]
+    r = sps.spearmanr(y, z)
+    e['rs'] = r[0]
+    e['rs_pvalue'] = r[1]
+    r = sps.kendalltau(y[:100000], z[:100000])
+    e['rk'] = r[0]
+    e['rk_pvalue'] = r[1]
+
     return e
 
 

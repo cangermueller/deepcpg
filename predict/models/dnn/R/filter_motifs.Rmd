@@ -97,7 +97,7 @@ dat$tab <- dat$motifs %>% select(-motif)
 ```{r eval=!(is.null(opts$act_file))}
 dat$act <- query_db(opts$act_file)
 h <- dat$act %>% select(-c(target, n)) %>%
-  filter(!is.na(rs), act_mean > 0) %>%
+  filter(!is.na(rs), act_mean > 0, act_std > 0) %>%
   mutate(filt=factor(filt)) %>%
   group_by(filt) %>% summarise_each(funs(mean(., na.rm=T)))
 dat$tab <- dat$tab %>% inner_join(h) %>% arrange(desc(abs(act_mean)))
