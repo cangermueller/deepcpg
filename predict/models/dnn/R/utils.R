@@ -27,6 +27,12 @@ colors_$cell_type <- c(
   'serum'='#e41a1c'
   )
 colors_$yz <- c('y'='#1b9e77', 'z'='#d95f02')
+colors_$model <- c(
+    'DeepCpG'='#1b9e77',
+    'RF'='#d95f02',
+    'WinAvg'='#fb9a99',
+    'DeepCpG Seq'='#66a61e',
+    'RF Seq'='#7570b3')
 
 linetypes <- list()
 linetypes$cell_type <- c(
