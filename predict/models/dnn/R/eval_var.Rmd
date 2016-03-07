@@ -70,7 +70,7 @@ query_db <- function(db_file, table, models=NULL) {
     d <- d %>% filter(model %in% models)
   }
   d <- d %>% select(-c(path, id)) %>%
-    gather(fun, value, 1:9)
+    gather(fun, value, -one_of(c('anno', 'target', 'model')))
   d <- d %>% format_target
   d <- d %>% char_to_factor %>% droplevels %>% tbl_df %>%
     move_cols(c('model', 'target', 'cell_type', 'wlen'))
@@ -87,6 +87,9 @@ stats <- function(d, metric_='var') {
 
 plot_annos <- function(d, fun_='mse') {
   d <- d %>% filter(fun == fun_) %>% droplevels
+  if (nrow(d) == 0) {
+    return (NULL)
+  }
   p <- ggplot(d, aes(x=anno, y=value)) +
     geom_bar(aes(fill=cell_type), stat='identity', position='dodge') +
     scale_fill_manual(values=colors_$cell_type) +
@@ -100,10 +103,12 @@ plot_annos <- function(d, fun_='mse') {
   return (p)
 }
 
-plot_annos_funs <- function(d, funs=c('mse', 'rmse', 'mad', 'cor')) {
+plot_annos_funs <- function(d, funs=c('mse', 'rmse', 'mad', 'rp', 'rs', 'rk')) {
   for (fun in funs) {
     p <- plot_annos(d, fun=fun)
-    print(p)
+    if (!is.null(p)) {
+      print(p)
+    }
   }
 }
 

@@ -324,11 +324,6 @@ d <- dat$annos %>% filter(anno=='global')
 p <- plot_heat_targets(d, 'rs', rank=T)
 ```
 
-```{r fig.width=heat_width, fig.height=heat_height}
-d <- dat$annos %>% filter(anno=='global')
-p <- plot_heat_targets(d, 'rs', rank=T)
-```
-
 ## Annotation specific
 ```{r eval=F, fig.width=heat_width, fig.height=heat_height}
 annos <- c('loc_CGI', 'loc_Intergenic', 'loc_Active_enhancers')

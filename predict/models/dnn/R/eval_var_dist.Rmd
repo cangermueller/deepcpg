@@ -36,7 +36,7 @@ opts <- list()
 opts$pred_file <- './test_sliced.h5'
 opts$annos <- '^loc_.*'
 opts$wlen <- 3000
-opts$nb_sample <- NULL
+opts$nb_sample <- 1000
 ```
 
 ```{r}
@@ -106,8 +106,9 @@ plot_dist_type <- function(d, metric_='mean') {
 
 ```{r}
 d <- list()
+cell_types <- unique(sub('^([^_]+)_.*', '\\1', h5ls(opts$pred_file)))
 for (metric in c('mean', 'var')) {
-  for (cell_type in c('ser', '2i')) {
+  for (cell_type in cell_types) {
     h <- sprintf('%s_w%d_%s', cell_type, opts$wlen, metric)
     d[[length(d) + 1]] <- read_pred(opts$pred_file, h, annos=opts$annos,
       nb_sample=opts$nb_sample) %>%
@@ -120,24 +121,35 @@ dat$yz <- do.call(rbind.data.frame, d) %>%
     cell_type=factor(cell_type, levels=c('2i', 'ser'), labels=c('2i', 'serum')),
     metric=factor(metric)
     ) %>%
-  rename(anno=name)
+  rename(anno=name) %>%
+  droplevels
+nb_anno <- length(levels(dat$yz$anno))
+nb_cell_type <- length(levels(dat$yz$cell_type))
 ```
 
 ```{r}
-fig.width <- length(levels(dat$yz$anno)) * 0.6
-fig.height <- 8
+fig.width <- nb_anno * 0.6
+if (nb_cell_type == 1) {
+  fig.height <- 6
+} else {
+  fig.height <- 8
+}
 ```
 
 ## Predicted vs. true methylation
 ```{r fig.width=fig.width, fig.height=fig.height}
 plot_dist_match(dat$yz, 'mean')
-plot_dist_type(dat$yz, 'mean')
+if (nb_cell_type > 1) {
+  plot_dist_type(dat$yz, 'mean')
+}
 ```
 
 ## Predicted vs. true variance
 ```{r fig.width=fig.width, fig.height=fig.height}
 plot_dist_match(dat$yz, 'var')
-plot_dist_type(dat$yz, 'var')
+if (nb_cell_type > 1) {
+  plot_dist_type(dat$yz, 'var')
+}
 ```
 
 ## Ranking
@@ -178,6 +190,6 @@ cmp$rank <- dat$yz %>% filter(anno %in% annos, metric=='var') %>% droplevels %>%
   group_by(anno, cell_type) %>% do(eval_rank(.)) %>% ungroup
 ```
 
-```{r fig.width=10, fig.height=10}
+```{r fig.width=10, fig.height=fig.height}
 plot_rank(cmp$rank)
 ```
