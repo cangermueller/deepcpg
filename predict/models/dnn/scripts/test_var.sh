@@ -39,8 +39,8 @@ cmd="$Pd/test.py
   "
 run $cmd
 
-rm -f test_sliced.h5
-cmd="$Pd/pred_slice.py
+cmd="rm -f test_sliced.h5 &&
+  $Pd/pred_slice.py
   $out_dir/test.h5
   -o $out_dir/test_sliced.h5
   --annos_file $Cannos

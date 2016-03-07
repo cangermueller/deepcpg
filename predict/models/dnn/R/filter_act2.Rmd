@@ -185,12 +185,17 @@ dat$global <- dat$global %>% filter(filt %in% cmp$filts)
 ```
 
 ```{r}
+d <- dat$global %>% filter(act_mean > 0, act_std > 0)
+```
+
+```{r}
 d <- dat$global %>% group_by(filt) %>%
   summarise(
     act=mean(abs(act_mean)), act_std=mean(act_std),
     rs=mean(abs(rs)), rp=mean(abs(rp))
-    ) %>%
-  mutate(act=act/max(act), rs=rs/max(rs), rp=rp/max(rs))
+    ) #%>%
+# mutate(act=act/max(act), rs=rs/max(rs), rp=rp/max(rs))
+
 d <- d %>% left_join(
     select(dat$tomtom, filt, Target.name, Target.ID, p.value, q.value), by='filt'
   ) %>% mutate(label=sprintf('%d: %s',
@@ -200,8 +205,10 @@ d <- d %>% left_join(
       ),
       label=sub(': NA', '', label)
     )
+
 d <- d %>% arrange(desc(act)) %>%
   mutate(filt=factor(filt, levels=filt), label=factor(label, levels=label))
+
 cmp$tab <- d
 label <- function(d) {
   d <- d %>% left_join(select(cmp$tab, filt, label), by='filt')
@@ -226,7 +233,9 @@ bar_height <- 6
 ```
 
 ```{r fig.width=bar_width, fig.height=bar_height}
-d <- cmp$tab %>% select(label, act, rs, rp) %>% gather(fun, value, -label)
+d <- cmp$tab %>% select(label, act, rs, rp) %>%
+  mutate(act=act/max(act), rs=rs/max(rs), rp=rp/max(rp)) %>%
+  gather(fun, value, -label)
 ggplot(d, aes(x=label, y=value)) +
   geom_bar(aes(fill=fun), stat='identity', position=position_dodge()) +
   xlab('') + ylab('Normalized value') +

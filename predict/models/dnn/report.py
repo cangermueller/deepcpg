@@ -33,8 +33,7 @@ def read_lc(dnames, fname='lc.csv', exists=False):
 def read_perf(dnames, fname='perf_val.csv', exists=False, targets=None):
     d = read_file(dnames, fname, exists)
     if targets is not None:
-        d = d.loc[d.target.isin(targets)]
-    d = d.groupby('model', as_index=False).mean()
+        d = d.loc[d.target.str.contains(targets)]
     d = d.loc[:, d.columns != 'loss']
     return d
 
@@ -88,9 +87,12 @@ class App(object):
             '--val_file',
             help='Filename validation performance')
         p.add_argument(
-            '--targets',
-            help='Filter targets',
-            nargs='+')
+            '-t', '--show_targets',
+            help='Show targets',
+            action='store_true')
+        p.add_argument(
+            '-T', '--targets_filter',
+            help='Filter targets by regex')
         p.add_argument(
             '--seed',
             help='Seed of rng',
@@ -130,7 +132,7 @@ class App(object):
             log.warn('%s incomplete!' % m)
 
         v = read_perf(opts.train_dirs, fname=opts.val_file,
-                      targets=opts.targets)
+                      targets=opts.targets_filter)
         d = pd.merge(d, v, on='model', how='left')
         if opts.early is not None:
             t = d['auc'].isnull()
@@ -141,10 +143,17 @@ class App(object):
             d = d.loc[d.epoch >= opts.epoch]
         if opts.loss:
             d = d.loc[d.val_loss >= opts.loss]
+
+        group = ['model']
+        sort = []
+        if opts.show_targets:
+            group.append('target')
+            sort.append('target')
+        d = d.groupby(group, as_index=False).mean()
         if opts.Sort:
-            d.sort_values(opts.Sort, inplace=True, ascending=False)
+            d.sort_values(sort + [opts.Sort], inplace=True, ascending=False)
         else:
-            d.sort_values(opts.sort, inplace=True, ascending=True)
+            d.sort_values(sort + [opts.sort], inplace=True, ascending=True)
         t = d.to_string(index=False)
         print(t)
 
