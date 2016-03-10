@@ -64,9 +64,3 @@ cmd="rmd.py
   --copy eval_var.Rmd
   "
 run $cmd
-
-cmd="rmd.py
-  $Pd/R/eval_var_dist.Rmd
-  --copy eval_var_dist.Rmd
-  "
-run $cmd
