@@ -1,0 +1,340 @@
+---
+title: Filter activation
+author: "Christof Angermueller"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: yes
+---
+
+```{r, include=F}
+library(knitr)
+opts_chunk$set(echo=F, warning=F, message=F)
+```
+
+```{r, include=F}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(grid)
+library(gridExtra)
+library(scales)
+library(xtable)
+library(gplots)
+library(RColorBrewer)
+library(seqLogo)
+library(rhdf5)
+
+lib <- file.path(Sys.getenv('Pd'), 'R')
+source(file.path(lib, 'utils.R'))
+```
+```{r}
+options(xtable.type='html')
+```
+
+```{r}
+opts <- list()
+opts$db_file <- './filter_act.sql'
+opts$tomtom_file <- './tomtom/tomtom.csv'
+opts$nb_sel <- 25
+opts$annos <- "loc%"
+opts$palette <- 'YlGnBu' # YlGnBu, YlOrBr, RdYlBu
+opts$include <- NULL
+opts$rank <- F
+dat <- list()
+cmp <- list()
+
+```
+
+<style>
+img {
+    max-width: none;
+}
+</style>
+
+```{r}
+query_db <- function(db_file, table='global', cond=NULL) {
+  con <- src_sqlite(db_file)
+  h <- sprintf('SELECT * FROM %s', table)
+  if (!is.null(cond)) {
+    h <- sprintf('%s WHERE %s', h, cond)
+  }
+  d <- tbl(con, sql(h))
+  d <- d %>% collect %>% select(-path, -id)
+  d <- d %>% parse_var_target
+  d <- d %>% mutate(filt=factor(filt), cell_type=parse_cell_type(target))
+  d <- d %>% char_to_factor %>% droplevels %>% tbl_df
+  return (d)
+}
+
+plot_heat_annos <- function(d, value='act_mean', del=F, rank=F,
+  Rowv=T, Colv=T, lhei=c(2, 10), lwid=c(2, 10), ...) {
+  d$value <- d[[value]]
+  if (!del) {
+    d$value <- abs(d$value)
+  }
+  d <- d %>% mutate(filt=label) %>%
+    group_by(anno, filt) %>% summarise(value=mean(value)) %>% ungroup
+  if (rank) {
+    d <- d %>% group_by(filt) %>% mutate(value=rank(value)) %>% ungroup
+  }
+  d <- d %>% spread(anno, value) %>% as.data.frame
+  rownames(d) <- d$filt
+  d <- d %>% select(-filt) %>% as.matrix
+
+  if (del) {
+    colors <- rev(brewer.pal(11, 'RdBu'))
+  } else {
+    colors <- brewer.pal(9, opts$palette)
+  }
+  colors <- colorRampPalette(colors)(50)
+  dendro <- 'column'
+  if (!is.null(Rowv)) {
+    dendro <- 'both'
+  }
+
+  p <- heatmap.2(d, density.info='none', trace='none', col=colors,
+    Rowv=Rowv, Colv=Colv, keysize=1.0, dendrogram=dendro,
+    margins=c(8, 8), lhei=lhei, lwid=lwid,
+    key.title='', srtCol=45, key.xlab='value', ...)
+}
+
+plot_heat_targets <- function(d, value='rs', del=F, rank=F,
+  Rowv=T, Colv=T, lhei=c(2, 10), lwid=c(2, 10), ...) {
+  d$value <- d[[value]]
+  if (!del) {
+    d$value <- abs(d$value)
+  }
+  d <- d %>% mutate(filt=label) %>%
+    group_by(filt, target) %>% summarise(value=mean(value)) %>% ungroup
+  if (rank) {
+    d <- d %>% group_by(filt) %>% mutate(value=rank(value)) %>% ungroup
+  }
+  d <- d %>% spread(target, value) %>% as.data.frame
+  rownames(d) <- d$filt
+  d <- d %>% select(-filt) %>% as.matrix
+
+  type <- factor(grepl('2i', colnames(d)), levels=c(T, F), labels=c('2i', 'serum'))
+  col_colors <- colors_$cell_type[type]
+
+  if (del) {
+    colors <- rev(brewer.pal(11, 'RdBu'))
+  } else {
+    colors <- brewer.pal(9, opts$palette)
+  }
+  colors <- colorRampPalette(colors)(50)
+  dendro <- 'column'
+  if (!is.null(Rowv)) {
+    dendro <- 'both'
+  }
+
+  p <- heatmap.2(d, density.info='none', trace='none', col=colors,
+    Rowv=Rowv, Colv=Colv, keysize=1.0, dendrogram=dendro,
+    margins=c(8, 8), lhei=lhei, lwid=lwid,
+    key.title='', srtCol=45, key.xlab='value', ColSideColors=col_colors, ...)
+  return (p)
+}
+
+plot_heat_del <- function(d, fun='rs', cell_type_='serum', wlen_=3000,
+  Rowv=T, Colv=T, lhei=c(2, 10), lwid=c(2, 10), ...) {
+  d <- d %>%
+    filter(cell_type==cell_type_, wlen==wlen_, metric %in% c('mean', 'var')) %>%
+    mutate(filt=label) %>%
+    select(one_of('anno', 'filt', 'metric', fun)) %>%
+    rename_('value'=fun) %>%
+    group_by(filt, anno) %>% spread(metric, value) %>% ungroup %>%
+    mutate(del=abs(var)-abs(mean)) %>%
+    select(anno, filt, del) %>% spread(anno, del) %>%
+    as.data.frame
+  rownames(d) <- d$filt
+  d <- d %>% select(-filt) %>% as.matrix
+
+  colors <- rev(brewer.pal(11, 'RdBu'))
+  colors <- colorRampPalette(colors)(50)
+  dendro <- 'column'
+  if (!is.null(Rowv)) {
+    dendro <- 'both'
+  }
+
+  p <- heatmap.2(d, density.info='none', trace='none', col=colors,
+    Rowv=Rowv, Colv=Colv, keysize=1.0, dendrogram=dendro,
+    margins=c(8, 8), lhei=lhei, lwid=lwid,
+    key.title='', srtCol=45, key.xlab='value', ...)
+  return (p)
+}
+```
+
+# Global
+
+```{r}
+read_tomtom <- function(path, all=F) {
+  h <- read.table(path, sep='\t', head=T) %>% tbl_df %>%
+    mutate(filt=factor(sub('filter', '', Query.ID))) %>%
+    group_by(filt) %>% arrange(q.value) %>% ungroup
+  if (all) {
+    return (h)
+  }
+  d <- h %>% group_by(filt) %>% arrange(q.value) %>% slice(1) %>% ungroup %>%
+    select(filt, Target.name, Target.ID, p.value, E.value, q.value, URL)
+  d <- d %>% inner_join(group_by(h, filt) %>% summarise(nb_hits=n()))
+  return (d)
+}
+
+dat$tomtom <- read_tomtom(opts$tomtom_file)
+dat$global <- query_db(opts$db_file)
+s <- dat$global %>% group_by(filt) %>%
+  summarise(
+    act=mean(abs(act_mean)), act_std=mean(act_std),
+    rs=mean(abs(rs)), rp=mean(abs(rp))
+    ) %>%
+  filter(act > 0, act_std > 0, !is.na(rs), !is.na(rp)) %>% droplevels
+
+sel <- s %>% top_n(opts$nb_sel, act) %>% select(filt) %>% unlist
+sel <- union(sel, s %>% top_n(opts$nb_sel, rs) %>% select(filt) %>% unlist)
+sel <- union(sel, levels(dat$tomtom$filt))
+add <- opts$include
+if (is.null(add)) {
+  add <- c()
+}
+sel <- union(sel, add)
+sel <- unique(sel)
+s <- s %>% filter(filt %in% sel)
+
+if (nrow(s) > opts$nb_sel) {
+  h <- s[!(s$filt %in% union(levels(dat$tomtom$filt), add)), ]# %>%
+  h <- h %>% top_n(nrow(s) - opts$nb_sel, -act)
+  s <- s %>% filter(!(filt %in% h$filt))
+}
+s <- s %>% arrange(desc(act))
+cmp$sel <- s
+cmp$filts <- as.vector(cmp$sel$filt)
+cmp$nb_sel <- length(cmp$filts)
+dat$global <- dat$global %>% filter(filt %in% cmp$filts)
+```
+
+```{r}
+d <- dat$global %>% group_by(filt) %>%
+  summarise(
+    act=mean(abs(act_mean)), act_std=mean(act_std),
+    rs=mean(abs(rs)), rp=mean(abs(rp))
+    ) %>%
+  mutate(act=act/max(act), rs=rs/max(rs), rp=rp/max(rs))
+d <- d %>% left_join(
+    select(dat$tomtom, filt, Target.name, Target.ID, p.value, q.value), by='filt'
+  ) %>% mutate(label=sprintf('%d: %s',
+      as.numeric(filt),
+      gsub('[()_]', '', substr(Target.name, 1, 5)),
+      substr(Target.ID, 1, 5)
+      ),
+      label=sub(': NA', '', label)
+    )
+d <- d %>% arrange(desc(act)) %>%
+  mutate(filt=factor(filt, levels=filt), label=factor(label, levels=label))
+cmp$tab <- d
+label <- function(d) {
+  d <- d %>% left_join(select(cmp$tab, filt, label), by='filt')
+  return (d)
+}
+dat$global <- dat$global %>% label
+```
+
+```{r}
+d <- cmp$tab
+d[is.na(d$q.value), 'q.value'] <- 1
+ggplot(d, aes(x=act, y=abs(rs))) +
+  geom_point(aes(color=-log(q.value))) +
+  scale_color_gradient2(low='black', mid='orange', high='red', midpoint=.5) +
+  geom_text(aes(label=filt), size=2, hjust=0, vjust=-0.3) +
+  theme_pub()
+```
+
+```{r}
+bar_width <- max(6, cmp$nb_sel * 0.4)
+bar_height <- 6
+```
+
+```{r fig.width=bar_width, fig.height=bar_height}
+d <- cmp$tab %>% select(label, act, rs, rp) %>% gather(fun, value, -label)
+ggplot(d, aes(x=label, y=value)) +
+  geom_bar(aes(fill=fun), stat='identity', position=position_dodge()) +
+  xlab('') + ylab('Normalized value') +
+  theme_pub() +
+  theme(
+    legend.position='top',
+    axis.text.x=element_text(angle=30, hjust=1)
+    )
+```
+
+# Annotations
+
+```{r}
+dat$annos <- query_db(opts$db_file, 'annos')
+d <- dat$global %>% mutate(anno='global')
+d <- d[, names(dat$annos)]
+dat$annos <- rbind.data.frame(d, dat$annos) %>%
+  filter(filt %in% cmp$filt) %>% droplevels %>%
+  mutate(anno=factor(anno)) %>% label
+```
+
+```{r}
+cmp$astats <- dat$annos %>%
+  select(anno, act_mean, rp, rs) %>%
+  group_by(anno) %>%
+  summarise_each(funs(mean(abs(.)))) %>%
+  arrange(desc(abs(act_mean))) %>%
+  mutate(anno=factor(anno, levels=anno))
+```
+
+```{r include=F, results='asis'}
+xtable(cmp$astats, digis=3)
+```
+
+```{r fig.width=max(6, cmp$nb_sel*0.45), height=6}
+d <- cmp$astats %>% gather(fun, value, -anno) %>%
+  group_by(fun) %>% mutate(value=value/max(value)) %>% ungroup
+d$anno <- factor(d$anno, levels=cmp$astats$anno)
+
+ggplot(d, aes(x=anno, y=value)) +
+  geom_bar(aes(fill=fun), stat='identity', position=position_dodge()) +
+  xlab('') + ylab('Normalized value') +
+  theme(axis.text.x=element_text(angle=30, hjust=1)) +
+  theme_pub() +
+  theme(legend.position='top')
+```
+
+```{r}
+opts_chunk$set(fig.width=9, fig.height=max(10, cmp$nb_sel * 0.25))
+```
+
+## Activation
+```{r}
+p <- plot_heat_annos(dat$annos, 'act_mean', rank=F)
+p <- plot_heat_annos(dat$annos, 'act_mean', rank=T)
+```
+
+## Spearman variance - mean
+```{r}
+p <- plot_heat_del(dat$anno)
+```
+
+## Spearman
+```{r}
+d <- dat$annos %>% filter(cell_type=='serum', wlen==3000)
+p <- plot_heat_annos(d %>% filter(metric=='var'), 'rs')
+p <- plot_heat_annos(d %>% filter(metric=='mean'), 'rs',
+  Rowv=p$rowDendrogram, Colv=p$colDendrogram)
+```
+
+# Targets
+
+## Spearman
+```{r}
+d <- dat$annos %>% filter(anno=='global')
+p <- plot_heat_targets(d, 'rs', rank=F)
+```
+
+## Spearman rank
+```{r}
+d <- dat$annos %>% filter(anno=='global')
+p <- plot_heat_targets(d, 'rs', rank=T)
+```
