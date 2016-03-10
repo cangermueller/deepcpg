@@ -27,6 +27,13 @@ colors_$cell_type <- c(
   'serum'='#e41a1c'
   )
 colors_$yz <- c('y'='#1b9e77', 'z'='#d95f02')
+colors_$yz <- c(
+  'y'='#e6ab02',
+  'True'='#e6ab02',
+  'z'='#66a61e',
+  'Predicted'='#66a61e'
+  )
+
 colors_$model <- c(
     'DeepCpG'='#1b9e77',
     'RF'='#d95f02',
@@ -40,6 +47,25 @@ linetypes$cell_type <- c(
   'serum'='solid'
   )
 
+annos_ <- list()
+annos_$perf_short <- c(
+  'loc_loc_TSSs', 'loc_Exons', 'loc_H3K27me3', 'loc_dnase1', 'loc_CGI',
+  'loc_p300', 'loc_gene_body', 'loc_CGI_shore', 'loc_Introns', 'loc_Intergenic',
+  'loc_prom_2k05k_ncgi', 'loc_H3K27ac', 'loc_Active_enhancers',
+  'loc_mESC_enhancers', 'loc_H3K4me1', 'loc_LMRs')
+annos_$perf_long <- c('loc_prom_2k05k', 'loc_TSSs', 'loc_Exons',
+  'loc_prom_2k05k_cgi', 'psu_dnase1', 'licr_H3k27ac', 'loc_H3K27me3',
+  'licr_H3k09ac', 'loc_Wu_Tet1', 'licr_P300', 'uw_dnase1', 'licr_H3k04me3',
+  'loc_CGI', 'licr_Ctcf', 'loc_CGI_shelf', 'loc_p300', 'loc_gene_body',
+  'loc_Tet2', 'loc_CGI_shore', 'licr_H3k04me1', 'global', 'loc_Introns',
+  'licr_Pol2', 'loc_Intergenic', 'loc_Oct4_2i', 'licr_H3k36me3',
+  'loc_prom_2k05k_ncgi', 'loc_H3K27ac', 'loc_Active_enhancers',
+  'loc_H3K4me1_Tet1', 'loc_mESC_enhancers', 'loc_H3K4me1', 'loc_IAP',
+  'loc_LMRs')
+
+gopts <- list()
+gopts$lo_better <- c('mse', 'rmse', 'loss')
+
 parse_cell_type <- function(x) {
   x <- as.vector(x)
   x <- factor(grepl('2i', x), levels=c(T, F), labels=c('2i', 'serum'))
@@ -48,6 +74,23 @@ parse_cell_type <- function(x) {
 
 parse_sample_short <- function(x) {
   return (sub('.+(RSC.+)', '\\1', x))
+}
+
+parse_var_target <- function(d) {
+    d <- d %>%
+      separate(target, c('cell_type', 'wlen', 'metric'), by='_', remove=F) %>%
+      mutate(
+        cell_type=factor(cell_type,
+          levels=c('2i', 'ser'),
+          labels=c('2i', 'serum')),
+        wlen=as.integer(sub('w', '', wlen))
+      ) %>% droplevels
+    return (d)
+}
+
+format_annos <- function(annos) {
+  annos <- sub('(loc_|licr_|chipseq_|stan_)', '', annos)
+  return (annos)
 }
 
 char_to_factor <- function(d) {

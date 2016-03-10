@@ -9,195 +9,109 @@ output:
 
 ```{r, include=F}
 library(knitr)
-opts_chunk$set(echo=F, warning=F, message=F)
+opts_chunk$set(echo=F, warning=F, message=F, fig.width=12)
 ```
 
 ```{r, include=F}
 library(ggplot2)
-library(dplyr)
 library(tidyr)
 library(rhdf5)
 library(grid)
 library(gridExtra)
 library(scales)
+library(tools)
+library(biomaRt)
+library(Gviz)
+library(dplyr)
 
 lib <- file.path(Sys.getenv('Pd'), 'R')
 source(file.path(lib, 'utils.R'))
-source(file.path(lib, 'zoom'))
+source(file.path(lib, 'zoom.R'))
+source(file.path(lib, 'zoom_io.R'))
 ```
 
 ```{r}
 opts <- list()
 opts$pred_file <- './pred.h5'
 opts$filt_act_file <- './filter_act.h5'
-opts$filt_imp <- './filter_imp.h5'
+opts$filt_imp_file <- './filter_imp.h5'
 opts$seqmut_file <- './seqmut.h5'
+opts$seqmut <- 'rnd'
+opts$seqmut_wlen <- 10
+opts$filt_excl <- NULL
 opts$cache <- T
+opts$annos_root <- file.path(Sys.getenv('Pannos'), 'misc')
+opts$annos <- c('CGI.bed', 'LMRs.bed', 'p300.bed', 'H3K4me1.bed',
+  'H3K27ac.bed', 'H3K27me3.bed', 'Active_enhancers.bed')
+opts$tracks_height <- 10
+opts_chunk$set(fig.width=12, fig.height=22)
 dat <- list()
 ```
 
-```{r}
-h5ls <- function(path=opts$in_file, group='/') {
-  if (group[1] != '/') {
-    group <- paste0('/', group)
-  }
-  h <- sprintf('h5ls %s%s', path, group)
-  h <- system(h, intern=T)
-  h <- sapply(strsplit(h, '\\s+'), function(x) x[1])
-  return (h)
-}
-
-
-read_list <- function(group, path=opts$in_file) {
-  h <- h5ls(path=path, group)
-  d <- lapply(h, function(x) h5read(path, file.path(group, x)))
-  names(d) <- h
-  return (d)
-}
+```{r cache=opts$cache}
+dat$pred <- read_h5(opts$pred_file)
+dat$seqmut <- read_h5(opts$seqmut_file) %>% format_seqmut
+dat$filt_imp <- read_h5(opts$filt_imp_file) %>% format_filt_imp
+dat$filt_act <- read_filt_act(opts$filt_act_file, wlen=101)
 ```
 
-```{r data_z, eval=T, cache=opts$cache}
-targets <- h5ls()
-targets <- grep('^ESC', targets, value=T)
-ds <- list()
-for (target in targets) {
-  chromos  <- h5ls(group=target)
-  for (chromo in chromos) {
-    p <- file.path(target, chromo)
-    h <- h5ls(group=p)
-    d <- lapply(h, function(x) h5read(opts$in_file, file.path(p, x)))
-    names(d) <- h
-    d <- as.data.frame(d)
-    d$target <- target
-    d$chromo <- chromo
-    ds[[length(ds) + 1]] <- d
-  }
+```{r}
+dat$seqmut <- read_h5(opts$seqmut_file) %>% format_seqmut
+```
+
+```{r cache=opts$cache}
+bed <- list()
+for (fname in opts$annos) {
+  n <- file_path_sans_ext(fname)
+  h <- file.path(opts$annos_root, fname)
+  bed[[n]] <- read_bed(h)
 }
-d <- do.call(rbind.data.frame, ds) %>% tbl_df
-d <- d %>% gather(z, value, -c(chromo, pos, target, y))
-d[d$y == -1, 'y'] <- NA
-d <- d %>% mutate(
-  chromo=factor(chromo),
-  target=factor(target),
-  cell_type=factor(grepl('2i', target), levels=c(T, F), labels=c('2i', 'serum'))
+
+bed$SE <- data.frame(
+  chromo='chr12',
+  start=c(86466096, 86498435),
+  end=c(86479369, 86505242)
   )
-dat$z <- d
-```
-
-```{r data_zm}
-h <- grepl('^z\\d+', dat$z$z)
-d <- dat$z[h,] %>% droplevels
-d <- d %>% group_by(chromo, pos, target, cell_type) %>%
-  summarise(y=mean(y, na.rm=T), zm=mean(value, na.rm=T), zsd=sd(value, na.rm=T)) %>%
-  ungroup
-dat$zm <- d
-```
-
-```{r data_eff, cache=opts$cache}
-eps <- 1e-8
-dat$eff_target <- dat$z %>% select(-y) %>% filter(z %in% c('z', 'z_mut')) %>%
-  spread(z, value) %>%
-  group_by(chromo, pos, target) %>% mutate(
-    zd_del=z - z_mut,
-    zd_abs=abs(zd_del),
-    zd_or=log2(max(eps, z)) / log2(max(eps, 1 - z)) -
-          log2(max(eps, z_mut)) / log2(max(eps, 1 - z_mut)),
-    zd_ora=abs(zd_or)
-    ) %>% ungroup
-dat$eff <- dat$eff_target %>% group_by(chromo, pos) %>%
-  summarise_each(funs(mean), matches('z.*')) %>% ungroup
-```
-
-```{r data_fil}
-prepro_filters <- function(filters, delta=1, center=T, scale=T) {
-  len <- dim(filters$y)[2]
-  h <- floor(len * 0.5)
-  d <- filters$y[,(h-delta):(h+delta),]
-  d <- apply(d, 3, rowMeans)
-  d <- t(scale(t(d), center=center, scale=scale))
-  d <- t(d) %>% as.data.frame
-  names(d) <- 1:ncol(d)
-  d$pos <- filters$pos
-  d$x <- 1:nrow(d)
-  d <- d %>% gather(filter, value, -pos, -x) %>% tbl_df
-  return (d)
-}
-
-h <- h5ls(opts$in_file, 's_x')[1]
-dat$sx <- read_list(file.path('s_x', h))
-```
-
-
-
-
-
-```{r}
-a <- list()
-a$gene <- c(86361117, 86521628)
-# a$p300 <- c(86503822, 86505197)
-# a$LMR <- c(86473229, 86474707)
-# a$s1 <- c(86460000, 86475000)
-a$s1 <- c(86466096, 86479369)
-# a$s2 <- c(86495000, 86502500)
-a$s2 <- c(86498435, 86505242)
-annos <- a
-```
-
-```{r eval=F}
-span <- 0.1
-region <- annos$gene + c(-10000, 5000)
-pa <- plot_annos(data_annos(annos['gene']))
-pv <- plot_var(region, span=span) + pa
-pm <- plot_met(region, span=span) + pa
-grid.arrange(pv, pm, nrow=2, heights=c(0.4, 0.6))
-```
-
-```{r eval=F}
-span <- 0.1
-region <- c(86450000, annos$gene[2])
-pa <- plot_annos(data_annos(annos[c('s1', 's2')]))
-pv <- plot_var(region, span=span) + pa
-pm <- plot_met(region, span=span) + pa
-grid.arrange(pv, pm, nrow=2, heights=c(0.4, 0.6))
+dat$bed <- bed
 ```
 
 # Esrrb
 
-```{r fig.width=12, fig.height=15}
-region <- annos$gene + c(-10000, 5000)
-pa <- plot_annos(data_annos(annos[c('gene', 's1', 's2')]))
-plot_region(region, pa, span=0.1, delta=30)
+```{r}
+region <- data.frame(name='gene', genome='mm10', chromo='chr12',
+  start=86361100, end=86521700)
 ```
 
-# Super-enhancers
-
-```{r fig.width=12, fig.height=15}
-region <- c(86450000, annos$gene[2])
-pa <- plot_annos(data_annos(annos[c('s1', 's2')]))
-plot_region(region, pa, span=0.1, delta=30)
+```{r fig.height=opts$tracks_height}
+tracks <- get_tracks(region)
+plot_tracks(tracks, region)
 ```
 
-# First super-enhancer
-
-```{r fig.width=12, fig.height=15}
-region <- annos$s1 + c(-5000, 5000)
-pa <- plot_annos(data_annos(annos[c('s1')]))
-plot_region(region, pa, span=0.1, delta=30)
+```{r}
+p <- get_plots(region)
+plot_grid(p)
 ```
 
-# Second super-enhancer
 
-```{r fig.width=12, fig.height=15}
-region <- annos$s2 + c(-1000, 1000)
-pa <- plot_annos(data_annos(annos[c('s2')]))
-plot_region(region, pa, span=0.1, delta=30)
+# Superenhancer 1
+
+```{r}
+region <- data.frame(name='SE1', genome='mm10', chromo='chr12',
+  start=86465000, end=86480000)
+```
+
+```{r fig.height=opts$tracks_height}
+tracks <- get_tracks(region)
+plot_tracks(tracks, region)
+```
+
+```{r}
+p <- get_plots(region)
+plot_grid(p)
 ```
 
 ```{r eval=F}
-levels(dat$zm$target)
-targets <- c(
-  'ESC_2i_1_RSC24_1', 'ESC_2i_4_RSC24_6', 'ESC_Ser14_RSC29_1',
-  'ESC_Ser19_RSC29_8'
-  )
-plot_met_conf(region, targets)
+d <- dat$seqmut %>% data_seqmut(
+  region=region, seqmut=opts$seqmut, wlen=opts$seqmut_wlen)
+plot_seqmut(d, what='del', span=0.05)
 ```
