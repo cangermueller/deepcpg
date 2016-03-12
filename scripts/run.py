@@ -102,13 +102,17 @@ class App(object):
             os.system('chmod 744 %s' % (run_file))
             run_file_local = pt.basename(run_file)
 
+            cmd = './%s' % (run_file_local)
+            if pt.splitext(run_file_local)[1] == '.Rmd':
+                cmd = 'rmd.R %s' % (cmd)
+
             if opts.run == 'none':
                 continue
             elif opts.run == 'local':
-                cmd = 'bash ./%s' % (run_file_local)
+                cmd = cmd
             else:
-                cmd = 'sbatch --mem={mem} -J {job} -o {log}.out -e {log}.err' +\
-                    ' --time={time}:00:00 -A {acc} {args} {sfile} ./{rfile}'
+                scmd = 'sbatch --mem={mem} -J {job} -o {log}.out -e {log}.err' +\
+                    ' --time={time}:00:00 -A {acc} {args} {sfile} {cmd}'
                 if opts.run == 'cpu':
                     account = 'STEGLE-%s' % (opts.account)
                     sfile = os.getenv('scpu')
@@ -119,10 +123,10 @@ class App(object):
                     args = ''
                 else:
                     args = ' '.join(opts.args)
-                cmd = cmd.format(mem=opts.memory, job=job_name,
+                cmd = scmd.format(mem=opts.memory, job=job_name,
                                  log=run_file_local, time=opts.time,
                                  acc=account, sfile=sfile, args=args,
-                                 rfile=run_file_local)
+                                 cmd=cmd)
             print(cmd)
             if not opts.test:
                 h = os.getcwd()

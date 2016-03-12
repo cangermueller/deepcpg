@@ -28,7 +28,6 @@ library(rhdf5)
 
 lib <- file.path(Sys.getenv('Pd'), 'R')
 source(file.path(lib, 'utils.R'))
-source('eval_var.R')
 ```
 
 ```{r}

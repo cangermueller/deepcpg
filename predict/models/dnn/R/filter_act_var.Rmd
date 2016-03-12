@@ -222,7 +222,7 @@ d <- dat$global %>% group_by(filt) %>%
 d <- d %>% left_join(
     select(dat$tomtom, filt, Target.name, Target.ID, p.value, q.value), by='filt'
   ) %>% mutate(label=sprintf('%d: %s',
-      as.numeric(filt),
+      as.numeric(as.vector(filt)),
       gsub('[()_]', '', substr(Target.name, 1, 5)),
       substr(Target.ID, 1, 5)
       ),

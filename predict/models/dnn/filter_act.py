@@ -12,6 +12,15 @@ import predict.models.dnn.utils as ut
 import predict.models.dnn.model as mod
 
 
+def linear_weights(wlen, start=0.1):
+    w = np.linspace(start, 1, np.ceil(wlen / 2))
+    v = w
+    if wlen % 2:
+        v = v[:-1]
+    w = np.hstack((w, v[::-1]))
+    return (w)
+
+
 class App(object):
 
     def run(self, args):
@@ -41,9 +50,14 @@ class App(object):
             help='Convolutional node',
             default='s_c1')
         p.add_argument(
-            '--no_store_input',
-            help='Store not input data in output file',
-            action='store_true')
+            '--outputs',
+            help='What to store in output file',
+            choices=['x', 'z', 'act'],
+            default=['x', 'z', 'act'])
+        p.add_argument(
+            '--fun',
+            help='Apply function to activations',
+            choices=['mean', 'wmean', 'max'])
         p.add_argument(
             '--occ_input',
             help='Input to be occluded')
@@ -197,15 +211,26 @@ class App(object):
             ins_f = [ins_batch[x] for x in model.input_order]
             if len(ins_f) == 1:
                 ins_f = ins_f[0]
-            out_z = f_z(ins_f)
-            out_z = np.hstack(out_z)
-            write_hdf(out_z, 'z', batch_idx)
+
+            if 'z' in opts.outputs:
+                out_z = f_z(ins_f)
+                out_z = np.hstack(out_z)
+                write_hdf(out_z, 'z', batch_idx)
+
             out_act = f_act(ins_f)
+            if opts.fun is not None:
+                if opts.fun == 'mean':
+                    out_act = out_act.mean(axis=1)
+                elif opts.fun == 'wmean':
+                    weights = linear_weights(out_act.shape[1])
+                    out_act = np.average(out_act, axis=1, weights=weights)
+                else:
+                    out_act = out_act.max(axis=1)
             write_hdf(out_act, 'act', batch_idx, 'float16')
 
             for k in ['pos', 'chromo']:
                 write_hdf(ins_batch[k], k, batch_idx)
-            if not opts.no_store_input:
+            if 'x' in opts.outputs:
                 for k in model.input_order:
                     x = ins_batch[k]
                     if k == 's_x':

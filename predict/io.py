@@ -61,7 +61,7 @@ def read_stats(path, chromos=None, pos=None, regex=None):
     f = h5.File(path, 'r')
     if chromos is None:
         chromos = list(f.keys())
-    elif not isinstance(chromos, list):
+    elif isinstance(chromos, str):
         chromos = [chromos]
     chromos = [str(x) for x in chromos]
     names = [x for x in f[chromos[0]] if x != 'pos']
@@ -111,7 +111,7 @@ def read_annos(path, chromos=None, pos=None, regex=None):
     f = h5.File(path, 'r')
     if chromos is None:
         chromos = list(f.keys())
-    elif not isinstance(chromos, list):
+    elif isinstance(chromos, str):
         chromos = [chromos]
     chromos = [str(x) for x in chromos]
     names = [x for x in f[chromos[0]] if x != 'pos']
