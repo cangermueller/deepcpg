@@ -54,7 +54,8 @@ def eval_annos(act, z, filts, targets, chromos, cpos, annos_file,
         _ = io.read_annos(annos_file, chromos=chromos, pos=cpos,
                           regex='^%s$' % (anno))
         assert np.all(_[0] == chromos)
-        assert np.all(_[1][0] == cpos[0])
+        for i in range(len(cpos)):
+            assert np.all(_[1][i] == cpos[i])
         a = _[2].ravel()
         if a.sum() >= n_min:
             print('%s: %d' % (anno, a.sum()))
@@ -79,7 +80,8 @@ def eval_stats(act, z, filts, targets, chromos, cpos, stats_file, stats=None,
         _ = io.read_stats(stats_file, chromos=chromos, pos=cpos,
                           regex='^%s$' % (stat))
         assert np.all(_[0] == chromos)
-        assert np.all(_[1][0] == cpos[0])
+        for i in range(len(cpos)):
+            assert np.all(_[1][i] == cpos[i])
         s = _[2].ravel()
         print('%s: %.3f' % (stat, s.mean()))
         while nb_bin > 0:
@@ -245,7 +247,8 @@ class App(object):
             _ = io.read_stats(opts.targets_file, chromos=chromos, pos=cpos,
                               regex=opts.targets)
             assert np.all(_[0] == chromos)
-            assert np.all(_[1] == cpos[0])
+            for i in range(len(cpos)):
+                assert np.all(_[1][i] == cpos[i])
             data['z'] = _[2]
             targets = _[3]
         else:

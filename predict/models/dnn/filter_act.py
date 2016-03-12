@@ -14,7 +14,10 @@ import predict.models.dnn.model as mod
 
 def linear_weights(wlen, start=0.1):
     w = np.linspace(start, 1, np.ceil(wlen / 2))
-    w = np.hstack((w, w[:-1][::-1]))
+    v = w
+    if wlen % 2:
+        v = v[:-1]
+    w = np.hstack((w, v[::-1]))
     return (w)
 
 
@@ -193,8 +196,6 @@ class App(object):
                 )
             out_group[path][idx] = x
 
-        if opts.fun is not None and opts.fun == 'wmean':
-            win_weights = linear_weights(data['s_x'].shape[1])
         nb_batch = int(np.ceil(nb_sample / opts.batch_size))
         c = max(1, int(np.ceil(nb_batch / 50)))
         batch = 0
@@ -221,7 +222,8 @@ class App(object):
                 if opts.fun == 'mean':
                     out_act = out_act.mean(axis=1)
                 elif opts.fun == 'wmean':
-                    out_act = np.average(out_act, axis=1, weights=win_weights)
+                    weights = linear_weights(out_act.shape[1])
+                    out_act = np.average(out_act, axis=1, weights=weights)
                 else:
                     out_act = out_act.max(axis=1)
             write_hdf(out_act, 'act', batch_idx, 'float16')
