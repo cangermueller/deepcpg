@@ -238,3 +238,12 @@ grep_all <- function(a, b, value=T) {
   }
   return (h)
 }
+
+map_factor_order <- function(to, from) {
+  from <- droplevels(from)
+  to <- droplevels(to)
+  stopifnot(length(levels(from)) == length(levels(to)))
+  h <- match(levels(from), unique(from))
+  to <- factor(to, levels=unique(to)[h])
+  return (to)
+}
