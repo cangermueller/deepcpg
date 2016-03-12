@@ -111,7 +111,7 @@ class App(object):
             elif opts.run == 'local':
                 cmd = cmd
             else:
-                cmd = 'sbatch --mem={mem} -J {job} -o {log}.out -e {log}.err' +\
+                scmd = 'sbatch --mem={mem} -J {job} -o {log}.out -e {log}.err' +\
                     ' --time={time}:00:00 -A {acc} {args} {sfile} {cmd}'
                 if opts.run == 'cpu':
                     account = 'STEGLE-%s' % (opts.account)
@@ -123,7 +123,7 @@ class App(object):
                     args = ''
                 else:
                     args = ' '.join(opts.args)
-                cmd = cmd.format(mem=opts.memory, job=job_name,
+                cmd = scmd.format(mem=opts.memory, job=job_name,
                                  log=run_file_local, time=opts.time,
                                  acc=account, sfile=sfile, args=args,
                                  cmd=cmd)

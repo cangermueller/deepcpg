@@ -11,6 +11,20 @@ import predict.models.dnn.utils as ut
 import predict.models.dnn.model as mod
 
 
+def select_data(data, chromo, start=None, end=None):
+    sel = data['chromo'].value == str(chromo).encode()
+    if start is not None:
+        sel &= data['pos'].value >= start
+    if end is not None:
+        sel &= data['pos'].value <= end
+    for k in data.keys():
+        if len(data[k].shape) > 1:
+            data[k] = data[k][sel, :]
+        else:
+            data[k] = data[k][sel]
+    return sel
+
+
 class App(object):
 
     def run(self, args):
@@ -43,6 +57,21 @@ class App(object):
         p.add_argument(
             '--nb_sample',
             help='Maximum # training samples',
+            type=int)
+        p.add_argument(
+            '--all',
+            help='Include unlabeled sites',
+            action='store_true')
+        p.add_argument(
+            '--chromo',
+            help='Chromosome')
+        p.add_argument(
+            '--start',
+            help='Start position',
+            type=int)
+        p.add_argument(
+            '--end',
+            help='End position',
             type=int)
         p.add_argument(
             '--max_mem',
@@ -83,6 +112,10 @@ class App(object):
         log.info('Load data')
         targets = ut.read_targets(opts.data_file)
         data_file, data = ut.read_hdf(opts.data_file, opts.max_mem)
+        if opts.chromo is not None:
+            log.info('Select data')
+            select_data(data, opts.chromo, opts.start, opts.end)
+            log.info('%d sites selected' % (len(data['pos'])))
         ut.to_view(data, stop=opts.nb_sample)
 
         print('%d samples' % (list(data.values())[0].shape[0]))
@@ -98,7 +131,7 @@ class App(object):
                           callbacks=[progress],
                           batch_size=opts.batch_size)
         log.info('Write')
-        ut.write_z(data, z, targets, opts.out_file)
+        ut.write_z(data, z, targets, opts.out_file, unlabeled=opts.all)
 
         data_file.close()
         log.info('Done!')
