@@ -140,3 +140,39 @@ read_filt_imp <- function(path, targets=NULL, filts=NULL) {
     mutate(filt=factor(filt))
   return (ds)
 }
+
+tomtom_target_name <- function(target.name, target.id) {
+  target.name <- as.character(target.name)
+  target.id <- as.character(target.id)
+  s <- gsub(' ', '_', target.name)
+  s <- sapply(str_split(s, '_'), function(x) x[1])
+  h <- str_length(s) == 0
+  s[h] <- target.id[h]
+  s <- gsub('[()]', '', s)
+  return (s)
+}
+
+read_tomtom <- function(path, all=F) {
+  h <- read.table(path, sep='\t', head=T) %>% tbl_df %>%
+    mutate(filt=factor(sub('filter', '', Query.ID))) %>%
+    group_by(filt) %>% arrange(q.value) %>% ungroup
+  if (all) {
+    return (h)
+  }
+  d <- h %>% group_by(filt) %>% arrange(q.value) %>% slice(1) %>% ungroup %>%
+    select(filt, Target.name, Target.ID, p.value, E.value, q.value, URL)
+  d <- d %>% inner_join(group_by(h, filt) %>% summarise(nb_hits=n()))
+  d <- d %>% mutate(name=tomtom_target_name(Target.name, Target.ID))
+  return (d)
+}
+
+label_tomtom <- function(d, tomtom, by_='filt') {
+  d <- d %>% left_join(select(tomtom, filt, label=name), by=by_) %>%
+    mutate(
+      label=sprintf('%d: %s', as.numeric(as.vector(filt)), label),
+      label=sub(': NA', '', label),
+      label=factor(label)
+      )
+  return (d)
+}
+
