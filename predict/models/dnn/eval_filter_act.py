@@ -16,18 +16,21 @@ import predict.io as io
 def evaluate(act, z, filts, targets):
     stats = []
     for f, filt in enumerate(filts):
-        act_filt = act[:, f]
-        act_mean = act_filt.mean()
-        act_std = act_filt.std()
+        act_mean = act[:, f].mean()
+        act_std = act[:, f].std()
         for t, target in enumerate(targets):
             s = []
             s.append(filt)
             s.append(target)
-            s.append(act_filt.shape[0])
-            r = sps.pearsonr(act_filt, z[:, t])
+            zt = z[:, t]
+            h = ~np.isnan(zt)
+            zt = zt[h]
+            at = act[h, f]
+            s.append(len(zt))
+            r = sps.pearsonr(at, zt)
             s.append(r[0])
             s.append(r[1])
-            r = sps.spearmanr(act_filt, z[:, t])
+            r = sps.spearmanr(at, zt)
             s.append(r[0])
             s.append(r[1])
             s.append(act_mean)
