@@ -8,8 +8,29 @@ import numpy as np
 import h5py as h5
 import random
 from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
 
 import predict.io as io
+
+
+def embed_pca(x):
+    m = PCA(n_components=2)
+    y = m.fit_transform(x)
+    return y
+
+
+def embed_tsne(x):
+    m = TSNE(n_components=2)
+    y = m.fit_transform(x)
+    return y
+
+
+def embed_psne(x, nb_pca=50):
+    m = PCA(n_components=nb_pca)
+    y = m.fit_transform(x)
+    m = TSNE(n_components=2)
+    y = m.fit_transform(y)
+    return y
 
 
 class App(object):
@@ -36,12 +57,17 @@ class App(object):
             '-o', '--out_file',
             help='Output HDF5 file')
         p.add_argument(
+            '--method',
+            help='Dimensionality reduction method',
+            choices=['tsne', 'pca', 'psne'],
+            default='TSNE')
+        p.add_argument(
             '--annos_file',
             help='HDF file with annotations')
         p.add_argument(
             '--annos',
             help='Regex of annotations to be considered',
-            default=[r'^.+$'],
+            default=['^loc_', '^licr_', 'H3', 'dnase'],
             nargs='+')
         p.add_argument(
             '--stats_file',
@@ -57,6 +83,9 @@ class App(object):
             '--nb_sample',
             help='Maximum number of samples',
             type=int)
+        p.add_argument(
+            '--batch_size',
+            help='tSNE batch size')
         p.add_argument(
             '--seed',
             help='Seed of rng',
@@ -85,7 +114,6 @@ class App(object):
             np.random.seed(opts.seed)
             random.seed(opts.seed)
 
-        log.info('Read activations')
         in_file = h5.File(opts.in_file, 'r')
         group = in_file
         if opts.in_group is not None:
@@ -94,19 +122,35 @@ class App(object):
         if opts.nb_sample is not None:
             nb_sample = min(opts.nb_sample, nb_sample)
 
-        act = {x: group[x][:nb_sample] for x in ['chromo', 'pos', 'act']}
-        in_file.close()
+        log.info('Compute embeddings')
+        if opts.method == 'tsne':
+            embed_fun = embed_tsne
+        elif opts.method == 'pca':
+            embed_fun = embed_pca
+        elif opts.method == 'psne':
+            embed_fun = embed_psne
+        batch_size = opts.batch_size
+        if batch_size is None:
+            batch_size = nb_sample
+        _act = group['act']
+        _out = np.empty((nb_sample, 2), dtype='float32')
+        for i in range(0, nb_sample, batch_size):
+            batch = slice(i, min(nb_sample, i + batch_size))
+            _out[batch] = embed_fun(_act[batch])
+            print('%.2f%%' % (batch.stop / nb_sample * 100))
+
+        act = dict()
+        act['act'] = _out
+        act['chromo'] = group['chromo'][:nb_sample]
+        act['pos'] = group['pos'][:nb_sample]
         act = io.sort_cpos(act)
 
-        log.info('Compute TSNE embedding')
-        tsne = TSNE()
-        act['act'] = tsne.fit_transform(act['act'])
+        in_file.close()
 
         log.info('Write TSNE')
         out_file = h5.File(opts.out_file, 'w')
-        out_file['act'] = act['act']
-        out_file['pos'] = act['pos']
-        out_file['chromos'] = act['chromo']
+        for k, v in act.items():
+            out_file[k] = v
 
         chromos, pos = io.cpos_to_list(act['chromo'], act['pos'])
         chromos = [x.decode() for x in chromos]

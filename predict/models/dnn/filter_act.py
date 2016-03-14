@@ -52,8 +52,8 @@ class App(object):
         p.add_argument(
             '--outputs',
             help='What to store in output file',
-            choices=['x', 'z', 'act'],
-            default=['x', 'z', 'act'])
+            choices=['x', 'z', 'act', 'weights'],
+            default=['x', 'z', 'act', 'weights'])
         p.add_argument(
             '--fun',
             help='Apply function to activations',
@@ -171,9 +171,10 @@ class App(object):
         log.info('Store filter weights')
         out_file = h5.File(opts.out_file, 'w')
         out_group = out_file
-        g = out_group.create_group('filter')
-        g['weights'] = conv_node.get_weights()[0]
-        g['bias'] = conv_node.get_weights()[1]
+        if 'weights' in opts.outputs:
+            g = out_group.create_group('filter')
+            g['weights'] = conv_node.get_weights()[0]
+            g['bias'] = conv_node.get_weights()[1]
 
         log.info('Compute activations')
         x = [model.get_input(train=False)[x] for x in model.input_order]
@@ -182,7 +183,8 @@ class App(object):
         ins = data
         nb_sample = ins[model.input_order[0]].shape[0]
         targets = ut.target_id2name(model.output_order, targets)
-        out_group['targets'] = [x.encode() for x in targets]
+        if 'z' in opts.outputs:
+            out_group['targets'] = [x.encode() for x in targets]
 
         def write_hdf(x, path, idx, dtype=None, compression=None):
             if path not in out_group:

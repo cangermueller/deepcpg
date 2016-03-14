@@ -9,6 +9,8 @@ from keras.layers import normalization as knorm
 import keras.regularizers as kr
 import keras.optimizers as kopt
 
+import predict.utils as ut
+
 
 def cpg_layers(params):
     layers = []
@@ -244,10 +246,10 @@ def optimizer_from_params(params):
     return kopt.get(params.optimizer, params.optimizer_params)
 
 
-def copy_weights(src, dst, prefix):
+def copy_weights(src, dst, regexs):
     copied = []
     for k, v in src.nodes.items():
-        if k.startswith(prefix) and k in dst.nodes:
+        if ut.filter_regex(k, regexs) and k in dst.nodes:
             dst.nodes[k].set_weights(src.nodes[k].get_weights())
             copied.append(k)
     return copied

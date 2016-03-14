@@ -167,8 +167,18 @@ class App(object):
             help='Reuse weights of cpg module',
             nargs='+')
         p.add_argument(
+            '--cpg_nodes',
+            help='Regex of cpg module nodes whose weights are copied',
+            default=['^c_'],
+            nargs='+')
+        p.add_argument(
             '--seq_model',
             help='Reuse weights of seq module',
+            nargs='+')
+        p.add_argument(
+            '--seq_nodes',
+            help='Regex of sequence module nodes whose weights are copied',
+            default=['^s_'],
             nargs='+')
         p.add_argument(
             '--not_trainable',
@@ -367,7 +377,7 @@ class App(object):
         if opts.cpg_model is not None:
             log.info('Copy cpg weights')
             cpg_model = mod.model_from_list(opts.cpg_model, compile=False)
-            nodes = mod.copy_weights(cpg_model, model, 'c_')
+            nodes = mod.copy_weights(cpg_model, model, opts.cpg_nodes)
             for node in nodes:
                 print(node)
             log.info('Weights copied from %d nodes' % (len(nodes)))
@@ -375,7 +385,7 @@ class App(object):
         if opts.seq_model is not None:
             log.info('Copy seq weights')
             seq_model = mod.model_from_list(opts.seq_model, compile=False)
-            nodes = mod.copy_weights(seq_model, model, 's_')
+            nodes = mod.copy_weights(seq_model, model, opts.seq_nodes)
             for node in nodes:
                 print(node)
             log.info('Weights copied from %d nodes' % (len(nodes)))
