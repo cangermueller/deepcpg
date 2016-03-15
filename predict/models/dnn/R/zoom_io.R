@@ -15,12 +15,17 @@ read_list <- function(path, group) {
   return (d)
 }
 
-read_h5 <- function(path) {
+read_h5 <- function(path, targets_regex=NULL, chromos_regex=NULL) {
   targets <- h5ls(path)
-  targets <- grep('^ESC', targets, value=T)
+  if (!is.null(targets_regex)) {
+    targets <- grep(targets_regex, targets, value=T)
+  }
   ds <- list()
   for (target in targets) {
     chromos <- h5ls(path, group=target)
+    if (!is.null(chromos_regex)) {
+      chromos <- grep(chromos_regex, chromos, value=T)
+    }
     for (chromo in chromos) {
       p <- file.path(target, chromo)
       h <- h5ls(path, group=p)
@@ -33,12 +38,8 @@ read_h5 <- function(path) {
     }
   }
   d <- do.call(rbind.data.frame, ds) %>%
-    gather(zx, value, starts_with('z_')) %>%
     move_cols(c('chromo', 'pos', 'target')) %>%
-    char_to_factor %>%
-    mutate(
-      cell_type=parse_cell_type(target)
-      ) %>% tbl_df
+    char_to_factor %>% tbl_df
   if ('y' %in% names(d)) {
     h <- d$y == -1
     d$y[h] <- NA
@@ -96,34 +97,6 @@ parse_filt_act <- function(x) {
   return (x)
 }
 
-read_filt_act <- function(path, group='/act/s_x', chromo=NULL, wlen=101) {
-  if (is.null(chromo)) {
-    chromos <- h5ls(path, group)
-  } else {
-    chromos <- c(chromo)
-  }
-  ds <- list()
-  del <- as.integer(wlen / 2)
-  for (chromo in chromos) {
-    h <- file.path(group, chromo)
-    h <- read_list(path, h)
-    y <- h$y
-    m <- as.integer(dim(y)[2] / 2)
-    y <- y[,(m - del):(m + del),]
-    y <- apply(y, c(1, 3), mean)
-    d <- as.data.frame(t(y))
-    d$pos <- h$pos
-    d <- d %>% gather(filt, value, -pos)
-    d$chromo <- chromo
-    ds[[length(ds) + 1]] <- d
-  }
-  d <- do.call(rbind.data.frame, ds) %>% tbl_df
-  h <- levels(d$filt)
-  d <- d %>% mutate(filt=factor(filt, levels=h, labels=parse_filt_act(h)))
-  d <- d %>% move_cols(c('chromo', 'pos', 'filt'))
-  return (d)
-}
-
 read_bed <- function(path, chromo=NULL) {
   d <- read.table(path)
   names(d) <- c('chromo', 'start', 'end')
@@ -158,4 +131,81 @@ beds_to_atracks <- function(d, region) {
     a[[n]] <- an
   }
   return (a)
+}
+
+read_filt_act <- function(path, chromo=NULL) {
+  d <- list()
+  d$chromo <- h5read(path, '/chromo')
+  d$pos <- h5read(path, '/pos')
+  if (!is.null(chromo)) {
+    idx <- which(d$chromo == chromo)
+  }
+  for (n in c('chromo', 'pos')) {
+    d[[n]] <- d[[n]][idx]
+  }
+  d$act <- t(h5read(path, '/act', index=list(NULL, idx)))
+  return (d)
+}
+
+filter_filt_act <- function(d, chromo=NULL, start=NULL, end=NULL,
+  nb_filt=NULL, region=NULL) {
+  idx <- rep(T, nrow(d$act))
+  if (!is.null(region)) {
+    chromo <- region$chromo
+    start <- region$start
+    end <- region$end
+  }
+  if (!is.null(chromo)) {
+    chromo <- sub('^chr', '', tolower(chromo))
+    idx <- idx & (d$chromo == chromo)
+  }
+  if (!is.null(start)) {
+    idx <- idx & (d$pos >= start)
+  }
+  if (!is.null(end)) {
+    idx <- idx & (d$pos <= end)
+  }
+  act <- d$act[idx,]
+  colnames(act) <- sapply(1:ncol(act), function(x) sprintf('%d', x - 1))
+  if (!is.null(nb_filt)) {
+    nb_filt <- min(nb_filt, ncol(act))
+    s <- rev(order(colMeans(act)))[1:nb_filt]
+    act <- act[, s]
+  }
+  act <- act %>% as.data.frame
+  act$pos <- d$pos[idx]
+  act$chromo <- d$chromo[idx]
+  act <- act %>% arrange(chromo, pos) %>%
+    move_cols(c('chromo', 'pos')) %>%
+    gather(filt, value, -c(chromo, pos)) %>%
+    tbl_df
+  return (act)
+}
+
+select_filt_fun <- function(act, fun=mean, nb_filt=10) {
+  h <- act %>% group_by(filt) %>% summarise_each(funs(fun), value) %>%
+    ungroup %>% arrange(desc(value)) %>% select(filt) %>% unlist %>% as.vector
+  if (!is.null(nb_filt)) {
+    h <- h[1:nb_filt]
+  }
+  act <- act %>% filter(filt %in% h) %>%
+    mutate(filt=factor(filt, levels=h))
+  return (act)
+}
+
+select_filt_cor <- function(act, y, what='z', nb_filt=10) {
+  y$y <- y[[what]]
+  y <- y %>% select(chromo, pos, y)
+  h <- act %>% inner_join(y, by=c('chromo', 'pos'))
+  stopifnot(nrow(h) == nrow(act))
+  act <- h
+  h <- act %>% group_by(filt) %>%
+    summarise(value=abs(cor(value, y, method='spearman'))) %>% ungroup %>%
+    arrange(desc(value)) %>% select(filt) %>% unlist %>% as.vector
+  if (!is.null(nb_filt)) {
+    h <- h[1:nb_filt]
+  }
+  act <- act %>% filter(filt %in% h) %>%
+    mutate(filt=factor(filt, levels=h))
+  return (act)
 }

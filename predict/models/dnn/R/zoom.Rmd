@@ -1,3 +1,4 @@
+
 ---
 title: "Zoom"
 author: "Christof Angermueller"
@@ -9,8 +10,14 @@ output:
 
 ```{r, include=F}
 library(knitr)
-opts_chunk$set(echo=F, warning=F, message=F, fig.width=12)
+opts_chunk$set(echo=F, warning=F, message=F)
 ```
+
+<style>
+img {
+    max-width: none;
+}
+</style>
 
 ```{r, include=F}
 library(ggplot2)
@@ -23,95 +30,165 @@ library(tools)
 library(biomaRt)
 library(Gviz)
 library(dplyr)
+library(stringr)
 
 lib <- file.path(Sys.getenv('Pd'), 'R')
 source(file.path(lib, 'utils.R'))
-source(file.path(lib, 'zoom.R'))
-source(file.path(lib, 'zoom_io.R'))
+source(file.path(lib, 'filter.R'))
+source('zoom.R')
+source('zoom_io.R')
 ```
 
 ```{r}
 opts <- list()
-opts$pred_file <- './pred.h5'
-opts$filt_act_file <- './filter_act.h5'
-opts$filt_imp_file <- './filter_imp.h5'
-opts$seqmut_file <- './seqmut.h5'
-opts$seqmut <- 'rnd'
-opts$seqmut_wlen <- 10
-opts$filt_excl <- NULL
-opts$cache <- T
+opts$rates_file <- NULL #'./pred.h5'
+opts$var_file <- file.path(Sys.getenv('Eseq'), 'zoom/pred.h5')
+opts$filt_file <- file.path(Sys.getenv('Eseq'), 'zoom/act_mean.h5')
+opts$tomtom_file <- file.path(Sys.getenv('Eseq'), 'filter/tomtom/tomtom.csv')
+
+opts$rates_targets <- 'Ser'
+opts$var_wlen <- 3000
+opts$chromos <- '12'
+
 opts$annos_root <- file.path(Sys.getenv('Pannos'), 'misc')
-opts$annos <- c('CGI.bed', 'LMRs.bed', 'p300.bed', 'H3K4me1.bed',
-  'H3K27ac.bed', 'H3K27me3.bed', 'Active_enhancers.bed')
-opts$tracks_height <- 10
-opts_chunk$set(fig.width=12, fig.height=22)
+opts$annos <- c('CGI.bed', 'TSSs.bed', 'LMRs.bed', 'p300.bed', 'H3K4me1.bed',
+  'H3K27ac.bed', 'Active_enhancers.bed')
+opts$cache <- T
 dat <- list()
 ```
 
-```{r cache=opts$cache}
-dat$pred <- read_h5(opts$pred_file)
-dat$seqmut <- read_h5(opts$seqmut_file) %>% format_seqmut
-dat$filt_imp <- read_h5(opts$filt_imp_file) %>% format_filt_imp
-dat$filt_act <- read_filt_act(opts$filt_act_file, wlen=101)
+```{r eval=!is.null(opts$rates_file), read_rates, cache=opts$cache}
+d <- read_h5(opts$rates_file, target=opts$rates_targets, chromos=opts$chromos) %>%
+  mutate(cell_type=parse_cell_type(target))
 ```
 
 ```{r}
-dat$seqmut <- read_h5(opts$seqmut_file) %>% format_seqmut
+if (is.null(opts$rates_file)) {
+  dat$rates <- NULL
+} else {
+  dat$rates <- d
+}
 ```
 
-```{r cache=opts$cache}
+```{r read_var, cache=opts$cache}
+target <- sprintf('w%d', opts$var_wlen)
+d <- read_h5(opts$var_file, target=target, chromos=opts$chromos) %>%
+  parse_var_target
+```
+
+```{r}
+dat$var <- d
+```
+
+```{r read_fact, cache=opts$cache}
+d <- read_filt_act(opts$filt_file, chromo=opts$chromo)
+```
+
+```{r}
+dat$fact <- d
+dat$tomtom <- read_tomtom(opts$tomtom_file)
+```
+
+```{r read_bed, cache=opts$cache}
 bed <- list()
 for (fname in opts$annos) {
   n <- file_path_sans_ext(fname)
   h <- file.path(opts$annos_root, fname)
   bed[[n]] <- read_bed(h)
 }
-
 bed$SE <- data.frame(
   chromo='chr12',
   start=c(86466096, 86498435),
   end=c(86479369, 86505242)
   )
+```
+
+```{r}
 dat$bed <- bed
 ```
 
-# Esrrb
-
 ```{r}
-region <- data.frame(name='gene', genome='mm10', chromo='chr12',
-  start=86361100, end=86521700)
-```
-
-```{r fig.height=opts$tracks_height}
-tracks <- get_tracks(region)
-plot_tracks(tracks, region)
+bm <- useMart('ensembl', dataset='mmusculus_gene_ensembl')
+fm <- Gviz:::.getBMFeatureMap()
 ```
 
 ```{r}
-p <- get_plots(region)
-plot_grid(p)
+get_bed_tracks <- function(d, region) {
+  region <- factor_to_char(region)
+  atracks <- beds_to_atracks(d, region)
+  if ('Active_enhancers' %in% names(atracks)) {
+    atracks$Active_enhancers@name <- 'AE'
+  }
+  # itrack <- IdeogramTrack(genome=as.character(region$genome), chromo=region$chromo)
+  grtrack <- BiomartGeneRegionTrack(
+    genome=as.character(region$genome), chromo=region$chromo,
+    start=region$start, end=region$end,
+    name='gene', biomart=bm, featureMap=fm)
+  tracks <- c(grtrack, atracks)
+  return (tracks)
+}
+
+get_tracks <- function(region, span=NULL, nb_filt=25) {
+  p <- list()
+  dv <- dat$var %>% filter_region(region)
+  if (is.null(span)) {
+    span <- 50 / length(unique(dv$pos))
+  }
+
+  if (is.null(dat$rates)) {
+    dr <- NULL
+  } else {
+    dr <- dat$rates %>% filter_region(region)
+    p$rates <- plot_rates(dr, span=span)
+  }
+
+  p$metric <- plot_var_metric(dv, span=span, rates=dr)
+  da <- filter_filt_act(dat$fact, region=region)
+  h <- dv %>% filter(target == 'ser_w3000_var') %>% droplevels
+  da <- select_filt_cor(da, h, nb_filt=nb_filt, what='z')
+  p$fact <- plot_filt_act(da, tomtom=dat$tomtom)
+
+  return (p)
+}
+
+plot_region <- function(region) {
+  p <- get_tracks(region)
+  for (n in c('rates', 'metric', 'fact')) {
+    pn <- p[[n]]
+    if (!is.null(pn)) {
+      print(pn)
+    }
+  }
+  plot_bed_tracks(get_bed_tracks(dat$bed, region), region)
+}
+
+opts_chunk$set(fig.width=12)
 ```
-
-
-# Superenhancer 1
 
 ```{r}
-region <- data.frame(name='SE1', genome='mm10', chromo='chr12',
-  start=86465000, end=86480000)
+add_region <- function(regions, name, start, end) {
+  r <- data.frame(
+    name=name, genome='mm10', chromo='chr12',
+    start=start, end=end)
+  regions[[length(regions) + 1]] <- r
+  return (regions)
+}
+
+regions <- list()
+regions <- add_region(regions, 'Esrrb', 86355000, 86527000)
+# regions <- add_region(regions, 'Esrrb TSS', 86355000, 86366000)
+# regions <- add_region(regions, 'Tmed1', 85340614, 85375000)
+# regions <- add_region(regions, 'Tmed1 CGI', 85373600, 85375200)
+# regions <- add_region(regions, 'Ltbp2', 84784000, 84878100)
+# regions <- add_region(regions, 'Tssc1', 28751465, 28831500)
+# regions <- add_region(regions, 'Ttc15', 28690629, 28751466)
 ```
 
-```{r fig.height=opts$tracks_height}
-tracks <- get_tracks(region)
-plot_tracks(tracks, region)
-```
 
-```{r}
-p <- get_plots(region)
-plot_grid(p)
-```
 
-```{r eval=F}
-d <- dat$seqmut %>% data_seqmut(
-  region=region, seqmut=opts$seqmut, wlen=opts$seqmut_wlen)
-plot_seqmut(d, what='del', span=0.05)
+```{r eval=T, results='asis'}
+for (region in regions) {
+  cat(sprintf('<h2>%s (%d - %d)</h2>', region$name, region$start, region$end), fill=T)
+  p <- plot_region(region)
+}
 ```
