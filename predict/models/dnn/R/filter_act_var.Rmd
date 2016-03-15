@@ -36,7 +36,7 @@ options(xtable.type='html')
 opts <- list()
 opts$db_file <- './filter_act.sql'
 opts$tomtom_file <- './tomtom/tomtom.csv'
-opts$nb_sel <- 25
+opts$nb_sel <- 35
 opts$annos <- "loc%"
 opts$palette <- 'YlGnBu' # YlGnBu, YlOrBr, RdYlBu
 opts$include <- NULL

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-model_dir="../train"
 out_dir="."
 mkdir -p $out_dir
 
@@ -24,17 +23,23 @@ function run {
 }
 
 
-model_file="$model_dir/model_cpu.pkl"
+train_dir=$(find ../ -type 'd' -name 'train*' | sort | tail -n 1)
+if [ -e /dev/nvidea0 ]; then
+  model_file="$train_dir/model.pkl"
+else
+  model_file="$train_dir/model_cpu.pkl"
+fi
+
 if [ ! -e $model_file ]; then
-  cmd="$src_dir/pkl.py
-       $model_dir/model.json $model_dir/model_weights.h5
-       -o $model_file"
+  cmd="$Pd/convert.py
+       $train_dir/model.json $train_dir/model_weights.h5
+       -p $model_file"
   run $cmd
 fi
 
 cmd="$Pv/pred.py
   $Ev/data/2iser_w501_val.h5
-  --model $model_dir/model_cpu.pkl
+  --model $train_dir/model_cpu.pkl
   -o $out_dir/pred.h5
   --nb_sample 100000
   "

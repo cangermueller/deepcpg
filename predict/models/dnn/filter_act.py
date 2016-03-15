@@ -52,6 +52,7 @@ class App(object):
         p.add_argument(
             '--outputs',
             help='What to store in output file',
+            nargs='+',
             choices=['x', 'z', 'act', 'weights'],
             default=['x', 'z', 'act', 'weights'])
         p.add_argument(

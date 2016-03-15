@@ -25,8 +25,12 @@ class App(object):
             'rmd_file',
             help='RMD file')
         p.add_argument(
-            '-o', '--out_file',
-            help='Output file')
+            '--copy',
+            help='Copy RMD file to target file')
+        p.add_argument(
+            '-d', '--depends',
+            help='Dependencies to be copied',
+            nargs='+')
         p.add_argument(
             '-f', '--format',
             help='Output format',
@@ -35,9 +39,6 @@ class App(object):
         p.add_argument(
             '--cmd',
             help='R command')
-        p.add_argument(
-            '-c', '--copy',
-            help='Copy to file')
         p.add_argument(
             '--test',
             help='Print command without executing',
@@ -62,16 +63,22 @@ class App(object):
             log.debug(opts)
 
         rmd_file = opts.rmd_file
-        if opts.copy:
-            dst_file = opts.copy
-            shutil.copyfile(rmd_file, dst_file)
-            rmd_file = dst_file
+
+        copy = []
+        if opts.copy is not None:
+            copy.append([rmd_file, opts.copy])
+            rmd_file = opts.copy
+        out_dir = pt.dirname(rmd_file)
+        if opts.depends is not None:
+            for src in opts.depends:
+                dst = pt.join(out_dir, pt.basename(src))
+                copy.append([src, dst])
+        for src, dst in copy:
+            shutil.copyfile(src, dst)
+
         _format = opts.format
-        out_file = opts.out_file
-        if out_file is None:
-            out_file = '%s.%s' % (pt.splitext(rmd_file)[0], opts.format)
-        else:
-            _format = pt.splitext(out_file)[1][1:]
+        out_file = '%s.%s' % (pt.splitext(pt.basename(rmd_file))[0],
+                              opts.format)
         Rcmd = ''
         if opts.cmd is not None:
             Rcmd = '%s;' % (opts.cmd)

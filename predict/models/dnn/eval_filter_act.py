@@ -237,6 +237,14 @@ class App(object):
         chromos, cpos = io.cpos_to_list(data['chromo'], data['pos'])
         chromos = [x.decode() for x in chromos]
 
+        if data['act'].ndim == 3:
+            if opts.act_op == 'mean':
+                f = np.mean
+            else:
+                f = np.max
+            data['act'] = f(data['act'], axis=1)
+        assert data['act'].ndim == 2
+
         nb_filt = data['act'].shape[1]
         filts = opts.filters
         if filts is None:

@@ -3,7 +3,6 @@
 out_dir="."
 mkdir -p $out_dir
 
-train_dir=$(find ../ -type 'd' -name 'train*' | sort | tail -n 1)
 motif_dbs="$Pmotifs/CIS-BP/Mus_musculus.meme
   $Pmotifs/JASPAR/JASPAR_CORE_2016_vertebrates.meme
   $Pmotifs/MOUSE/uniprobe_mouse.meme
@@ -28,8 +27,13 @@ function run {
   fi
 }
 
+train_dir=$(find ../ -type 'd' -name 'train*' | sort | tail -n 1)
+if [ -e /dev/nvidea0 ]; then
+  model_file="$train_dir/model.pkl"
+else
+  model_file="$train_dir/model_cpu.pkl"
+fi
 
-model_file="$train_dir/model_cpu.pkl"
 if [ ! -e $model_file ]; then
   cmd="$Pd/convert.py
        $train_dir/model.json $train_dir/model_weights.h5
@@ -38,7 +42,7 @@ if [ ! -e $model_file ]; then
 fi
 
 cmd="$Pd/filter_export.py
-  $train_dir/model_cpu.pkl
+  $model_file
   -o filter_weights.h5
   "
 run $cmd
@@ -51,7 +55,7 @@ cmd="$Pd/filter_viz.R
 run $cmd
 
 cmd="python -u $Pd/filter_act.py
-  $Ev/data/2iser_w501_test.h5
+  $Ev/data/2iser_w501_train.h5
   --model $model_file
   --nb_sample 30000
   -o $out_dir/filter_act.h5
@@ -96,7 +100,7 @@ cmd="rmd.py
 run $cmd
 
 cmd="rmd.py
-  $Pd/R/filter_act2.Rmd
-  --copy filter_act.Rmd
+  $Pd/R/filter_act_var.Rmd
+  --copy filter_act_var.Rmd
   "
 run $cmd
