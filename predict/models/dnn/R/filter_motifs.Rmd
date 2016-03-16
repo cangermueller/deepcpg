@@ -24,6 +24,7 @@ library(gplots)
 library(RColorBrewer)
 library(seqLogo)
 library(rhdf5)
+library(stringr)
 
 lib <- file.path(Sys.getenv('Pd'), 'R')
 source(file.path(lib, 'utils.R'))
@@ -67,19 +68,6 @@ query_db <- function(db_file, table='global', cond=NULL) {
   d <- d %>% char_to_factor %>% droplevels %>% tbl_df
   return (d)
 }
-
-read_tomtom <- function(path, all=F) {
-  h <- read.table(path, sep='\t', head=T) %>% tbl_df %>%
-    mutate(filt=factor(sub('filter', '', Query.ID))) %>%
-    group_by(filt) %>% arrange(q.value) %>% ungroup
-  if (all) {
-    return (h)
-  }
-  d <- h %>% group_by(filt) %>% arrange(q.value) %>% slice(1) %>% ungroup %>%
-    select(filt, Target.name, Target.ID, p.value, E.value, q.value, URL)
-  d <- d %>% inner_join(group_by(h, filt) %>% summarise(nb_hits=n()))
-  return (d)
-}
 ```
 
 ```{r}
@@ -105,7 +93,7 @@ dat$tab <- dat$tab %>% inner_join(h) %>% arrange(desc(abs(act_mean)))
 
 ```{r eval=!is.null(opts$tomtom_file)}
 dat$tomtom_all <- read_tomtom(opts$tomtom_file, all=T)
-dat$tomtom <- read_tomtom(opts$tomtom_file) %>% select(-nb_hits)
+dat$tomtom <- read_tomtom(opts$tomtom_file)
 dat$tab <- dat$tab %>% left_join(dat$tomtom)
 dat$tab <- dat$tab %>%
   mutate(

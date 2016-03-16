@@ -153,16 +153,17 @@ tomtom_target_name <- function(target.name, target.id) {
 }
 
 read_tomtom <- function(path, all=F) {
-  h <- read.table(path, sep='\t', head=T) %>% tbl_df %>%
+  d <- read.table(path, sep='\t', head=T) %>% tbl_df %>%
     mutate(filt=factor(sub('filter', '', Query.ID))) %>%
-    group_by(filt) %>% arrange(q.value) %>% ungroup
-  if (all) {
-    return (h)
+    group_by(filt) %>% arrange(q.value) %>% ungroup %>%
+    mutate(name=factor(tomtom_target_name(Target.name, Target.ID))) %>%
+    move_cols(c('filt', 'Target.ID', 'Target.name', 'name',
+        'p.value', 'E.value', 'q.value', 'URL'))
+  if (!all) {
+    h <- d %>% group_by(filt) %>% arrange(q.value) %>% slice(1) %>% ungroup
+      # select(filt, Target.name, name, Target.ID, p.value, E.value, q.value, URL)
+    d <- h %>% inner_join(group_by(d, filt) %>% summarise(nb_hits=n()))
   }
-  d <- h %>% group_by(filt) %>% arrange(q.value) %>% slice(1) %>% ungroup %>%
-    select(filt, Target.name, Target.ID, p.value, E.value, q.value, URL)
-  d <- d %>% inner_join(group_by(h, filt) %>% summarise(nb_hits=n()))
-  d <- d %>% mutate(name=tomtom_target_name(Target.name, Target.ID))
   return (d)
 }
 
