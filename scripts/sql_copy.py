@@ -22,11 +22,11 @@ class App(object):
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
             description='Copy models between databases')
         p.add_argument(
-            '-s', '--src_files',
+            'src_files',
             help='Source SQL file',
             nargs='+')
         p.add_argument(
-            '-d', '--dst_file',
+            'dst_file',
             help='Destination SQL file')
         p.add_argument(
             '-m', '--models',

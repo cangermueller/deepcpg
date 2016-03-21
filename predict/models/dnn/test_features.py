@@ -7,7 +7,9 @@ import os.path as pt
 import pandas as pd
 import numpy as np
 import keras.models as km
+import theano as th
 
+import predict.evaluation as pe
 import predict.models.dnn.utils as ut
 import predict.models.dnn.model as mod
 
@@ -22,9 +24,12 @@ def format_progress(batch_index, nb_batch, s=20):
 
 
 def predict(model, data, batch_size=128, callbacks=[], log=print, f=None,
-            cpg_nodist=False, cpg_wlen=None, seq_wlen=None):
+            output_order=None, cpg_nodist=False, cpg_wlen=None, seq_wlen=None,
+            cpg_target=None):
     if f is None:
         f = model._predict
+    if output_order is None:
+        output_order = model.output_order
     ins = [data[name] for name in model.input_order]
     nb_sample = len(ins[0])
     outs = []
@@ -44,8 +49,8 @@ def predict(model, data, batch_size=128, callbacks=[], log=print, f=None,
         batch_ids = list(batch_ids)
         ins_batch = km.slice_X(ins, batch_ids)
         if cpg_nodist:
-            x = ins_batch[model.input_order.index('c_x')][:, 1]
-            x.fill(0)
+            x = ins_batch[model.input_order.index('c_x')]
+            x[:, 1].fill(0)
         if cpg_wlen is not None:
             x = ins_batch[model.input_order.index('c_x')]
             ctr = x.shape[3] // 2
@@ -54,12 +59,18 @@ def predict(model, data, batch_size=128, callbacks=[], log=print, f=None,
             x[:, 0, :, (ctr + wdel + 1):] = 0.5
             x[:, 1, :, :(ctr - wdel)] = 0
             x[:, 1, :, (ctr + wdel + 1):] = 0
+        if cpg_target is not None:
+            x = ins_batch[model.input_order.index('c_x')]
+            i = [x for x in range(x.shape[2]) if x != cpg_target]
+            x[:, 0, i] = 0.5
+            x[:, 1, i] = 0
         if seq_wlen is not None:
             x = ins_batch[model.input_order.index('s_x')]
             ctr = x.shape[1] // 2
             wdel = seq_wlen // 2
             x[:, :(ctr - wdel)] = 0.25
             x[:, (ctr + wdel + 1):] = 0.25
+
 
 
         batch_outs = f(*ins_batch)
@@ -73,7 +84,16 @@ def predict(model, data, batch_size=128, callbacks=[], log=print, f=None,
         for i, batch_out in enumerate(batch_outs):
             outs[i][batch_start:batch_end] = batch_out
 
-    return dict(zip(model.output_order, outs))
+    return dict(zip(output_order, outs))
+
+
+def evaluate(y, z, targets, *args, **kwargs):
+    p = pe.evaluate_all(y, z, *args, **kwargs)
+    p.index = ut.target_id2name(p.index.values, targets)
+    p.index.name = 'target'
+    p.reset_index(inplace=True)
+    p.sort_values('target', inplace=True)
+    return p
 
 
 class App(object):
@@ -113,10 +133,24 @@ class App(object):
             help='Sequence window length',
             type=int)
         p.add_argument(
+            '--target',
+            help='Test target without taking other targets into account')
+        p.add_argument(
             '--batch_size',
             help='Batch size',
             type=int,
-            default=1024)
+            default=128)
+        p.add_argument(
+            '--chromo',
+            help='Chromosome')
+        p.add_argument(
+            '--start',
+            help='Start position',
+            type=int)
+        p.add_argument(
+            '--end',
+            help='End position',
+            type=int)
         p.add_argument(
             '--nb_sample',
             help='Maximum # training samples',
@@ -158,18 +192,13 @@ class App(object):
         model = mod.model_from_list(opts.model)
 
         log.info('Load data')
-
-        def read_data(path):
-            f = ut.open_hdf(path, cache_size=opts.max_mem)
-            data = dict()
-            for k, v in f['data'].items():
-                data[k] = v
-            for k, v in f['pos'].items():
-                data[k] = v
-            return (f, data)
-
-        labels = ut.read_labels(opts.data_file)
-        data_file, data = read_data(opts.data_file)
+        targets = ut.read_targets(opts.data_file)
+        data_file, data = ut.read_hdf(opts.data_file, opts.max_mem)
+        if opts.chromo is not None:
+            log.info('Select data')
+            ut.select_data(data, opts.chromo, opts.start, opts.end)
+            log.info('%d sites selected' % (len(data['pos'])))
+        ut.to_view(data, stop=opts.nb_sample)
 
         def to_view(d):
             for k in d.keys():
@@ -178,22 +207,33 @@ class App(object):
         to_view(data)
         log.info('%d samples' % (list(data.values())[0].shape[0]))
 
-        batch_size = opts.batch_size
-        if batch_size is None:
-            if 'c_x' in model.input_order and 's_x' in model.input_order:
-                batch_size = 768
-            elif 's_x' in model.input_order:
-                batch_size = 1024
-            else:
-                batch_size = 2048
+        if opts.target is None:
+            fun = model._predict
+            output_order = model.output_order
+            target_idx = None
+        else:
+            target_idx = targets['name'].index(opts.target)
+            assert target_idx >= 0
+            target_id = targets['id'][target_idx] + '_y'
+            output_order = [target_id]
+            log.info('Compile function for target %s (%s)' % (opts.target,
+                                                              target_id))
+            y = model.outputs[target_id].get_output(True)
+            x = [model.inputs[name].input for name in model.input_order]
+            fun = th.function(inputs=x, outputs=y, allow_input_downcast=True)
 
         log.info('Predict')
-        z = predict(model, data, batch_size=batch_size,
+        z = predict(model, data, batch_size=opts.batch_size,
                     cpg_nodist=opts.cpg_nodist, cpg_wlen=opts.cpg_wlen,
-                    seq_wlen=opts.seq_wlen)
+                    seq_wlen=opts.seq_wlen, f=fun, output_order=output_order,
+                    cpg_target=target_idx)
+
+        e = evaluate(data, z, targets)
+        print('Performance:')
+        print(e.to_string(index=False))
 
         log.info('Write')
-        ut.write_z(data, z, labels, opts.out_file)
+        ut.write_z(data, z, targets, opts.out_file)
 
         data_file.close()
         log.info('Done!')

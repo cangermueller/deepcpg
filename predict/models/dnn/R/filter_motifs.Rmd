@@ -122,9 +122,11 @@ for (f in dat$tab$filt) {
     message(sprintf('Skipping %s', ftab$file_logo))
     next
   }
-  ftab <- ftab %>% mutate(sel=(act_mean >= 0.001 && abs(rs) >= 0.1))
-  h <- ftab %>% select(-starts_with('file'))
-  print(xtable(h, digits=4, include.rownames=F))
+  h <- ftab %>%
+    select(label, act_mean, act_std, rs, rs_pvalue, nb_hits,
+      Target.ID, Target.name, name, q.value, URL) %>%
+    mutate(sel=(act_mean >= 0.001 && abs(rs) >= 0.1))
+  print(xtable(h, digits=3, include.rownames=F))
   cat('<table>')
   cat('<tr>')
   cat(sprintf('<td><img src="%s.png"/></td>', ftab$file_logo))

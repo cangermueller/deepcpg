@@ -3,6 +3,8 @@
 out_dir="."
 mkdir -p $out_dir
 
+train_dir=$(find ../ -type 'd' -name 'train*' | sort | tail -n 1)
+data_file="$E2d/w501_train.h5"
 motif_dbs="$Pmotifs/CIS-BP/Mus_musculus.meme
   $Pmotifs/JASPAR/JASPAR_CORE_2016_vertebrates.meme
   $Pmotifs/MOUSE/uniprobe_mouse.meme
@@ -27,8 +29,7 @@ function run {
   fi
 }
 
-train_dir=$(find ../ -type 'd' -name 'train*' | sort | tail -n 1)
-if [ -e /dev/nvidea0 ]; then
+if [ -n "$(ls /dev/nvidia* 2> /dev/null)" ]; then
   model_file="$train_dir/model.pkl"
 else
   model_file="$train_dir/model_cpu.pkl"
@@ -42,7 +43,7 @@ if [ ! -e $model_file ]; then
 fi
 
 cmd="$Pd/filter_export.py
-  $model_file
+  $train_dir/model_cpu.pkl
   -o filter_weights.h5
   "
 run $cmd
@@ -55,7 +56,7 @@ cmd="$Pd/filter_viz.R
 run $cmd
 
 cmd="python -u $Pd/filter_act.py
-  $Ev/data/2iser_w501_train.h5
+  $data_file
   --model $model_file
   --nb_sample 30000
   -o $out_dir/filter_act.h5
@@ -81,26 +82,32 @@ cmd="tomtom_format.py $out_dir/tomtom/tomtom.txt
   -o $out_dir/tomtom/tomtom.csv"
 run $cmd
 
-cmd="$Pd/eval_filter_act.py
-  $out_dir/filter_act.h5
-  --sql_file $out_dir/filter_act.sql
-  --annos_file $Cannos
-  --annos '^loc_.*' '^licr_.*' '.*H3.*'
-  --stats_file $Cstats
-"
-run $cmd
-
-cmd='for f in motifs/*pdf; do convert $f ${f%\.*}.png; done'
-run $cmd
-
 cmd="rmd.py
   $Pd/R/filter_motifs.Rmd
   --copy filter_motifs.Rmd
   "
 run $cmd
 
+fun="mean"
+cmd="python -u $Pd/filter_act.py
+  $data_file
+  --model $model_file
+  --outputs act z
+  --fun $fun
+  -o $out_dir/filter_act_$fun.h5
+"
+run $cmd
+
+cmd="$Pd/eval_filter_act.py
+  $out_dir/filter_act_$fun.h5
+  --sql_file $out_dir/filter_act_$fun.sql
+  --annos_file $Cannos
+  --annos 'loc_' 'licr_' 'H3' 'dnase'
+"
+run $cmd
+
 cmd="rmd.py
-  $Pd/R/filter_act_var.Rmd
-  --copy filter_act_var.Rmd
+  $Pd/R/filter_act.Rmd
+  --copy filter_act.Rmd
   "
 run $cmd
