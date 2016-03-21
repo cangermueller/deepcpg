@@ -151,7 +151,7 @@ class App(object):
             nargs='+')
         p.add_argument(
             '--knn',
-            help='Number of KNNs',
+            help='Number of CpG neighbors n to left and right (2n in total)',
             type=int,
             default=2)
         p.add_argument(

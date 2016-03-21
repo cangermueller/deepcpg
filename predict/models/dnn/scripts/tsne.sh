@@ -25,7 +25,7 @@ function run {
   fi
 }
 
-if [ -e /dev/nvidea0 ]; then
+if [ -n "$(ls /dev/nvidia* 2> /dev/null)" ]; then
   model_file="$train_dir/model.pkl"
 else
   model_file="$train_dir/model_cpu.pkl"

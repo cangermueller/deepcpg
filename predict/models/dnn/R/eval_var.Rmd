@@ -43,7 +43,7 @@ opts$db_file <- 'test.sql'
 opts$annos <- '^loc_.*'
 opts$cell_type <- 'ser'
 opts$wlen <- 3000
-opts$nb_sample <- 1000
+opts$nb_sample <- NULL
 opts$annos <- annos_$perf_long
 ```
 
@@ -149,10 +149,6 @@ plot_dist_match <- function(dyz, ds, metric_='var', score='rs') {
   d <- d %>% gather(key, value, y, z) %>%
     mutate(key=factor(key, levels=c('y', 'z'), labels=c('True', 'Predicted')))
   levels(d$anno) <- format_annos(levels(d$anno))
-  ylim_ <- c(0, 1)
-  if (metric == 'var') {
-    ylim_ <- c(0, 0.12)
-  }
   p <- ggplot(d, aes(x=anno, y=value)) +
     geom_boxplot(aes(fill=key, alpha=score), outlier.shape=NA) +
     scale_fill_manual(values=colors_$yz) +
@@ -161,8 +157,8 @@ plot_dist_match <- function(dyz, ds, metric_='var', score='rs') {
       legend.position='top'
     ) +
     guides(alpha=F) +
-    xlab('') + ylab(metric_ylab(metric)) +
-    ylim(metric_ylim(metric)) +
+    xlab('') + ylab(metric_ylab(metric_)) +
+    ylim(metric_ylim(metric_)) +
     theme(axis.text.x=element_text(angle=30, hjust=1))
   return (p)
 }
