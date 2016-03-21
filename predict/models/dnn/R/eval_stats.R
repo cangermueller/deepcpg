@@ -5,14 +5,19 @@ parse_wlen <- function(s) {
   return (s)
 }
 
-query_db <- function(db_file, table='global', cond=NULL) {
+query_db <- function(db_file, table='global', cond=NULL, uniq=T) {
   con <- src_sqlite(db_file)
   h <- sprintf('SELECT * FROM %s', table)
   if (!is.null(cond)) {
     h <- sprintf('%s WHERE %s', h, cond)
   }
-  d <- tbl(con, sql(h))
-  d <- d %>% collect %>% select(-path, -id)
+  d <- tbl(con, sql(h)) %>% collect
+  if (uniq) {
+    # Remove identical records
+    h <- lapply(names(d), as.symbol)
+    d <- d %>% group_by_(.dots=h) %>% slice(1) %>% ungroup
+  }
+  d <- d %>% select(-path, -id)
   d <- d %>% gather(fun, value, c(mean, median, min, max, n))
   d <- d %>% mutate(stat=parse_wlen(stat)) %>%
     separate(stat, c('wlen', 'stat'), sep='_') %>%
