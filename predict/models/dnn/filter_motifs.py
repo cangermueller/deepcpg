@@ -253,6 +253,7 @@ def info_content(pwm, transpose=False):
     ic = 0
     for i in range(pwm.shape[0]):
         for j in range(4):
+            # 0, if pwm[i][j] = 0.25; 0.5 if pwm[i][j] = 1
             ic += 0.5 + pwm[i][j]*np.log2(pseudoc+pwm[i][j])
 
     return ic

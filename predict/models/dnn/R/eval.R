@@ -12,6 +12,15 @@ query_db <- function(table, models=NULL) {
   return (d)
 }
 
+query_dbs <- function() {
+  d <- query_db('global') %>% mutate(anno='global')
+  a <- query_db('annos')
+  d <- d[,names(a)]
+  d <- rbind.data.frame(d, a) %>% mutate(anno=factor(anno))
+  return (d)
+}
+
+
 query_annos <- function() {
   d <- query_db('annos')
   if (!is.null(opts$annos)) {
@@ -107,9 +116,10 @@ query_stats <- function(db_file, ...) {
 }
 
 
-stats_global <- function(d) {
+stats_global <- function(d, metrics=c('auc', 'acc', 'mcc', 'tpr', 'tnr')) {
+  d <- d[,c('model', metrics)]
   d <- d %>% group_by(model) %>%
-    summarise_each(funs(mean), auc, acc, mcc, tpr, tnr) %>%
+    summarise_each(funs(mean)) %>%
     ungroup %>%
     arrange(desc(auc))
   return (d)
@@ -130,11 +140,15 @@ plot_global <- function(d, metrics=c('auc', 'mcc', 'tpr', 'tnr', 'acc'),
     geom_jitter(aes(color=cell_type),
       position=position_jitter(width=0.1, height=0), size=1.2) +
     scale_color_manual(values=colors_$cell_type) +
-    facet_wrap(~metric, ncol=1, scales='free') +
     xlab('') + ylab('') +
     theme_pub() +
+    guides(fill=guide_legend(title='Method'),
+      color=guide_legend(title='Cell type')) +
     theme(legend.position='right') +
     theme(axis.text.x=element_text(angle=40, hjust=1))
+  if (length(unique(d$metric)) > 1) {
+    p <- p + facet_wrap(~metric, ncol=1, scales='free')
+  }
   return (p)
 }
 
@@ -172,10 +186,12 @@ plot_scatter <- function(d, mx=NULL, my=NULL) {
     geom_abline(slope=1, color='darkgrey', linetype='dashed') +
     geom_point(aes(color=cell_type), size=1.5) +
     scale_color_manual(values=colors_$cell_type) +
-    facet_grid(model.x~model.y, scales='free') +
     xlab('') + ylab('') +
     theme_pub() +
     theme(legend.position='top')
+  if (length(mx) > 1 || length(my) > 1) {
+    p <- p + facet_grid(model.x~model.y, scales='free')
+  }
   return (p)
 }
 
@@ -299,9 +315,7 @@ plot_stat <- function(d, stat, xlab=NULL) {
     xlab(xlab) + ylab('AUC') +
     theme_pub() +
     theme(
-      legend.position='top',
-      axis.text=element_text(size=rel(1.5)),
-      axis.title=element_text(size=rel(1.8))
+      legend.position='top'
       ) +
     guides(fill=F)
   return (p)

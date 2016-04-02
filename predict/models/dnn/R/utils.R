@@ -33,13 +33,26 @@ colors_$yz <- c(
   'z'='#66a61e',
   'Predicted'='#66a61e'
   )
-
+# colors_$model <- c(
+#     'DeepCpG'='#1b9e77',
+#     'RF'='#d95f02',
+#     'WinAvg'='#fb9a99',
+#     'DeepCpG Seq'='#66a61e',
+#     'RF Seq'='#7570b3')
+# colors_$model <- c(
+#     'DeepCpG'='#e41a1c',
+#     'RF'='#377eb8',
+#     'WinAvg'='#4daf4a',
+#     'DeepCpG Seq'='#984ea3',
+#     'RF Seq'='#ff7f00')
+# ColorBrewer Set2
 colors_$model <- c(
-    'DeepCpG'='#1b9e77',
-    'RF'='#d95f02',
-    'WinAvg'='#fb9a99',
-    'DeepCpG Seq'='#66a61e',
-    'RF Seq'='#7570b3')
+    'DeepCpG'='#66c2a5',
+    'RF'='#8da0cb',
+    'WinAvg'='#fc8d62',
+    'DeepCpG Seq'='#a6d854',
+    'RF Seq'='#e78ac3',
+    'RF Zhang'='#ffd92f')
 
 linetypes <- list()
 linetypes$cell_type <- c(
@@ -47,21 +60,20 @@ linetypes$cell_type <- c(
   'serum'='solid'
   )
 
-annos_ <- list()
-annos_$perf_short <- c(
-  'loc_loc_TSSs', 'loc_Exons', 'loc_H3K27me3', 'loc_dnase1', 'loc_CGI',
-  'loc_p300', 'loc_gene_body', 'loc_CGI_shore', 'loc_Introns', 'loc_Intergenic',
-  'loc_prom_2k05k_ncgi', 'loc_H3K27ac', 'loc_Active_enhancers',
+pub <- list()
+pub$metrics <- c('auc', 'acc', 'mcc', 'tpr', 'tnr', 'cor', 'rrmse')
+pub$annos <- c(
+  'loc_prom_2k05k_cgi', 'licr_H3k37me3',
+  'loc_TSSs', 'loc_Exons', 'loc_H3K27me3', 'uw_dnase1', 'loc_CGI', 'loc_p300',
+  'loc_gene_body', 'global', 'loc_CGI_shore', 'loc_Introns', 'loc_Intergenic',
+  'licr_H3k36me3', 'loc_prom_2k05k_ncgi', 'loc_H3K27ac', 'loc_Active_enhancers',
   'loc_mESC_enhancers', 'loc_H3K4me1', 'loc_LMRs')
-annos_$perf_long <- c('loc_prom_2k05k', 'loc_TSSs', 'loc_Exons',
-  'loc_prom_2k05k_cgi', 'psu_dnase1', 'licr_H3k27ac', 'loc_H3K27me3',
-  'licr_H3k09ac', 'loc_Wu_Tet1', 'licr_P300', 'uw_dnase1', 'licr_H3k04me3',
-  'loc_CGI', 'licr_Ctcf', 'loc_CGI_shelf', 'loc_p300', 'loc_gene_body',
-  'loc_Tet2', 'loc_CGI_shore', 'licr_H3k04me1', 'global', 'loc_Introns',
-  'licr_Pol2', 'loc_Intergenic', 'loc_Oct4_2i', 'licr_H3k36me3',
-  'loc_prom_2k05k_ncgi', 'loc_H3K27ac', 'loc_Active_enhancers',
-  'loc_H3K4me1_Tet1', 'loc_mESC_enhancers', 'loc_H3K4me1', 'loc_IAP',
-  'loc_LMRs')
+
+pub_annos <- function(d) {
+  d <- d %>% filter(anno %in% pub$annos) %>%
+  mutate(anno=format_annos(anno))
+  return (d)
+}
 
 gopts <- list()
 gopts$lo_better <- c('mse', 'rmse', 'loss')
@@ -90,8 +102,11 @@ parse_var_target <- function(d) {
 }
 
 format_annos <- function(annos) {
-  annos <- sub('(loc_|licr_|chipseq_|stan_)', '', annos)
-  return (annos)
+  a <- sub('(loc_|licr_|chipseq_|stan_)', '', annos)
+  if (is.factor(annos)) {
+    a <- factor(a)
+  }
+  return (a)
 }
 
 char_to_factor <- function(d) {
@@ -195,15 +210,24 @@ plot_pca_target <- function(pc, x=1, y=2) {
     pcx=pc$vec[,x], pcy=pc$vec[,y]
     ) %>% mutate(
       cell_type=parse_cell_type(sample),
-      sample_short=parse_sample_short(sample)
+      target=parse_sample_short(sample)
       )
   p <- ggplot(t, aes(x=pcx, y=pcy)) +
-    geom_point(aes(color=cell_type)) +
+    geom_point(aes(color=cell_type), size=2) +
     scale_color_manual(values=colors_$cell_type) +
-    geom_text(aes(label=sample_short), vjust=-.4, hjust= .3, size=3) +
+    geom_text(aes(label=target), vjust=-.6, hjust= .2, size=2.5) +
     xlab(sprintf('PC%d (%.2f%%)', x, pc$val[x])) +
     ylab(sprintf('PC%d (%.2f%%)', y, pc$val[y])) +
     theme_pub()
+  return (p)
+}
+
+plot_pca_val <- function(pc_val) {
+  t <- data.frame(pc=1:length(pc_val), val=pc_val)
+  p <- ggplot(t, aes(x=pc, y=val)) +
+    geom_bar(stat='identity', fill='salmon', color='black') +
+    xlab('principle component') +
+    ylab('% variance explained') + theme_pub()
   return (p)
 }
 
@@ -247,4 +271,72 @@ map_factor_order <- function(to, from) {
   h <- match(levels(from), unique(from))
   to <- factor(to, levels=unique(to)[h])
   return (to)
+}
+
+plot_heat_annos <- function(d, value='act_mean', del=F, rank=F,
+  Rowv=T, Colv=T, lhei=c(2, 10), lwid=c(2, 10), ...) {
+  d$value <- d[[value]]
+  if (!del) {
+    d$value <- abs(d$value)
+  }
+  d <- d %>% mutate(filt=label) %>%
+    group_by(anno, filt) %>% summarise(value=mean(value)) %>% ungroup
+  if (rank) {
+    d <- d %>% group_by(filt) %>% mutate(value=rank(value)) %>% ungroup
+  }
+  d <- d %>% spread(anno, value) %>% as.data.frame
+  rownames(d) <- d$filt
+  d <- d %>% select(-filt) %>% as.matrix
+
+  if (del) {
+    colors <- rev(brewer.pal(11, 'RdBu'))
+  } else {
+    colors <- brewer.pal(9, opts$palette)
+  }
+  colors <- colorRampPalette(colors)(50)
+  dendro <- 'column'
+  if (!is.null(Rowv)) {
+    dendro <- 'both'
+  }
+
+  p <- heatmap.2(d, density.info='none', trace='none', col=colors,
+    Rowv=Rowv, Colv=Colv, keysize=1.0, dendrogram=dendro,
+    margins=c(8, 8), lhei=lhei, lwid=lwid,
+    key.title='', srtCol=45, key.xlab='value', ...)
+}
+
+plot_heat_targets <- function(d, value='rs', del=F, rank=F,
+  Rowv=T, Colv=T, lhei=c(2, 10), lwid=c(2, 10), ...) {
+  d$value <- d[[value]]
+  if (!del) {
+    d$value <- abs(d$value)
+  }
+  d <- d %>% mutate(filt=label) %>%
+    group_by(filt, target) %>% summarise(value=mean(value)) %>% ungroup
+  if (rank) {
+    d <- d %>% group_by(filt) %>% mutate(value=rank(value)) %>% ungroup
+  }
+  d <- d %>% spread(target, value) %>% as.data.frame
+  rownames(d) <- d$filt
+  d <- d %>% select(-filt) %>% as.matrix
+
+  type <- factor(grepl('2i', colnames(d)), levels=c(T, F), labels=c('2i', 'serum'))
+  col_colors <- colors_$cell_type[type]
+
+  if (del) {
+    colors <- rev(brewer.pal(11, 'RdBu'))
+  } else {
+    colors <- brewer.pal(9, opts$palette)
+  }
+  colors <- colorRampPalette(colors)(50)
+  dendro <- 'column'
+  if (!is.null(Rowv)) {
+    dendro <- 'both'
+  }
+
+  p <- heatmap.2(d, density.info='none', trace='none', col=colors,
+    Rowv=Rowv, Colv=Colv, keysize=1.0, dendrogram=dendro,
+    margins=c(8, 8), lhei=lhei, lwid=lwid,
+    key.title='', srtCol=45, key.xlab='value', ColSideColors=col_colors, ...)
+  return (p)
 }

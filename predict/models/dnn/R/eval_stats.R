@@ -30,8 +30,8 @@ read_data <- function(db_files) {
   ds <- list()
   for (g in names(db_files)) {
     db_file <- db_files[g]
-    d <- query_db(db_file, 'annos') %>% filter_data
-    h <- query_db(db_file, 'global') %>% filter_data %>% mutate(anno='global')
+    d <- query_db(db_file, 'annos')
+    h <- query_db(db_file, 'global') %>% mutate(anno='global')
     d <- rbind.data.frame(d, h) %>% mutate(group=g)
     ds[[length(ds) + 1]] <- d
   }

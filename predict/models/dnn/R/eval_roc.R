@@ -65,17 +65,19 @@ curve_data <- function(d, nb_sample=NULL) {
     }
     d <- d %>% sample_n(nb_sample) %>% arrange(x) %>% ungroup
   }
-  d <- d %>% filter(y > 0.05)
+  d <- d %>% filter(y > 0.001)
   return (d)
 }
 
 plot_roc <- function(d, ...) {
-  d <- curve_data(d)
+  d <- curve_data(d, ...)
   p <- ggplot(d, aes(x=x, y=y)) +
     geom_abline(slope=1, linetype='dashed', color='lightgrey') +
-    geom_smooth(aes(color=method), size=1.3) +
+    geom_line(aes(color=method), size=1.3) +
+    scale_color_manual(values=colors_$model) +
     xlab('False Positive Rate') + ylab('True Positive Rate') +
     theme_pub() +
+    guides(color=guide_legend(title='Method')) +
     theme(legend.position='top')
   if ('cell_type' %in% names(d)) {
     p <- p + facet_wrap(~cell_type, scale='free')
@@ -84,11 +86,13 @@ plot_roc <- function(d, ...) {
 }
 
 plot_recall <- function(d, ...) {
-  d <- curve_data(d)
+  d <- curve_data(d, ...)
   p <- ggplot(d, aes(x=x, y=y)) +
-    geom_smooth(aes(color=method), size=1.3) +
-    xlab('Precision') + ylab('Recall') +
+    geom_smooth(aes(color=method), size=1.3, se=F) +
+    scale_color_manual(values=colors_$model) +
+    xlab('Recall') + ylab('Precision') +
     theme_pub() +
+    guides(color=guide_legend(title='Method')) +
     theme(legend.position='top')
   if ('cell_type' %in% names(d)) {
     p <- p + facet_wrap(~cell_type, scale='free')
