@@ -1,6 +1,7 @@
 import numpy as np
 import h5py as h5
 import os.path as pt
+import pandas as pd
 
 import predict.utils as ut
 
@@ -128,3 +129,33 @@ def read_annos(path, chromos=None, pos=None, regex=None):
         ds.append(d)
     ds = np.vstack(ds)
     return (chromos, ps, ds, names)
+
+
+def _read_test(test_file, target, chromo, what=['pos', 'y', 'z'],
+               nb_sample=None):
+    f = h5.File(test_file, 'r')
+    g = f[target][chromo]
+    if nb_sample is None:
+        nb_sample = g[what[0]].shape[0]
+    d = {k: g[k][:nb_sample] for k in what}
+    f.close()
+    return d
+
+
+def read_test(test_file, targets=None, chromos=None, nb_sample=None):
+    f = h5.File(test_file, 'r')
+    if targets is None:
+        targets = list(f.keys())
+    if chromos is None:
+        chromos = list(f[targets[0]].keys())
+    d = []
+    for target in targets:
+        for chromo in chromos:
+            _ = _read_test(test_file, target=target, chromo=chromo,
+                           nb_sample=nb_sample)
+            _['target'] = target
+            _['chromo'] = chromo
+            _ = pd.DataFrame(_)
+            d.append(_)
+    d = pd.concat(d)
+    return d

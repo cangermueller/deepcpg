@@ -19,7 +19,7 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Copy models between databases')
+            description='Copies source HDF5 files to target file')
         p.add_argument(
             'src_files',
             help='Source files',

@@ -60,6 +60,14 @@ class App(object):
             help='Apply function to activations',
             choices=['mean', 'wmean', 'max'])
         p.add_argument(
+            '--act_wlen',
+            help='Slice wlen at center',
+            type=int)
+        p.add_argument(
+            '--bias_norm',
+            help='Substruct bias from activations',
+            action='store_true')
+        p.add_argument(
             '--occ_input',
             help='Input to be occluded')
         p.add_argument(
@@ -168,6 +176,7 @@ class App(object):
         log.info('Load model')
         model = mod.model_from_list(opts.model)
         conv_node = model.nodes[opts.conv_node]
+        conv_bias = conv_node.get_weights()[1]
 
         log.info('Store filter weights')
         out_file = h5.File(opts.out_file, 'w')
@@ -221,6 +230,13 @@ class App(object):
                 write_hdf(out_z, 'z', batch_idx)
 
             out_act = f_act(ins_f)
+            if opts.bias_norm:
+                out_act -= conv_bias
+
+            if opts.act_wlen is not None:
+                dwlen = opts.act_wlen // 2
+                ctr = out_act.shape[1] // 2
+                out_act = out_act[:, (ctr-dwlen):(ctr+dwlen+1)]
             if opts.fun is not None:
                 if opts.fun == 'mean':
                     out_act = out_act.mean(axis=1)
