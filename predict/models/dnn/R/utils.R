@@ -273,9 +273,12 @@ map_factor_order <- function(to, from) {
   return (to)
 }
 
-plot_heat_annos <- function(d, value='act_mean', del=F, rank=F,
-  Rowv=T, Colv=T, lhei=c(2, 10), lwid=c(2, 10), ...) {
+plot_heat_annos <- function(d, value='act_mean', del=NULL, rank=F,
+  Rowv=T, Colv=T, lhei=c(2, 10), lwid=c(2, 10), cols=NULL, rev_cols=F, ...) {
   d$value <- d[[value]]
+  if (is.null(del)) {
+    del <- any(d$value < 0)
+  }
   if (!del) {
     d$value <- abs(d$value)
   }
@@ -288,26 +291,31 @@ plot_heat_annos <- function(d, value='act_mean', del=F, rank=F,
   rownames(d) <- d$filt
   d <- d %>% select(-filt) %>% as.matrix
 
-  if (del) {
-    colors <- rev(brewer.pal(11, 'RdBu'))
-  } else {
-    colors <- brewer.pal(9, opts$palette)
+  if (is.null(cols)) {
+    cols <- ifelse(del, 'RdBu', 'YlGnBu')
   }
-  colors <- colorRampPalette(colors)(50)
+  cols <- rev(colorRampPalette(brewer.pal(9, cols))(50))
+  if (rev_cols) {
+    cols <- rev(cols)
+  }
   dendro <- 'column'
   if (!is.null(Rowv)) {
     dendro <- 'both'
   }
 
-  p <- heatmap.2(d, density.info='none', trace='none', col=colors,
+  p <- heatmap.2(d, density.info='none', trace='none', col=cols,
     Rowv=Rowv, Colv=Colv, keysize=1.0, dendrogram=dendro,
     margins=c(8, 8), lhei=lhei, lwid=lwid,
     key.title='', srtCol=45, key.xlab='value', ...)
+  return (list(d=d, p=p))
 }
 
-plot_heat_targets <- function(d, value='rs', del=F, rank=F,
+plot_heat_targets <- function(d, value='rs', del=NULL, rank=F,
   Rowv=T, Colv=T, lhei=c(2, 10), lwid=c(2, 10), ...) {
   d$value <- d[[value]]
+  if (is.null(del)) {
+    del <- any(d$value < 0)
+  }
   if (!del) {
     d$value <- abs(d$value)
   }
@@ -338,5 +346,5 @@ plot_heat_targets <- function(d, value='rs', del=F, rank=F,
     Rowv=Rowv, Colv=Colv, keysize=1.0, dendrogram=dendro,
     margins=c(8, 8), lhei=lhei, lwid=lwid,
     key.title='', srtCol=45, key.xlab='value', ColSideColors=col_colors, ...)
-  return (p)
+  return (list(d=d, p=p))
 }

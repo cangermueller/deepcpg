@@ -320,3 +320,18 @@ plot_stat <- function(d, stat, xlab=NULL) {
     guides(fill=F)
   return (p)
 }
+
+roc_test <- function(dr, models) {
+  d <- list()
+  for (i in 1:length(models)) {
+    m1 <- names(models)[i]
+    m2 <- models[i]
+    d1 <- dr %>% filter(model == m1) %>% arrange(target)
+    d2 <- dr %>% filter(model == m2) %>% arrange(target)
+    t <- t.test(d1$auc, d2$auc, alternative='greater', paired=T)
+    di <- data.frame(model1=m1, model2=m2, p.value=t$p.value, stat=t$statistic)
+    d[[length(d) + 1]] <- di
+  }
+  d <- do.call(rbind.data.frame, d) %>% tbl_df
+  return (d)
+}
