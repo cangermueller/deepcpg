@@ -340,3 +340,46 @@ plot_heat_targets <- function(d, value='rs', del=F, rank=F,
     key.title='', srtCol=45, key.xlab='value', ColSideColors=col_colors, ...)
   return (p)
 }
+
+read_pred_group <- function(path, group, nb_sample=NULL) {
+  d <- list()
+  idx <- NULL
+  if (!is.null(nb_sample)) {
+    idx <- list(1:nb_sample)
+  }
+  for (k in c('y', 'z')) {
+    d[[k]] <- h5read(path, sprintf('%s/%s', group, k), index=idx)
+  }
+  d <- as.data.frame(d) %>% tbl_df
+  return (d)
+}
+
+read_pred_target <- function(path, target, chromos_regex=NULL, ...) {
+  d <- list()
+  chromos <- h5ls(path, sprintf('/%s', target))
+  if (!is.null(chromos_regex)) {
+    chromos <- grep(chromos_regex, chromos, value=T)
+  }
+  d <- list()
+  for (chromo in chromos) {
+    dc <- read_pred_group(path, sprintf('/%s/%s', target, chromo), ...)
+    dc$chromo <- chromo
+    d[[length(d) + 1]] <- dc
+  }
+  d <- do.call(rbind.data.frame, d) %>% tbl_df
+  return (d)
+}
+
+read_pred <- function(path, targets=NULL, ...) {
+  if (is.null(targets)) {
+    targets <- h5ls(path, '/')
+  }
+  d <- list()
+  for (target in targets) {
+    h <- read_pred_target(path, target, ...) %>% mutate(target=target) %>%
+      char_to_factor
+    d[[length(d) + 1]] <- h
+  }
+  d <- do.call(rbind.data.frame, d) %>% mutate(target=factor(target))
+  return (d)
+}

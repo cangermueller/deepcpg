@@ -15,9 +15,9 @@ import predict.io as io
 
 def evaluate(act, z, filts, targets):
     stats = []
+    act_mean = act.mean(axis=0)
+    act_std = act.std(axis=0)
     for f, filt in enumerate(filts):
-        act_mean = act[:, f].mean()
-        act_std = act[:, f].std()
         for t, target in enumerate(targets):
             s = []
             s.append(filt)
@@ -33,8 +33,8 @@ def evaluate(act, z, filts, targets):
             r = sps.spearmanr(at, zt)
             s.append(r[0])
             s.append(r[1])
-            s.append(act_mean)
-            s.append(act_std)
+            s.append(act_mean[f])
+            s.append(act_std[f])
             stats.append(s)
     h = ['filt', 'target', 'n', 'rp', 'rp_pvalue', 'rs', 'rs_pvalue',
          'act_mean', 'act_std']
@@ -243,6 +243,7 @@ class App(object):
             else:
                 f = np.max
             data['act'] = f(data['act'], axis=1)
+        data['act'] = data['act'].astype('float32')
         assert data['act'].ndim == 2
 
         nb_filt = data['act'].shape[1]
@@ -251,6 +252,7 @@ class App(object):
             filts = range(nb_filt)
         else:
             filts = ut.ranges_to_list(filts, 0, nb_filt - 1)
+            data['act'] = data['act'][:, filts]
         nb_filt = len(filts)
 
         if opts.targets_file is not None:
