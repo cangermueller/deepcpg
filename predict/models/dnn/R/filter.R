@@ -1,43 +1,3 @@
-query_db_ <- function(db_file, table='global', cond=NULL) {
-  con <- src_sqlite(db_file)
-  h <- sprintf('SELECT * FROM %s', table)
-  if (!is.null(cond)) {
-    h <- sprintf('%s WHERE %s', h, cond)
-  }
-  d <- tbl(con, sql(h))
-  d <- d %>% collect %>% select(-path, -id)
-  if ('filt' %in% names(d)) {
-    d$filt <- factor(d$filt)
-  }
-  d <- d %>% char_to_factor %>% droplevels %>% tbl_df
-  return (d)
-}
-
-query_db <- function(db_path, global=T, annos=T) {
-  d <- list()
-  if (global) {
-    d$global <- query_db_(db_path, 'global') %>% mutate(anno='global')
-  }
-  if (annos) {
-    d$annos <- query_db_(db_path, 'annos')
-  }
-  n <- NULL
-  for (i in 1:length(d)) {
-    if (is.null(n)) {
-      n <- names(d[[i]])
-    } else {
-      n <- intersect(n, names(d[[i]]))
-    }
-  }
-  for (i in 1:length(d)) {
-    d[[i]] <- d[[i]][,n]
-  }
-  d <- do.call(rbind.data.frame, d) %>%
-    mutate(anno=factor(anno)) %>%
-    droplevels %>% tbl_df
-  return (d)
-}
-
 filt_to_frame <- function(f) {
   f <- f %>% as.data.frame
   names(f) <- ncol(f):1
@@ -179,41 +139,5 @@ read_filt_imp <- function(path, targets=NULL, filts=NULL) {
   ds <- do.call(rbind.data.frame, ds) %>% tbl_df %>%
     mutate(filt=factor(filt))
   return (ds)
-}
-
-tomtom_target_name <- function(target.name, target.id) {
-  target.name <- as.character(target.name)
-  target.id <- as.character(target.id)
-  s <- gsub(' ', '_', target.name)
-  s <- sapply(str_split(s, '_'), function(x) x[1])
-  h <- str_length(s) == 0
-  s[h] <- target.id[h]
-  s <- gsub('[()]', '', s)
-  return (s)
-}
-
-read_tomtom <- function(path, all=F) {
-  d <- read.table(path, sep='\t', head=T) %>% tbl_df %>%
-    mutate(filt=factor(sub('filter', '', Query.ID))) %>%
-    group_by(filt) %>% arrange(q.value) %>% ungroup %>%
-    mutate(name=factor(tomtom_target_name(Target.name, Target.ID))) %>%
-    move_cols(c('filt', 'Target.ID', 'Target.name', 'name',
-        'p.value', 'E.value', 'q.value', 'URL'))
-  if (!all) {
-    h <- d %>% group_by(filt) %>% arrange(q.value) %>% slice(1) %>% ungroup
-      # select(filt, Target.name, name, Target.ID, p.value, E.value, q.value, URL)
-    d <- h %>% inner_join(group_by(d, filt) %>% summarise(nb_hits=n()))
-  }
-  return (d)
-}
-
-label_tomtom <- function(d, tomtom, by_='filt') {
-  d <- d %>% left_join(select(tomtom, filt, label=name), by=by_) %>%
-    mutate(
-      label=sprintf('%d: %s', as.numeric(as.vector(filt)), label),
-      label=sub(': NA', '', label),
-      label=factor(label)
-      )
-  return (d)
 }
 
