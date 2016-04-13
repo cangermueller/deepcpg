@@ -145,7 +145,7 @@ plot_global <- function(d, metrics=c('auc', 'mcc', 'tpr', 'tnr', 'acc'),
     guides(fill=guide_legend(title='Method'),
       color=guide_legend(title='Cell type')) +
     theme(legend.position='right') +
-    theme(axis.text.x=element_text(angle=40, hjust=1))
+    theme(axis.text.x=element_text(angle=30, hjust=1))
   if (length(unique(d$metric)) > 1) {
     p <- p + facet_wrap(~metric, ncol=1, scales='free')
   }

@@ -1,22 +1,21 @@
 theme_pub <- function() {
   p <- theme(
-    axis.text=element_text(size=rel(1.0), color='black'),
-    axis.title=element_text(size=rel(1.5)),
-    axis.title.y=element_text(vjust=1.0),
-    axis.title.x=element_text(vjust=-0.5),
-    legend.position='right',
-    legend.text=element_text(size=rel(1.0)),
-    legend.title=element_text(size=rel(1.0)),
-    legend.key=element_rect(fill='transparent'),
-    panel.border=element_blank(),
-    # panel.grid.major = element_blank(),
-    # panel.grid.minor = element_blank(),
-    panel.grid.major=element_line(colour="grey60", size=0.1, linetype='solid'),
-    panel.grid.minor=element_line(colour="grey60", size=0.1, linetype='dotted'),
-    panel.background = element_blank(),
+    axis.text=element_text(size=rel(1.3), color='black'),
+    axis.title.y=element_text(size=rel(1.8), margin=margin(0, 10, 0, 0)),
+    axis.title.x=element_text(size=rel(1.8), margin=margin(10, 0, 0, 0)),
     axis.line = element_line(colour="black", size=1),
     axis.ticks.length = unit(.3, 'cm'),
-    axis.ticks.margin = unit(.3, 'cm')
+    axis.ticks.margin = unit(.3, 'cm'),
+    legend.position='right',
+    legend.text=element_text(size=rel(1.8)),
+    legend.title=element_text(size=rel(1.8), face='bold'),
+    legend.key=element_rect(fill='transparent'),
+    strip.text=element_text(size=rel(1.3)),
+    panel.border=element_blank(),
+    panel.grid.major=element_line(colour="grey60", size=0.1, linetype='solid'),
+    panel.grid.minor=element_line(colour="grey60", size=0.1, linetype='dotted'),
+    panel.background=element_rect(fill="transparent", colour = NA),
+    plot.background=element_rect(fill="transparent", colour = NA)
     )
   return (p)
 }
@@ -63,15 +62,47 @@ linetypes$cell_type <- c(
 pub <- list()
 pub$metrics <- c('auc', 'acc', 'mcc', 'tpr', 'tnr', 'cor', 'rrmse')
 pub$annos <- c(
-  'loc_prom_2k05k_cgi', 'licr_H3k37me3',
-  'loc_TSSs', 'loc_Exons', 'loc_H3K27me3', 'uw_dnase1', 'loc_CGI', 'loc_p300',
-  'loc_gene_body', 'global', 'loc_CGI_shore', 'loc_Introns', 'loc_Intergenic',
-  'licr_H3k36me3', 'loc_prom_2k05k_ncgi', 'loc_H3K27ac', 'loc_Active_enhancers',
-  'loc_mESC_enhancers', 'loc_H3K4me1', 'loc_LMRs')
+  'All'='global',
+  'CGI'='loc_CGI',
+  'CGI shore'='loc_CGI_shore',
+  'TSS'='loc_TSSs',
+  'Promotor'='loc_prom_2k05k_cgi',
+  'Non-CGI promotor'='loc_prom_2k05k_ncgi',
+  'Exon'='loc_Exons',
+  'Gene body'='loc_gene_body',
+  'Intron'='loc_Introns',
+  'Intergenic'='loc_Intergenic',
+  'DNase1'='uw_dnase1',
+  'p300'='loc_p300',
+  'H3K37me3'='licr_H3k37me3',
+  'H3K27ac'='loc_H3K27ac',
+  'H3K4me1'='loc_H3K4me1',
+  'H3K36me3'='licr_H3k36me3',
+  'H3K27me3'='loc_H3K27me3',
+  'Active enhancer'='loc_Active_enhancers',
+  'mESC enhancer'='loc_mESC_enhancers',
+  'LMR'='loc_LMRs'
+  )
+pub$annos_var <- setdiff(pub$annos, c('uw_dnase1', 'licr_H3k36me3'))
+
+format_annos <- function(annos) {
+  a <- annos
+  if (is.factor(annos)) {
+    a <- levels(annos)
+  }
+  idx <- match(a, pub$annos)
+  h <- !is.na(idx)
+  a[h] <- names(pub$annos)[idx[h]]
+  a <- sub('(loc_|licr_|chipseq_|stan_)', '', a)
+  if (is.factor(annos)) {
+    a <- factor(annos, levels=levels(annos), labels=a)
+  }
+  return (a)
+}
 
 pub_annos <- function(d) {
   d <- d %>% filter(anno %in% pub$annos) %>%
-  mutate(anno=format_annos(anno))
+    mutate(anno=format_annos(anno))
   return (d)
 }
 
@@ -80,7 +111,8 @@ gopts$lo_better <- c('mse', 'rmse', 'loss')
 
 parse_cell_type <- function(x) {
   x <- as.vector(x)
-  x <- factor(grepl('2i', x), levels=c(T, F), labels=c('2i', 'serum'))
+  h <- grepl('2i', x) | (x %in% c('ESC_Ser3_RSC27_4', 'ESC_Ser6_RSC27_7'))
+  x <- factor(h, levels=c(T, F), labels=c('2i', 'serum'))
   x <- droplevels(x)
   return (x)
 }
@@ -99,14 +131,6 @@ parse_var_target <- function(d) {
         wlen=as.integer(sub('w', '', wlen))
       ) %>% droplevels
     return (d)
-}
-
-format_annos <- function(annos) {
-  a <- sub('(loc_|licr_|chipseq_|stan_)', '', annos)
-  if (is.factor(annos)) {
-    a <- factor(a)
-  }
-  return (a)
 }
 
 char_to_factor <- function(d) {
@@ -216,15 +240,15 @@ plot_pca_target <- function(pc, x=1, y=2) {
     geom_point(aes(color=cell_type), size=2) +
     scale_color_manual(values=colors_$cell_type) +
     geom_text(aes(label=target), vjust=-.6, hjust= .2, size=2.5) +
-    xlab(sprintf('PC%d (%.2f%%)', x, pc$val[x])) +
-    ylab(sprintf('PC%d (%.2f%%)', y, pc$val[y])) +
+    xlab(sprintf('PC%d (%.2f%%)', x, pc$val[x] * 100)) +
+    ylab(sprintf('PC%d (%.2f%%)', y, pc$val[y] * 100)) +
     theme_pub()
   return (p)
 }
 
 plot_pca_val <- function(pc_val) {
   t <- data.frame(pc=1:length(pc_val), val=pc_val)
-  p <- ggplot(t, aes(x=pc, y=val)) +
+  p <- ggplot(t, aes(x=pc, y=val*100)) +
     geom_bar(stat='identity', fill='salmon', color='black') +
     xlab('principle component') +
     ylab('% variance explained') + theme_pub()
@@ -274,7 +298,7 @@ map_factor_order <- function(to, from) {
 }
 
 plot_heat_annos <- function(d, value='act_mean', del=NULL, rank=F,
-  Rowv=T, Colv=T, lhei=c(2, 10), lwid=c(2, 10), cols=NULL, rev_cols=F, ...) {
+  Rowv=T, Colv=T, lhei=c(2, 10), lwid=c(2, 10), cols=NULL, margins=c(10, 8), ...) {
   d$value <- d[[value]]
   if (is.null(del)) {
     del <- any(d$value < 0)
@@ -289,15 +313,18 @@ plot_heat_annos <- function(d, value='act_mean', del=NULL, rank=F,
   }
   d <- d %>% spread(anno, value) %>% as.data.frame
   rownames(d) <- d$filt
+  colnames(d) <- format_annos(colnames(d))
   d <- d %>% select(-filt) %>% as.matrix
 
   if (is.null(cols)) {
-    cols <- ifelse(del, 'RdBu', 'YlGnBu')
+    if (del) {
+      cols <- rev(brewer.pal(9, 'RdBu'))
+    } else {
+      cols <- brewer.pal(9, 'YlOrRd')
+    }
   }
-  cols <- rev(colorRampPalette(brewer.pal(9, cols))(50))
-  if (rev_cols) {
-    cols <- rev(cols)
-  }
+  cols <- colorRampPalette(cols)(50)
+
   dendro <- 'column'
   if (!is.null(Rowv)) {
     dendro <- 'both'
@@ -305,7 +332,7 @@ plot_heat_annos <- function(d, value='act_mean', del=NULL, rank=F,
 
   p <- heatmap.2(d, density.info='none', trace='none', col=cols,
     Rowv=Rowv, Colv=Colv, keysize=1.0, dendrogram=dendro,
-    margins=c(8, 8), lhei=lhei, lwid=lwid,
+    lhei=lhei, lwid=lwid, margins=margins,
     key.title='', srtCol=45, key.xlab='value', ...)
   return (list(d=d, p=p))
 }
@@ -328,13 +355,15 @@ plot_heat_targets <- function(d, value='rs', del=NULL, rank=F,
   rownames(d) <- d$filt
   d <- d %>% select(-filt) %>% as.matrix
 
-  type <- factor(grepl('2i', colnames(d)), levels=c(T, F), labels=c('2i', 'serum'))
+  type <- parse_cell_type(colnames(d))
   col_colors <- colors_$cell_type[type]
 
-  if (del) {
+  if (rank) {
+    colors <- rev(brewer.pal(9, 'YlOrRd'))
+  } else if (del) {
     colors <- rev(brewer.pal(11, 'RdBu'))
   } else {
-    colors <- brewer.pal(9, opts$palette)
+    colors <- brewer.pal(9, 'YlOrRd')
   }
   colors <- colorRampPalette(colors)(50)
   dendro <- 'column'
