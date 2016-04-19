@@ -299,18 +299,20 @@ map_factor_order <- function(to, from) {
 
 plot_heat_annos <- function(d, value='act_mean', del=NULL, rank=F,
   Rowv=T, Colv=T, lhei=c(2, 10), lwid=c(2, 10), cols=NULL, margins=c(10, 8), ...) {
+
   d$value <- d[[value]]
+  if (rank) {
+    d <- d %>% group_by(filt) %>% mutate(value=rank(abs(value))) %>% ungroup
+  }
   if (is.null(del)) {
     del <- any(d$value < 0)
   }
   if (!del) {
     d$value <- abs(d$value)
   }
+
   d <- d %>% mutate(filt=label) %>%
     group_by(anno, filt) %>% summarise(value=mean(value)) %>% ungroup
-  if (rank) {
-    d <- d %>% group_by(filt) %>% mutate(value=rank(value)) %>% ungroup
-  }
   d <- d %>% spread(anno, value) %>% as.data.frame
   rownames(d) <- d$filt
   colnames(d) <- format_annos(colnames(d))
