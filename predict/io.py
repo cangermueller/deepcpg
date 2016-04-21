@@ -159,3 +159,32 @@ def read_test(test_file, targets=None, chromos=None, nb_sample=None):
             d.append(_)
     d = pd.concat(d)
     return d
+
+
+def select_region(chromos, pos, chromo=None, start=None, stop=None,
+                  nb_sample=None):
+    chromos = chromos[:]
+    pos = pos[:]
+    h = np.empty(len(chromos), dtype='bool')
+    h.fill(True)
+    if chromo is not None:
+        h &= chromos == chromo.encode()
+    if start is not None:
+        h &= pos >= start
+    if stop is not None:
+        h &= pos <= stop
+    h = np.nonzero(h)[0]
+    h = slice(h.min(), h.max() + 1)
+    if nb_sample is not None and h.stop - h.start > nb_sample:
+        h = slice(h.start, h.start + nb_sample)
+    return h
+
+
+def slice_center(l, wlen=None, dlen=None):
+    if dlen is None:
+        dlen = wlen // 2
+    ctr = l // 2
+    return slice(ctr - dlen, ctr + dlen + 1)
+
+
+
