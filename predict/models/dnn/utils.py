@@ -102,24 +102,6 @@ def read_data(path, max_mem=None):
     return (f, data)
 
 
-def select_data(data, chromo, start=None, end=None, log=None):
-    sel = data['chromo'].value == str(chromo).encode()
-    if start is not None:
-        sel &= data['pos'].value >= start
-    if end is not None:
-        sel &= data['pos'].value <= end
-    if sel.sum() == 0:
-        return 0
-    if log is not None:
-        log.info('Select %d samples' % (sel.sum()))
-    for k in data.keys():
-        if len(data[k].shape) > 1:
-            data[k] = data[k][sel, :]
-        else:
-            data[k] = data[k][sel]
-    return sel.sum()
-
-
 class ArrayView(object):
 
     def __init__(self, data, start=0, stop=None):
@@ -213,3 +195,5 @@ def select_cpos(data, chromo, start=None, end=None):
         else:
             data[k] = data[k][sel]
     return data
+
+
