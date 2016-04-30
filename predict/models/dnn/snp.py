@@ -69,7 +69,7 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Effect SNPs')
+            description='Effect of nodes')
         p.add_argument(
             'data_file',
             help='Data file')
@@ -82,9 +82,13 @@ class App(object):
             help='Output file',
             default='snp.h5')
         p.add_argument(
+            '-x', '--effect_node',
+            help='Effect node',
+            default='s_x')
+        p.add_argument(
             '--outputs',
             help='Output options',
-            choices=['s_x'],
+            choices=['x'],
             nargs='+',
             default=[])
         p.add_argument(
@@ -164,7 +168,8 @@ class App(object):
         ut.to_view(data, start=sel.start, stop=sel.stop)
 
         ut.to_view(data, stop=opts.nb_sample)
-        log.info('%d samples' % (list(data.values())[0].shape[0]))
+        nb_sample = list(data.values())[0].shape[0]
+        log.info('%d samples' % (nb_sample))
 
         log.info('Load model')
         model = mod.model_from_list(opts.model)
@@ -176,32 +181,35 @@ class App(object):
         tar_mean = '%s_mean' % (opts.target)
         tar_var = '%s_var' % (opts.target)
 
-        x = model.get_input(train=False)['s_x']
-        outs = model.get_output(train=False)
+        ins = model.get_input(train=False)
+        input_nodes = [ins[x] for x in model.input_order]
+        effect_node = ins[opts.effect_node]
+        output_nodes = model.get_output(train=False)
 
+        log.info('Compile')
         eff_list = list()
         gs = []
         for effect in opts.effects:
             if effect == 'mean':
-                y = outs[tar_n2i[tar_mean] + '_y']
+                y = output_nodes[tar_n2i[tar_mean] + '_y']
             elif effect == 'var':
-                y = outs[tar_n2i[tar_var] + '_y']
+                y = output_nodes[tar_n2i[tar_var] + '_y']
             elif effect == 'disp':
-                m = outs[tar_n2i[tar_mean] + '_y']
-                v = outs[tar_n2i[tar_var] + '_y']
+                m = output_nodes[tar_n2i[tar_mean] + '_y']
+                v = output_nodes[tar_n2i[tar_var] + '_y']
                 y = T.sqr(m * (1 - m) - v)
             else:
-                _ = list(outs.values())
+                _ = list(output_nodes.values())
                 y = _[0]
                 for yy in _[1:]:
                     y += yy
                 y = y / len(_)
-            g = T.grad(T.mean(y), x)
+            g = T.grad(T.mean(y), effect_node)
             if not opts.char:
                 g = T.max(T.abs_(g), axis=2)
             gs.append(g)
             eff_list.append(effect)
-        f = th.function([x], gs)
+        f = th.function(input_nodes, gs)
 
         def write_fun(x, batch_start, batch_end):
             for i, xi in enumerate(x):
@@ -216,7 +224,7 @@ class App(object):
                 if g in out_file:
                     g = out_file[g]
                 else:
-                    _ = [data['s_x'].shape[0]] + list(xi.shape[1:])
+                    _ = [nb_sample] + list(xi.shape[1:])
                     g = out_file.create_dataset(g, data=np.zeros(_))
                 g[batch_start:batch_end] = xi
 
@@ -226,8 +234,12 @@ class App(object):
 
         out_file['chromo'] = data['chromo'][:]
         out_file['pos'] = data['pos'][:]
-        if 's_x' in opts.outputs:
-            out_file['s_x'] = data['s_x'][:].argmax(axis=2)
+        if 'x' in opts.outputs:
+            for x in model.input_order:
+                d = data[x]
+                if x == 's_x':
+                    d = d.argmax(axis=2)
+                out_file[x] = d
 
         out_file.close()
         data_file.close()
