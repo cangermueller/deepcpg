@@ -32,6 +32,8 @@ colors_$yz <- c(
   'z'='#66a61e',
   'Predicted'='#66a61e'
   )
+colors_$chars <- c('A'='#CB2026', 'T'='#0C8040', 'C'='#34459C', 'G'="#FBB116")
+
 # colors_$model <- c(
 #     'DeepCpG'='#1b9e77',
 #     'RF'='#d95f02',

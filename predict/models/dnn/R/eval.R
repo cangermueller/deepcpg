@@ -304,13 +304,13 @@ plot_stats <- function(d) {
   return (p)
 }
 
-plot_stat <- function(d, stat, xlab=NULL) {
+plot_stat <- function(d, stat, xlab=NULL, span=NULL) {
   if (is.null(xlab)) {
     xlab <- stat
   }
   d <- d %>% filter_(sprintf('stat == "%s"', stat)) %>% droplevels
   p <- ggplot(d, aes(x=bin_mid, y=auc)) +
-    geom_smooth(se=F, size=1.2, aes(color=model)) +
+    geom_smooth(se=F, size=1.2, aes(color=model), span=span) +
     geom_point(size=0.7, aes(color=model)) +
     xlab(xlab) + ylab('AUC') +
     theme_pub() +
