@@ -159,3 +159,32 @@ def dict_to_str(d):
     for k in sorted(d.keys()):
         s.append('%s: %s' % (k, str(d[k])))
     return '\n'.join(s)
+
+
+def linear_weights(wlen, start=1e-5):
+    w = np.linspace(start, 1, np.ceil(wlen / 2))
+    v = w
+    if wlen % 2:
+        v = v[:-1]
+    w = np.hstack((w, v[::-1]))
+    return (w)
+
+
+def wmean(x, axis=0):
+    w = linear_weights(x.shape[axis])
+    y = np.average(x, axis=axis, weights=w)
+    return y
+
+
+def aggregate(x, wlen=None, fun='mean', axis=1):
+    from predict.io import slice_center
+    if wlen is not None:
+        x = x[:, slice_center(x.shape[axis], wlen)]
+    if fun == 'max':
+        f = np.max
+    elif fun == 'wmean':
+        f = wmean
+    else:
+        f = np.mean
+    x = f(x, axis=1)
+    return x

@@ -183,6 +183,7 @@ def select_region(chromos, pos, chromo=None, start=None, stop=None,
 def slice_center(l, wlen=None, dlen=None):
     if dlen is None:
         dlen = wlen // 2
+    dlen = min(dlen, l // 2)
     ctr = l // 2
     return slice(ctr - dlen, ctr + dlen + 1)
 

@@ -44,18 +44,6 @@ def write_loop(ins, fun, write_fun, batch_size=128, callbacks=[], log=print):
         write_fun(batch_outs, batch_start, batch_end)
 
 
-def agg_score(s, wlen=None, fun=None):
-    if wlen is not None:
-        s = s[:, io.slice_center(s.shape[1], wlen)]
-    if fun is not None:
-        if fun == 'max':
-            f = np.max
-        else:
-            f = np.mean
-        s = f(s, axis=1)
-    return s
-
-
 class App(object):
 
     def run(self, args):
@@ -114,6 +102,10 @@ class App(object):
             help='Target basename',
             default='ser_w3000')
         p.add_argument(
+            '--relative',
+            help='Relative effect',
+            action='store_true')
+        p.add_argument(
             '--chromo',
             help='Chromosome')
         p.add_argument(
@@ -124,6 +116,16 @@ class App(object):
             '--stop',
             help='Stop position',
             type=int)
+        p.add_argument(
+            '--start_idx',
+            help='Start index',
+            type=int,
+            default=0)
+        p.add_argument(
+            '--stop_idx',
+            help='Stop index',
+            type=int,
+            default=0)
         p.add_argument(
             '--nb_sample',
             help='Maximum # training samples',
@@ -165,7 +167,13 @@ class App(object):
         sel = io.select_region(data['chromo'], data['pos'],
                                chromo=opts.chromo, start=opts.start,
                                stop=opts.stop, nb_sample=opts.nb_sample)
-        ut.to_view(data, start=sel.start, stop=sel.stop)
+        if opts.stop_idx > 0:
+            _ = sel.start + opts.stop_idx
+        else:
+            _ = sel.stop
+        ut.to_view(data,
+                   start=sel.start + opts.start_idx,
+                   stop=_)
 
         ut.to_view(data, stop=opts.nb_sample)
         nb_sample = list(data.values())[0].shape[0]
@@ -205,6 +213,8 @@ class App(object):
                     y += yy
                 y = y / len(_)
             g = T.grad(T.mean(y), effect_node)
+            if opts.relative:
+                g = g - g * input_nodes[0]
             if not opts.char:
                 g = T.max(T.abs_(g), axis=2)
             gs.append(g)
@@ -213,6 +223,9 @@ class App(object):
 
         def write_fun(x, batch_start, batch_end):
             for i, xi in enumerate(x):
+                if opts.relative and opts.char:
+                    ins = data[model.input_order[0]][batch_start:batch_end]
+                    assert np.all(x * ins == 0)
                 if opts.wlen is not None:
                     xi = xi[:, io.slice_center(xi.shape[1], opts.wlen)]
                 if not (opts.char or opts.agg_fun is None):
@@ -240,8 +253,8 @@ class App(object):
                 if x == 's_x':
                     d = d.argmax(axis=2)
                 out_file[x] = d
-
         out_file.close()
+
         data_file.close()
         log.info('Done!')
         return 0
