@@ -167,6 +167,10 @@ class ArrayView(object):
     def shape(self):
         return tuple([len(self)] + list(self.data.shape[1:]))
 
+    @property
+    def ndim(self):
+        return self.data.ndim
+
 
 def read_hdf(path, cache_size):
     f = open_hdf(path, cache_size=cache_size)
