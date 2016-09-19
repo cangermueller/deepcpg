@@ -16,8 +16,8 @@ import predict.evaluation as pe
 import predict.utils as pu
 import predict.models.dnn.utils as ut
 import predict.models.dnn.callbacks as cbk
-import predict.models.dnn.model as mod
 from predict.models.dnn.params import Params
+import predict.models.dnn_keras.model as mod
 
 import matplotlib
 matplotlib.use('pdf')
@@ -39,9 +39,9 @@ def get_sample_weights(y, weight_classes=False):
 
 
 def check_weights(model, y, weights):
-    for output in model.output_order:
-        h = y[output][:] == ut.MASK
-        w = weights[output][:]
+    for output in model.output_names:
+        h = (y[output][:] == ut.MASK).ravel()
+        w = (weights[output][:]).ravel()
         assert np.all(w[h] == 0)
         assert np.all(w[~h] == 1)
 
@@ -117,12 +117,24 @@ def build_model(params, data_file, targets):
 def read_data(path, model, cache_size=None):
     file_, data = ut.read_hdf(path, cache_size)
     weights = dict()
-    for k in model.output_order:
-        weights[k] = get_sample_weights(data[k])
+    for k in model.output_names:
+        weights[k] = get_sample_weights(data[k]).ravel()
     ut.to_view(data)
     ut.to_view(weights)
     check_weights(model, data, weights)
     return (file_, data, weights)
+
+
+def data_x(data, model):
+    return {x: data[x] for x in model.input_names}
+
+
+def data_y(data, model):
+    return {x: data[x] for x in model.output_names}
+
+
+def list_to_dict(values, names):
+    return dict(zip(names, values))
 
 
 class App(object):
@@ -406,7 +418,7 @@ class App(object):
             else:
                 optimizer = mod.optimizer_from_params(model_params)
                 loss = model_params.loss
-            loss = mod.loss_from_ids(model.output_order, loss)
+            loss = mod.loss_from_ids(model.output_names, loss)
             model.compile(loss=loss, optimizer=optimizer)
         if opts.lr is not None:
             log.info('Set learning rate to %f' % (opts.lr))
@@ -474,7 +486,7 @@ class App(object):
             print(model_params)
 
         print('\nTargets:')
-        for output in model.output_order:
+        for output in model.output_names:
             h = targets['id'].index(output.replace('_y', ''))
             print('%s: %s' % (targets['id'][h], targets['name'][h]))
 
@@ -484,16 +496,17 @@ class App(object):
 
         # Train model
         log.info('Train model')
-        model.fit(data=train_data,
+        model.fit(x=data_x(train_data, model),
+                  y=data_y(train_data, model),
                   sample_weight=train_weights,
-                  val_data=val_data,
-                  val_sample_weight=val_weights,
+                  validation_data=(data_x(val_data, model),
+                                   data_y(val_data, model),
+                                   val_weights),
                   batch_size=batch_size,
                   shuffle=opts.shuffle,
                   nb_epoch=opts.nb_epoch,
                   callbacks=cbacks,
-                  verbose=0,
-                  logger=lambda x: log.debug(x))
+                  verbose=0)
 
         # Use best weights on validation set
         h = pt.join(opts.out_dir, 'model_weights.h5')
@@ -524,6 +537,7 @@ class App(object):
         if opts.eval is not None and 'train' in opts.eval:
             log.info('Evaluate training set performance')
             z = model.predict(train_data, batch_size=batch_size)
+            z = list_to_dict(z, model.output_names)
             print('\nTraining set performance:')
             eval_io(model, train_data, z, pt.join(opts.out_dir, 'train'),
                     targets)
@@ -531,6 +545,7 @@ class App(object):
         if opts.eval is not None and 'val' in opts.eval:
             log.info('Evaluate validation set performance')
             z = model.predict(val_data, batch_size=batch_size)
+            z = list_to_dict(z, model.output_names)
             print('\nValidation set performance:')
             eval_io(model, val_data, z, pt.join(opts.out_dir, 'val'), targets)
 

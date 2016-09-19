@@ -1,133 +1,120 @@
 import pickle
 import numpy as np
 
-import cpgkeras.models as km
-from cpgkeras.models import CpgGraph
-from cpgkeras.layers import core as kcore
-from cpgkeras.layers import convolutional as kconv
-from cpgkeras.layers import normalization as knorm
-import cpgkeras.regularizers as kr
-import cpgkeras.optimizers as kopt
+import keras.layers as kl
+import keras.regularizers as kr
+import keras.engine.training as kt
+import keras.layers.normalization as knorm
+import keras.models as km
+import keras.optimizers as kopt
 
 import predict.utils as ut
 
+def layer_name(scope, name, layer=None):
+    name = '%s_%s' % (scope, name)
+    if layer:
+        name = '%s%d' % (name, layer)
+    return name
 
-def cpg_layers(params):
-    layers = []
+
+def cpg_module(x, params, scope='c_'):
     if params.drop_in:
-        layer = kcore.Dropout(params.drop_in)
-        layers.append(('xd', layer))
+        x = kl.Dropout(params.drop_in,
+                       name=layer_name(scope, 'xd'))(x)
+
     nb_layer = len(params.nb_filter)
     w_reg = kr.WeightRegularizer(l1=params.l1, l2=params.l2)
     for l in range(nb_layer):
-        layer = kconv.Convolution2D(nb_filter=params.nb_filter[l],
-                                    nb_row=1,
-                                    nb_col=params.filter_len[l],
-                                    activation=params.activation,
-                                    init='glorot_uniform',
-                                    W_regularizer=w_reg,
-                                    border_mode='same')
-        layers.append(('c%d' % (l + 1), layer))
-        layer = kconv.MaxPooling2D(pool_size=(1, params.pool_len[l]))
-        layers.append(('p%d' % (l + 1), layer))
+        x = kl.Convolution2D(nb_filter=params.nb_filter[l],
+                             nb_row=1,
+                             nb_col=params.filter_len[l],
+                             activation=params.activation,
+                             init='glorot_uniform',
+                             W_regularizer=w_reg,
+                             border_mode='same',
+                             name=layer_name(scope, 'c', l + 1))(x)
+        x = kl.MaxPooling2D(pool_size=(1, params.pool_len[l]),
+                            name=layer_name(scope, 'p', l + 1))(x)
 
-    layer = kcore.Flatten()
-    layers.append(('f1', layer))
+    x = kl.Flatten(name=layer_name(scope, 'f1'))(x)
     if params.drop_out:
-        layer = kcore.Dropout(params.drop_out)
-        layers.append(('f1d', layer))
-    if params.nb_hidden:
-        layer = kcore.Dense(params.nb_hidden,
-                            activation='linear',
-                            init='glorot_uniform')
-        layers.append(('h1', layer))
-        if params.batch_norm:
-            layer = knorm.BatchNormalization()
-            layers.append(('h1b', layer))
-        layer = kcore.Activation(params.activation)
-        layers.append(('h1a', layer))
-        if params.drop_out:
-            layer = kcore.Dropout(params.drop_out)
-            layers.append(('h1d', layer))
-    return layers
+        x = kl.Dropout(params.drop_out,
+                       name=layer_name(scope, 'f1d'))(x)
+        if params.nb_hidden:
+            x = kl.Dense(params.nb_hidden,
+                         activation='linear',
+                         init='glorot_uniform',
+                         name=layer_name(scope, 'h1'))(x)
+            if params.batch_norm:
+                x = knorm.BatchNormalization(name=layer_name(scope, 'h1b'))(x)
+                x = kl.Activation(params.activation,
+                                  name=layer_name(scope, 'h1a'))(x)
+                if params.drop_out:
+                    x = kl.Dropout(params.drop_out,
+                                   name=layer_name(scope, 'h1d'))(x)
+    return x
 
 
-def seq_layers(params):
-    layers = []
+def seq_module(x, params, scope='s'):
     if params.drop_in:
-        layer = kcore.Dropout(params.drop_in)
-        layers.append(('xd', layer))
+        x = kl.Dropout(params.drop_in, name=layer_name(scope, 'xd'))(x)
     nb_layer = len(params.nb_filter)
     w_reg = kr.WeightRegularizer(l1=params.l1, l2=params.l2)
     for l in range(nb_layer):
-        layer = kconv.Convolution1D(nb_filter=params.nb_filter[l],
-                                    filter_length=params.filter_len[l],
-                                    activation=params.activation,
-                                    init='glorot_uniform',
-                                    W_regularizer=w_reg,
-                                    border_mode='same')
-        layers.append(('c%d' % (l + 1), layer))
-        layer = kconv.MaxPooling1D(pool_length=params.pool_len[l])
-        layers.append(('p%d' % (l + 1), layer))
+        x = kl.Convolution1D(nb_filter=params.nb_filter[l],
+                             filter_length=params.filter_len[l],
+                             activation=params.activation,
+                             init='glorot_uniform',
+                             W_regularizer=w_reg,
+                             border_mode='same',
+                             name=layer_name(scope, 'c', l + 1))(x)
+        x = kl.MaxPooling1D(pool_length=params.pool_len[l],
+                            name=layer_name(scope, 'p', l + 1))(x)
 
-    layer = kcore.Flatten()
-    layers.append(('f1', layer))
+    x = kl.Flatten(name=layer_name(scope, 'f1'))(x)
     if params.drop_out:
-        layer = kcore.Dropout(params.drop_out)
-        layers.append(('f1d', layer))
+        x = kl.Dropout(params.drop_out, name=layer_name(scope, 'f1d'))(x)
     if params.nb_hidden:
-        layer = kcore.Dense(output_dim=params.nb_hidden,
-                            activation='linear',
-                            init='glorot_uniform')
-        layers.append(('h1', layer))
+        x = kl.Dense(output_dim=params.nb_hidden,
+                     activation='linear',
+                     init='glorot_uniform',
+                     name=layer_name(scope, 'h1'))(x)
         if params.batch_norm:
-            layer = knorm.BatchNormalization()
-            layers.append(('h1b', layer))
-        layer = kcore.Activation(params.activation)
-        layers.append(('h1a', layer))
+            x = knorm.BatchNormalization(name=layer_name(scope, 'h1b'))(x)
+        x = kl.Activation(params.activation, name=layer_name(scope, 'h1a'))(x)
         if params.drop_out:
-            layer = kcore.Dropout(params.drop_out)
-            layers.append(('h1d', layer))
-    return layers
+            x = kl.Dropout(params.drop_out, name=layer_name(scope, 'h1d'))(x)
+    return x
 
 
-def joint_layers(params):
-    layers = []
-    layer = kcore.Dense(params.nb_hidden,
-                        activation='linear',
-                        init='glorot_uniform')
-    layers.append(('h1', layer))
+def joint_module(x, params, scope='j'):
+    x = kl.Dense(params.nb_hidden,
+                 activation='linear',
+                 init='glorot_uniform',
+                 name=layer_name(scope, 'h1'))(x)
     if params.batch_norm:
-        layer = knorm.BatchNormalization()
-        layers.append(('h1b', layer))
-    layer = kcore.Activation(params.activation)
-    layers.append(('h1a', layer))
-    if params.drop_out:
-        layer = kcore.Dropout(params.drop_out)
-        layers.append(('h1d', layer))
-    return layers
-
-
-def target_layers(params):
-    layers = []
-    if params.nb_hidden:
-        layer = kcore.Dense(params.nb_hidden,
-                            activation='linear',
-                            init='glorot_uniform')
-        layers.append(('h1', layer))
-        if params.batch_norm:
-            layer = knorm.BatchNormalization()
-            layers.append(('h1b', layer))
-        layer = kcore.Activation(params.activation)
-        layers.append(('h1a', layer))
+        x = knorm.BatchNormalization(name=layer_name(scope, 'h1b'))(x)
+        x = kl.Activation(params.activation, name=layer_name(scope, 'h1a'))(x)
         if params.drop_out:
-            layer = kcore.Dropout(params.drop_out)
-            layers.append(('h1d', layer))
-    layer = kcore.Dense(1,
-                        activation='sigmoid',
-                        init='glorot_uniform')
-    layers.append(('o', layer))
-    return layers
+            x = kl.Dropout(params.drop_out, name=layer_name(scope, 'h1d'))(x)
+    return x
+
+
+def target_module(x, params, scope='t'):
+    if params.nb_hidden:
+        x = kl.Dense(params.nb_hidden,
+                     activation='linear',
+                     init='glorot_uniform',
+                     name=layer_name(scope, 'h1'))(x)
+        if params.batch_norm:
+            x = knorm.BatchNormalization(name=layer_name(scope, 'h1b'))(x)
+        x = kl.Activation(params.activation, name=layer_name(scope, 'h1a'))(x)
+        if params.drop_out:
+            x = kl.Dropout(params.drop_out, name=layer_name(scope, 'h1d'))(x)
+    x = kl.Dense(1, activation='sigmoid', init='glorot_uniform',
+                 name=layer_name(scope, 'o'))(x)
+    x = kl.Dropout(0, name=layer_name(scope, 'y'))(x)
+    return x
 
 
 def add_layers(model, layers, prev_nodes, prefix):
@@ -144,42 +131,42 @@ def add_layers(model, layers, prev_nodes, prefix):
 
 def build(params, targets, seq_len=None, cpg_len=None, compile=True,
           nb_unit=None):
-
-    model = CpgGraph()
+    inputs = []
     branch_nodes = []
+
     if params.seq:
         assert seq_len is not None, 'seq_len required!'
-        prev_nodes = ['s_x']
-        model.add_input(prev_nodes[0], input_shape=(seq_len, 4))
-        layers = seq_layers(params.seq)
-        prev_nodes = add_layers(model, layers, prev_nodes, 's')
-        branch_nodes.extend(prev_nodes)
+        x = kl.Input(shape=(seq_len, 4), name='s_x')
+        inputs.append(x)
+        x = seq_module(x, params.seq)
+        branch_nodes.append(x)
 
     if params.cpg:
         assert cpg_len is not None, 'cpg_len required!'
         if nb_unit is None:
             nb_unit = len(targets)
-        prev_nodes = ['c_x']
-        model.add_input(prev_nodes[0], input_shape=(2, nb_unit, cpg_len))
-        layers = cpg_layers(params.cpg)
-        prev_nodes = add_layers(model, layers, prev_nodes, 'c')
-        branch_nodes.extend(prev_nodes)
+        x = kl.Input(shape=(2, nb_unit, cpg_len), name='c_x')
+        inputs.append(x)
+        x = cpg_module(x, params.cpg)
+        branch_nodes.append(x)
+
+    if len(branch_nodes) > 1:
+        x = kl.Merge(branch_nodes)
+    else:
+        x = branch_nodes[0]
 
     if params.joint and params.joint.nb_hidden > 0:
-        layers = joint_layers(params.joint)
-        branch_nodes = add_layers(model, layers, branch_nodes, 'j')
+        x = joint_module(x, params.joint)
 
     outputs = []
     for target in targets:
-        layers = target_layers(params.target)
-        last = add_layers(model, layers, branch_nodes, target)
-        output = '%s_%s' % (target, 'y')
-        model.add_output(input=last[0], name=output)
-        outputs.append(output)
+        outputs.append(target_module(x, params.target, target))
+
+    model = km.Model(input=inputs, output=outputs)
 
     if compile:
         optimizer = optimizer_from_params(params)
-        loss = loss_from_ids(model.output_order, params.loss)
+        loss = loss_from_ids(model.output_names, params.loss)
         model.compile(loss=loss, optimizer=optimizer)
 
     return model
@@ -202,11 +189,11 @@ def loss_from_ids(ids, spec=None):
     return loss
 
 
-def model_from_json(json_file, weights_file=None, compile=True):
+def model_from_json(json_file, weights_file=None):
     import cpgkeras.models as kmodels
     with open(json_file, 'r') as f:
         model = f.read()
-    model = kmodels.model_from_json(model, compile=compile)
+    model = kmodels.model_from_json(model)
     model.load_weights(weights_file)
     return model
 
@@ -283,7 +270,7 @@ def predict_loop(model, data, batch_size=128, callbacks=[], log=print, f=None):
     ins = [data[name] for name in model.input_order]
     nb_sample = len(ins[0])
     outs = []
-    batches = km.make_batches(nb_sample, batch_size)
+    batches = kt.make_batches(nb_sample, batch_size)
     index_array = np.arange(nb_sample)
     nb_batch = len(batches)
     for batch_index, (batch_start, batch_end) in enumerate(batches):
@@ -294,7 +281,7 @@ def predict_loop(model, data, batch_size=128, callbacks=[], log=print, f=None):
         for callback in callbacks:
             callback(batch_index, len(batches))
         batch_ids = list(index_array[batch_start:batch_end])
-        ins_batch = km.slice_X(ins, batch_ids)
+        ins_batch = kt.slice_X(ins, batch_ids)
 
         batch_outs = f(*ins_batch)
         if type(batch_outs) != list:
@@ -313,7 +300,7 @@ def predict_loop(model, data, batch_size=128, callbacks=[], log=print, f=None):
 
 def write_loop(ins, fun, write_fun, batch_size=128, callbacks=[], log=print):
     nb_sample = len(ins[0])
-    batches = km.make_batches(nb_sample, batch_size)
+    batches = kt.make_batches(nb_sample, batch_size)
     index_array = np.arange(nb_sample)
     nb_batch = len(batches)
     for batch_index, (batch_start, batch_end) in enumerate(batches):
@@ -324,7 +311,7 @@ def write_loop(ins, fun, write_fun, batch_size=128, callbacks=[], log=print):
         for callback in callbacks:
             callback(batch_index, len(batches))
         batch_ids = list(index_array[batch_start:batch_end])
-        ins_batch = km.slice_X(ins, batch_ids)
+        ins_batch = kt.slice_X(ins, batch_ids)
 
         batch_outs = fun(*ins_batch)
         write_fun(batch_outs, batch_start, batch_end)

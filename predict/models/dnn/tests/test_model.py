@@ -1,5 +1,5 @@
-import keras.activations as kact
-import keras.layers.core as kcore
+import cpgkeras.activations as kact
+import cpgkeras.layers.core as kcore
 
 import predict.models.dnn.model as mod
 import predict.models.dnn.params as pa

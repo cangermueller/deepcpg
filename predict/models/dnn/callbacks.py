@@ -1,4 +1,4 @@
-from keras.callbacks import Callback
+from cpgkeras.callbacks import Callback
 import pandas as pd
 import numpy as np
 from time import time

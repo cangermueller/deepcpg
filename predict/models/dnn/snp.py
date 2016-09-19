@@ -8,7 +8,7 @@ import numpy as np
 import theano as th
 import h5py as h5
 import theano.tensor as T
-import keras.models as km
+import cpgkeras.models as km
 
 import predict.io as io
 import predict.models.dnn.utils as ut

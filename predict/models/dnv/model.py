@@ -1,11 +1,11 @@
 import pickle
 
-from keras.models import CpgGraph
-from keras.layers import core as kcore
-from keras.layers import convolutional as kconv
-from keras.layers import normalization as knorm
-import keras.regularizers as kr
-import keras.optimizers as kopt
+from cpgkeras.models import CpgGraph
+from cpgkeras.layers import core as kcore
+from cpgkeras.layers import convolutional as kconv
+from cpgkeras.layers import normalization as knorm
+import cpgkeras.regularizers as kr
+import cpgkeras.optimizers as kopt
 
 
 def seq_layers(params):

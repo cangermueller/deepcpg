@@ -9,7 +9,7 @@ import numpy as np
 import h5py as h5
 import random
 import json
-from keras.callbacks import ModelCheckpoint
+from cpgkeras.callbacks import ModelCheckpoint
 
 import predict.evaluation as pe
 import predict.models.dnn.utils as ut
