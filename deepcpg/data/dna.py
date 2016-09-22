@@ -1,7 +1,7 @@
 import numpy as np
 
 
-char2int_ = {'A': 0, 'G': 1, 'T': 2, 'C': 3, 'N': 4}
+char2int_ = {'A': 0, 'T': 1, 'G': 2, 'C': 3, 'N': 4}
 int2char_ = {v: k for k, v in char2int_.items()}
 
 def char2int(seq):

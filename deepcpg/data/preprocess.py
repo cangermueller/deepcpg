@@ -10,10 +10,15 @@ import h5py as h5
 import numpy as np
 import pandas as pd
 
-from . import dna
-from . import fasta
+from deepcpg.data import dna
+from deepcpg.data import fasta
 
 CPG_NAN=-1
+
+# TODO:
+# * Update comments
+# * Chek asserts
+# * logging
 
 def read_cpg_table(path, chromos=None, nrows=None, round=True, sort=True):
     d = pd.read_table(path, header=None, usecols=[0, 1, 2], nrows=nrows,
@@ -62,33 +67,51 @@ def adjust_pos_to_cpg(p, seq, target='CG'):
 
 def extract_seq_windows(seq, pos, wlen, seq_index=1):
     delta = wlen // 2
-    nb_win = pos.shape[0]
+    nb_win = len(pos)
     seq = seq.upper()
     seq_wins = np.zeros((nb_win, wlen), dtype='int8')
 
     for i in range(nb_win):
         p = pos[i] - seq_index
+        # TODO: adjust still required?
         q = adjust_pos_to_cpg(p, seq)
         assert q is not None, 'No CpG site!'
+        assert p == q
+        if seq[p:p + 2] != 'CG':
+            w = 3
+            print(seq[p:p+2], seq[p-w:p+2+w])
+        else:
+            assert seq[p:p + 2] == 'CG'
         win = seq[max(0, p - delta): min(len(seq), p + delta + 1)]
         if len(win) < wlen:
             win = max(0, delta - p) * 'N' + win
             win += max(0, p + delta + 1 - len(seq)) * 'N'
             assert len(win) == wlen
         seq_wins[i] = dna.char2int(win)
+    assert np.all(seq_wins[:, delta] == 3)
+    assert np.all(seq_wins[:, delta + 1] == 2)
     return seq_wins
 
 
 def map_values(values, pos, target_pos, dtype=None, nan=CPG_NAN):
-    # TODO: remove
+    assert len(values) == len(pos)
     assert np.all(pos == np.sort(pos))
     assert np.all(target_pos == np.sort(target_pos))
+
+    values = values.ravel()
+    pos = pos.ravel()
+    target_pos = target_pos.ravel()
+    idx = np.in1d(pos, target_pos)
+    pos = pos[idx]
+    values = values[idx]
     if not dtype:
         dtype = values.dtype
     target_values = np.empty(len(target_pos), dtype=dtype)
     target_values.fill(nan)
     idx = np.in1d(target_pos, pos).nonzero()[0]
-    target_values.flat[idx] = values
+    assert len(idx) == len(pos)
+    assert np.all(target_pos[idx] == pos)
+    target_values[idx] = values
     return target_values
 
 
@@ -161,11 +184,17 @@ class App(object):
             log.setLevel(logging.INFO)
         log.debug(opts)
 
+        if opts.dna_db and opts.dna_wlen % 2 == 0:
+            raise '--dna_wlen needs to be odd!'
+
         pos_table = None
         if opts.pos_file:
             pos_table = pd.read_table(opts.pos_file, usecols=[0, 1],
-                                      dtype={0: str, 1: np.int32})
+                                      dtype={0: str, 1: np.int32},
+                                      header=None, comment='#')
             pos_table.columns = ['chromo', 'pos']
+            if opts.chromos:
+                pos_table = pos_table.loc[pos_table.chromo.isin(opts.chromos)]
             pos_table = prepro_pos_table(pos_table)
 
         cpg_tables = []
@@ -174,7 +203,7 @@ class App(object):
             for cpg_file in opts.cpg_files:
                 cpg_tables.append(read_cpg_table(cpg_file, chromos=opts.chromos))
                 target_names.append(pt.splitext(pt.basename(cpg_file))[0])
-            if not pos_table:
+            if pos_table is None:
                 pos_table = []
                 for cpg_table in cpg_tables:
                     pos_table.append(cpg_table[['chromo', 'pos']])
@@ -208,18 +237,18 @@ class App(object):
                 path = pt.join(opts.out_dir, path)
                 chunk_file = h5.File(path, 'w')
 
-                chunk_file.create_dataset('chromo', data=chunk_pos.chromo.values, shape=(len(chunk_pos),), dtype='S2')
+                chunk_file.create_dataset('chromo', shape=(len(chunk_pos),), dtype='S2')
                 chunk_file['chromo'][:] = chromo.encode()
                 chunk_file.create_dataset('pos', data=chunk_pos.pos.values, dtype=np.int32)
 
                 if chromo_dna:
-                    dna_wins = extract_seq_windows(chromo_dna, pos=chunk_pos.pos, wlen=opts.dna_wlen)
+                    dna_wins = extract_seq_windows(chromo_dna, pos=chunk_pos.pos.values, wlen=opts.dna_wlen)
                     chunk_file.create_dataset('dna', data=dna_wins, dtype=np.int8, compression='gzip')
 
                 if chromo_cpg_tables:
                     group = chunk_file.create_group('cpg')
                     for i, cpg_table in enumerate(chromo_cpg_tables):
-                        tmp = map_values(cpg_table.value, cpg_table.pos, chunk_pos.pos, dtype=np.int8)
+                        tmp = map_values(cpg_table.value.values, cpg_table.pos.values, chunk_pos.pos.values, dtype=np.int8)
                         group.create_dataset(target_names[i],
                                              data=tmp, dtype=np.int8,
                                              compression='gzip')
