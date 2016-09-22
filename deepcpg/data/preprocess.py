@@ -19,7 +19,9 @@ CPG_NAN=-1
 # * Update comments
 # * Chek asserts
 # * logging
+# * check with missing args
 
+# TODO: Factor out?
 def read_cpg_table(path, chromos=None, nrows=None, round=True, sort=True):
     d = pd.read_table(path, header=None, usecols=[0, 1, 2], nrows=nrows,
                       dtype={0: np.str, 1: np.int32, 2: np.float32},
@@ -35,18 +37,6 @@ def read_cpg_table(path, chromos=None, nrows=None, round=True, sort=True):
         d['value'] = np.round(d.value)
         assert np.all((d.value == 0) | (d.value == 1)), 'Invalid methylation states'
     return d
-
-
-def read_chromo(dna_db, chromo):
-    path = glob(pt.join(dna_db, '*.chromosome.%s.*fa.gz' % chromo))
-    if len(path) != 1:
-        raise 'File for chromosome "%s" not found in "%s"!' (chromo, dna_db)
-    path = path[0]
-
-    fasta_seqs = fasta.read_file(path)
-    if len(fasta_seqs) != 1:
-        raise 'Single sequences expected in file "%s"!' % path
-    return fasta_seqs[0].seq
 
 
 def prepro_pos_table(pos_table):
@@ -76,7 +66,7 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1):
         # TODO: adjust still required?
         q = adjust_pos_to_cpg(p, seq)
         assert q is not None, 'No CpG site!'
-        assert p == q
+        #  assert p == q
         if seq[p:p + 2] != 'CG':
             w = 3
             print(seq[p:p+2], seq[p-w:p+2+w])
@@ -109,7 +99,7 @@ def map_values(values, pos, target_pos, dtype=None, nan=CPG_NAN):
     target_values = np.empty(len(target_pos), dtype=dtype)
     target_values.fill(nan)
     idx = np.in1d(target_pos, pos).nonzero()[0]
-    assert len(idx) == len(pos)
+    assert len(idx) == len(values)
     assert np.all(target_pos[idx] == pos)
     target_values[idx] = values
     return target_values
@@ -150,7 +140,6 @@ class App(object):
         p.add_argument(
             '--chromos',
             nargs='+',
-            type=str,
             help='Filter data by chromosomes')
         p.add_argument(
             '--nb_sample',
@@ -226,7 +215,7 @@ class App(object):
 
             chromo_dna = None
             if opts.dna_db:
-                chromo_dna = read_chromo(opts.dna_db, chromo)
+                chromo_dna = fasta.read_chromo(opts.dna_db, chromo)
 
             for chunk in range(nb_chunk):
                 log.info('%3d / %04d' % (chunk + 1, nb_chunk))
