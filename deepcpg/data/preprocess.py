@@ -5,40 +5,22 @@ import sys
 import logging
 import os.path as pt
 
-from glob import glob
 import h5py as h5
 import numpy as np
 import pandas as pd
 
 from deepcpg.data import dna
 from deepcpg.data import fasta
+from deepcpg.data import io
+
 
 CPG_NAN=-1
 
 # TODO:
 # * Update comments
-# * Chek asserts
+# * Check asserts
 # * logging
 # * check with missing args
-
-# TODO: Factor out?
-def read_cpg_table(path, chromos=None, nrows=None, round=True, sort=True):
-    d = pd.read_table(path, header=None, usecols=[0, 1, 2], nrows=nrows,
-                      dtype={0: np.str, 1: np.int32, 2: np.float32},
-                      comment='#')
-    d.columns = ['chromo', 'pos', 'value']
-    if chromos is not None:
-        if not isinstance(chromos, list):
-            chromos = [str(chromos)]
-        d = d.loc[d.chromo.isin(chromos)]
-    if sort:
-        d.sort_values(['chromo', 'pos'], inplace=True)
-    if round:
-        d['value'] = np.round(d.value)
-        assert np.all((d.value == 0) | (d.value == 1)), 'Invalid methylation states'
-    return d
-
-
 def prepro_pos_table(pos_table):
     table = pos_table.groupby('chromo')
     table = table.apply(lambda df: pd.DataFrame({'pos': np.unique(df['pos'])}))
@@ -48,14 +30,7 @@ def prepro_pos_table(pos_table):
     return table
 
 
-def adjust_pos_to_cpg(p, seq, target='CG'):
-    for i in [0, -1, 1]:
-        if seq[(p + i):(p + i + 2)] == target:
-            return p + i
-    return None
-
-
-def extract_seq_windows(seq, pos, wlen, seq_index=1):
+def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
     delta = wlen // 2
     nb_win = len(pos)
     seq = seq.upper()
@@ -63,23 +38,17 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1):
 
     for i in range(nb_win):
         p = pos[i] - seq_index
-        # TODO: adjust still required?
-        q = adjust_pos_to_cpg(p, seq)
-        assert q is not None, 'No CpG site!'
-        #  assert p == q
-        if seq[p:p + 2] != 'CG':
-            w = 3
-            print(seq[p:p+2], seq[p-w:p+2+w])
-        else:
-            assert seq[p:p + 2] == 'CG'
+        if cpg_sites and seq[p:p + 2] != 'CG':
+            raise ValueError('No CpG at position %d!' % p)
         win = seq[max(0, p - delta): min(len(seq), p + delta + 1)]
         if len(win) < wlen:
             win = max(0, delta - p) * 'N' + win
             win += max(0, p + delta + 1 - len(seq)) * 'N'
             assert len(win) == wlen
         seq_wins[i] = dna.char2int(win)
-    assert np.all(seq_wins[:, delta] == 3)
-    assert np.all(seq_wins[:, delta + 1] == 2)
+    if cpg_sites:
+        assert np.all(seq_wins[:, delta] == 3)
+        assert np.all(seq_wins[:, delta + 1] == 2)
     return seq_wins
 
 
@@ -114,7 +83,6 @@ class App(object):
         return self.main(name, opts)
 
     def create_parser(self, name):
-        # TODO: Update
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -174,7 +142,7 @@ class App(object):
         log.debug(opts)
 
         if opts.dna_db and opts.dna_wlen % 2 == 0:
-            raise '--dna_wlen needs to be odd!'
+            raise '--dna_wlen must be odd!'
 
         pos_table = None
         if opts.pos_file:
@@ -190,7 +158,7 @@ class App(object):
         target_names = []
         if opts.cpg_files:
             for cpg_file in opts.cpg_files:
-                cpg_tables.append(read_cpg_table(cpg_file, chromos=opts.chromos))
+                cpg_tables.append(io.read_cpg_table(cpg_file, chromos=opts.chromos))
                 target_names.append(pt.splitext(pt.basename(cpg_file))[0])
             if pos_table is None:
                 pos_table = []
