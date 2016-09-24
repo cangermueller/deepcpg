@@ -40,7 +40,7 @@ class EarlyStopping(Callback):
 class PerformanceLogger(Callback):
 
     def __init__(self, batch_logs=['loss', 'acc'],
-                 epoch_logs=['val_loss', 'val_acc'], callbacks=[]):
+                 epoch_logs=['loss', 'acc'], callbacks=[]):
         if batch_logs is None:
             batch_logs = []
         if epoch_logs is None:
@@ -61,6 +61,8 @@ class PerformanceLogger(Callback):
         self._batch_logs[-1].append(l)
 
     def on_epoch_end(self, batch, logs={}):
+        if not isinstance(self.epoch_logs, list):
+            self.epoch_logs = sorted(logs.keys())
         l = {k: v for k, v in logs.items() if k in self.epoch_logs}
         self._epoch_logs.append(l)
         for cb in self.callbacks:
@@ -104,7 +106,7 @@ class PerformanceLogger(Callback):
         b = self.batch_frame().groupby('epoch', as_index=False).mean()
         b = b.loc[:, b.columns != 'batch']
         e = self.epoch_frame()
-        c = pd.merge(b, e, on='epoch')
+        c = pd.merge(b, e, on='epoch', suffixes=['_batch', '_epoch'])
         return c
 
 

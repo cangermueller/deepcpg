@@ -18,6 +18,7 @@ from keras import callbacks as kcbk
 
 from deepcpg import callbacks as cbk
 from deepcpg.models import base
+from deepcpg.data import preprocess as pp
 
 
 # TODO:
@@ -33,6 +34,7 @@ def get_targets(data_file, target_filter=None):
         else:
             targets = targets[:target_filter]
     data_file.close()
+    return targets
 
 
 def perf_logs_str(logs):
@@ -110,12 +112,8 @@ class App(object):
         p.add_argument(
             '--lr',
             help='Learning rate',
-            type=float)
-        p.add_argument(
-            '--lr_schedule',
-            help='Learning rate scheduler patience',
-            type=int,
-            default=1)
+            type=float,
+            default=0.0001)
         p.add_argument(
             '--lr_decay',
             help='Exponential learning rate decay factor',
@@ -181,7 +179,10 @@ class App(object):
         opts = self.opts
         cbacks = []
 
-        cbacks.append(kcbk.EarlyStopping(patience=opts.early_stop, verbose=1))
+        h = kcbk.EarlyStopping('val_loss' if opts.val_files else 'loss',
+                               patience=opts.early_stop,
+                               verbose=1)
+        cbacks.append(h)
 
         h = kcbk.ModelCheckpoint(pt.join(opts.out_dir, 'model_weights_last.h5'),
                                  save_best_only=False)
@@ -204,7 +205,11 @@ class App(object):
                 with open(pt.join(opts.out_dir, k), 'w') as f:
                     f.write(perf_logs_str(v))
 
-        perf_logger = cbk.PerformanceLogger(callbacks=[save_lc])
+        # TODO: Check with val loss; grep loss / acc?
+        logs = ['loss', 'acc']
+        if opts.val_files:
+            logs.extend(['val_loss', 'val_acc'])
+        perf_logger = cbk.PerformanceLogger(epoch_logs='all' , batch_logs=None, callbacks=[save_lc])
         cbacks.append(perf_logger)
 
         return cbacks
@@ -236,10 +241,12 @@ class App(object):
 
         targets = get_targets(opts.train_files[0], opts.targets)
 
+        # TODO: class weights
         train_data = base.data_generator(opts.train_files, targets,
                                          batch_size=opts.batch_size,
                                          nb_sample=opts.nb_train_sample)
         nb_train_sample = count_samples(opts.train_files, opts.nb_train_sample)
+        nb_train_sample = (nb_train_sample // opts.batch_size) * opts.batch_size
         if opts.val_files:
             val_data = base.data_generator(opts.val_files, targets,
                                            batch_size=opts.batch_size,
@@ -249,8 +256,30 @@ class App(object):
             val_data = None
             nb_val_sample = None
 
+        i = 0
+        for x, y, w in train_data:
+            assert len(x) == 1
+            x = x[0]
+            assert x.shape[0] == opts.batch_size
+            assert x.shape[1] == 501
+            assert x.shape[2] == 4
+            assert np.all(x.sum(axis=2) == 1)
+
+            for j in range(len(y)):
+                yj = y[j]
+                wj = w[j]
+                assert len(yj) == len(x)
+                assert len(wj) == len(x)
+                assert np.all(yj[wj == 0] == pp.CPG_NAN)
+                h = yj[wj != 0]
+                assert np.all((h == 0) | (h == 1))
+            i += 1
+            if i > 5:
+                break
+
+        log.info('Build model ...')
         inputs = []
-        inputs.append(kl.Input(shape=get_dna_wlen(opts.train_files[0],),
+        inputs.append(kl.Input(shape=(get_dna_wlen(opts.train_files[0]), 4),
                                name='x/dna'))
         stem = base.model(inputs[0],
                           dropout=opts.dropout,
@@ -258,11 +287,13 @@ class App(object):
                           l2_decay=opts.l2_decay)
         outputs = base.add_cpg_outputs(stem, targets)
         model = kmod.Model(input=inputs, output=outputs)
-        print(model.summary())
+        model.summary()
         base.save_model(model, pt.join(opts.out_dir, 'model.json'))
 
         optimizer = kopt.Adam(lr=opts.lr)
-        model = model.compile(optimizer=optimizer, loss='binary_crossentropy')
+        log.info('Compile model ...')
+        model.compile(optimizer=optimizer, loss='binary_crossentropy',
+                      metrics=['accuracy'])
 
         # Train model
         log.info('Train model')
@@ -272,19 +303,22 @@ class App(object):
             validation_data=val_data,
             nb_val_samples=nb_val_sample,
             max_q_size=opts.data_q_size,
-            nb_worker=opts.data_nb_worker)
+            nb_worker=opts.data_nb_worker,
+            verbose=2)
 
         # Use best weights on validation set
         h = pt.join(opts.out_dir, 'model_weights.h5')
         if pt.isfile(h):
             model.load_weights(h)
 
+        model.save(pt.join(opts.out_dir, 'model.h5'))
+
         if opts.nb_epoch > 0:
             for cback in cbacks:
                 if isinstance(cback, cbk.PerformanceLogger):
                     perf_logger = cback
                     break
-            lc = perf_logger.frame()
+            lc = perf_logger.epoch_frame()
             print('\n\nLearning curve:')
             print(perf_logs_str(lc))
             if len(lc) > 5:

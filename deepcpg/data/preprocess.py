@@ -74,6 +74,10 @@ def map_values(values, pos, target_pos, dtype=None, nan=CPG_NAN):
     return target_values
 
 
+def format_out_of(out, of):
+    return '%d / %d (%.1f%%)' % (out, of, out / of * 100)
+
+
 class App(object):
 
     def run(self, args):
@@ -106,9 +110,9 @@ class App(object):
             '--pos_file',
             help='Position file')
         p.add_argument(
-            '--min_cov',
-            type=float,
-            help='Filter sites by coverage')
+            '--min_cpg_cov',
+            type=int,
+            help='Filter sites by CpG coverage')
         p.add_argument(
             '--chromos',
             nargs='+',
@@ -150,6 +154,7 @@ class App(object):
 
         pos_table = None
         if opts.pos_file:
+            log.info('Read position table ...')
             pos_table = pd.read_table(opts.pos_file, usecols=[0, 1],
                                       dtype={0: str, 1: np.int32},
                                       header=None, comment='#')
@@ -161,6 +166,7 @@ class App(object):
         cpg_tables = []
         target_names = []
         if opts.cpg_files:
+            log.info('Read CpG files ...')
             for cpg_file in opts.cpg_files:
                 cpg_tables.append(io.read_cpg_table(cpg_file, chromos=opts.chromos))
                 target_names.append(pt.splitext(pt.basename(cpg_file))[0])
@@ -171,13 +177,13 @@ class App(object):
                 pos_table = pd.concat(pos_table)
                 pos_table = prepro_pos_table(pos_table)
 
-
         if opts.chromos:
             pos_table = pos_table.loc[pos_table.chromo.isin(opts.chromos)]
         if opts.nb_sample:
             pos_table = pos_table.iloc[:opts.nb_sample]
 
         for chromo in pos_table.chromo.unique():
+            log.info('-' * 80)
             log.info('Chromosome %s ...' % (chromo))
             chromo_pos = pos_table.loc[pos_table.chromo == chromo].pos.values
             chromo_cpgs = []
@@ -188,9 +194,12 @@ class App(object):
                                               chromo_pos,
                                               dtype=np.int8))
 
-            if opts.max_cov:
-                idx = np.hstack(chromo_cpgs)
-                idx = idx.sum(axis=1) >= opts.min_cov
+            if opts.min_cpg_cov:
+                idx = np.hstack([x.reshape(-1, 1) for x in chromo_cpgs])
+                idx = np.sum(idx != CPG_NAN, axis=1) >= opts.min_cpg_cov
+                tmp = '%s sites matched minimum coverage filter'
+                tmp %= format_out_of(idx.sum(), len(idx))
+                log.info(tmp)
                 chromo_pos = chromo_pos[idx]
                 for i in range(len(chromo_cpgs)):
                     chromo_cpgs[i] = chromo_cpgs[i][idx]
@@ -202,7 +211,7 @@ class App(object):
                 chromo_dna = fasta.read_chromo(opts.dna_db, chromo)
 
             for chunk in range(nb_chunk):
-                log.info('%3d / %04d' % (chunk + 1, nb_chunk))
+                log.info('Chunk \t%d / %d' % (chunk + 1, nb_chunk))
                 chunk_start = chunk * opts.chunk_size
                 chunk_end = min(len(chromo_pos), chunk_start + opts.chunk_size)
                 chunk_pos = chromo_pos[chunk_start:chunk_end]
@@ -214,10 +223,6 @@ class App(object):
                 chunk_file['chromo'][:] = chromo.encode()
                 chunk_file.create_dataset('pos', data=chunk_pos, dtype=np.int32)
 
-                if chromo_dna:
-                    dna_wins = extract_seq_windows(chromo_dna, pos=chunk_pos, wlen=opts.dna_wlen)
-                    chunk_file.create_dataset('dna', data=dna_wins, dtype=np.int8, compression='gzip')
-
                 if chromo_cpgs:
                     group = chunk_file.create_group('cpg')
                     for i, chromo_cpg in enumerate(chromo_cpgs):
@@ -225,8 +230,14 @@ class App(object):
                                              data=chromo_cpg, dtype=np.int8,
                                              compression='gzip')
 
+                if chromo_dna:
+                    log.info('Extract DNA sequence windows ...')
+                    dna_wins = extract_seq_windows(chromo_dna, pos=chunk_pos, wlen=opts.dna_wlen)
+                    chunk_file.create_dataset('dna', data=dna_wins, dtype=np.int8, compression='gzip')
+
                 chunk_file.close()
 
+        log.info('Done!')
         return 0
 
 
