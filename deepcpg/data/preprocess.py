@@ -106,6 +106,10 @@ class App(object):
             '--pos_file',
             help='Position file')
         p.add_argument(
+            '--min_cov',
+            type=float,
+            help='Filter sites by coverage')
+        p.add_argument(
             '--chromos',
             nargs='+',
             help='Filter data by chromosomes')
@@ -167,6 +171,7 @@ class App(object):
                 pos_table = pd.concat(pos_table)
                 pos_table = prepro_pos_table(pos_table)
 
+
         if opts.chromos:
             pos_table = pos_table.loc[pos_table.chromo.isin(opts.chromos)]
         if opts.nb_sample:
@@ -174,12 +179,23 @@ class App(object):
 
         for chromo in pos_table.chromo.unique():
             log.info('Chromosome %s ...' % (chromo))
-            chromo_pos = pos_table.loc[pos_table.chromo == chromo]
+            chromo_pos = pos_table.loc[pos_table.chromo == chromo].pos.values
+            chromo_cpgs = []
+            for cpg_table in cpg_tables:
+                cpg_table = cpg_table.loc[cpg_table.chromo==chromo]
+                chromo_cpgs.append(map_values(cpg_table.value.values,
+                                              cpg_table.pos.values,
+                                              chromo_pos,
+                                              dtype=np.int8))
+
+            if opts.max_cov:
+                idx = np.hstack(chromo_cpgs)
+                idx = idx.sum(axis=1) >= opts.min_cov
+                chromo_pos = chromo_pos[idx]
+                for i in range(len(chromo_cpgs)):
+                    chromo_cpgs[i] = chromo_cpgs[i][idx]
+
             nb_chunk = int(np.ceil(len(chromo_pos) / opts.chunk_size))
-            chromo_cpg_tables = []
-            if cpg_tables:
-                for cpg_table in cpg_tables:
-                    chromo_cpg_tables.append(cpg_table.loc[cpg_table.chromo==chromo])
 
             chromo_dna = None
             if opts.dna_db:
@@ -196,18 +212,17 @@ class App(object):
 
                 chunk_file.create_dataset('chromo', shape=(len(chunk_pos),), dtype='S2')
                 chunk_file['chromo'][:] = chromo.encode()
-                chunk_file.create_dataset('pos', data=chunk_pos.pos.values, dtype=np.int32)
+                chunk_file.create_dataset('pos', data=chunk_pos, dtype=np.int32)
 
                 if chromo_dna:
-                    dna_wins = extract_seq_windows(chromo_dna, pos=chunk_pos.pos.values, wlen=opts.dna_wlen)
+                    dna_wins = extract_seq_windows(chromo_dna, pos=chunk_pos, wlen=opts.dna_wlen)
                     chunk_file.create_dataset('dna', data=dna_wins, dtype=np.int8, compression='gzip')
 
-                if chromo_cpg_tables:
+                if chromo_cpgs:
                     group = chunk_file.create_group('cpg')
-                    for i, cpg_table in enumerate(chromo_cpg_tables):
-                        tmp = map_values(cpg_table.value.values, cpg_table.pos.values, chunk_pos.pos.values, dtype=np.int8)
+                    for i, chromo_cpg in enumerate(chromo_cpgs):
                         group.create_dataset(target_names[i],
-                                             data=tmp, dtype=np.int8,
+                                             data=chromo_cpg, dtype=np.int8,
                                              compression='gzip')
 
                 chunk_file.close()
