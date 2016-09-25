@@ -4,12 +4,16 @@ import numpy as np
 from keras import layers as kl
 from keras import regularizers as kr
 
+from ..data.preprocess import CPG_NAN
 from ..data import dna
 
 """TODO
 Residual block
 Dilated convs
+Strided conv instead of max pooling
 Global average pooling
+Try batch norm inputs
+CpG as before or separate networks?
 """
 
 
@@ -53,10 +57,15 @@ def load_model(json_file, weights_file=None):
 
 
 # TODO: Allow to use smaller wlen
-# TODO: One-hot encode
 def data_generator(data_files, targets, batch_size=128, nb_sample=None,
-                   target_filter=None, class_weights=None, shuffle=True,
+                   dna_wlen=None, cpg_wlen=None, cpg_max_dist=25000,
+                   class_weights=None, shuffle=True,
                    loop=True):
+    """
+    dna_wlen=None: no dna
+    dna_wlen=0: all
+    """
+
     file_idx = 0
     nb_seen = 0
     data_files = list(data_files)
@@ -69,18 +78,56 @@ def data_generator(data_files, targets, batch_size=128, nb_sample=None,
         data_file = h5.File(data_files[file_idx], 'r')
         nb_sample_file = len(data_file['pos'])
         nb_batch = nb_sample_file // batch_size
+
+        if dna_wlen is not None:
+            cur_wlen = data_file['dna'].shape[1]
+            if dna_wlen > 0:
+                center = cur_wlen // 2
+                delta = dna_wlen // 2
+                dna_cols = slice(center - delta, center + delta + 1)
+            else:
+                dna_cols = slice(0, cur_wlen)
+
+        if cpg_wlen is not None:
+            cur_wlen = data_file['cpg_context'][targets[0]]['state']
+            cur_wlen = cur_wlen.shape[1]
+            if cpg_wlen > 0:
+                center = cur_wlen // 2
+                delta = cpg_wlen // 2
+                cpg_cols = slice(center - delta, center + delta)
+            else:
+                cpg_cols = slice(0, cur_wlen)
+
         for batch in range(nb_batch):
             batch_start = batch * batch_size
             batch_end = min(nb_sample_file, batch_start + batch_size)
             nb_seen += batch_end - batch_start
             if nb_seen > nb_sample:
-                data_files = data_files[:file_idx]
+                data_files = data_files[:file_idx + 1]
                 break
 
             xs = []
-            if 'dna' in data_file:
-                x = dna.int2onehot(data_file['dna'][batch_start:batch_end])
+            if dna_wlen is not None:
+                x = data_file['dna'][batch_start:batch_end, dna_cols]
+                x = dna.int2onehot(x)
                 xs.append(x)
+
+            if cpg_wlen is not None:
+                for target in targets:
+                    group = data_file['cpg_context'][target]
+                    state = group['state'][batch_start:batch_end, cpg_cols]
+                    dist = group['dist'][batch_start:batch_end, cpg_cols]
+                    nan = state == CPG_NAN
+                    # TODO: Improve normalization and random 0.5
+                    if np.any(nan):
+                        tmp = np.sum(state == 1) / state.size
+                        state[nan] = np.random.binomial(1, tmp, nan.sum())
+                        dist[nan] = cpg_max_dist
+                    dist = np.minimum(dist, cpg_max_dist) / cpg_max_dist
+                    x = np.empty(list(state.shape) + [2], dtype=np.float32)
+                    x[:, :, 0] = state
+                    x[:, :, 1] = dist
+                    xs.append(x)
 
             ys = []
             ws = []
@@ -101,6 +148,7 @@ def data_generator(data_files, targets, batch_size=128, nb_sample=None,
 def model(x, dropout=0.0, l1_decay=0.0, l2_decay=0.0):
     w_reg = kr.WeightRegularizer(l1=l1_decay, l2=l2_decay)
     x = kl.Conv1D(64, 9, init='he_uniform', W_regularizer=w_reg)(x)
+    # TODO: add axis!!!!!!!!
     x = kl.BatchNormalization()(x)
     x = kl.Activation('relu')(x)
     x = kl.Dropout(dropout)(x)

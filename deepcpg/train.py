@@ -10,6 +10,7 @@ import random
 import h5py as h5
 import numpy as np
 
+from keras import backend as kback
 from keras import layers as kl
 from keras import models as kmod
 from keras import optimizers as kopt
@@ -54,14 +55,17 @@ def get_cpg_wlen(data_file):
     return wlen
 
 
-def count_samples(data_files, nb_max=None):
+def count_samples(data_files, nb_max=None, batch_size=None):
     nb_sample = 0
     for data_file in data_files:
         data_file = h5.File(data_file, 'r')
         nb_sample += len(data_file['pos'])
         data_file.close()
         if nb_max and nb_sample > nb_max:
-            return nb_max
+            nb_sample = nb_max
+            break
+    if batch_size:
+        nb_sample = (nb_sample // batch_size) * batch_size
     return nb_sample
 
 
@@ -199,18 +203,22 @@ class App(object):
         cbacks.append(h)
 
         def save_lc():
-            log = {'lc.csv': perf_logger.frame(),
-                   'lc_batch.csv': perf_logger.batch_frame()}
+            log = {'lc.csv': perf_logger.epoch_frame()}
             for k, v in log.items():
                 with open(pt.join(opts.out_dir, k), 'w') as f:
                     f.write(perf_logs_str(v))
 
         # TODO: Check with val loss; grep loss / acc?
-        logs = ['loss', 'acc']
-        if opts.val_files:
-            logs.extend(['val_loss', 'val_acc'])
-        perf_logger = cbk.PerformanceLogger(epoch_logs='all' , batch_logs=None, callbacks=[save_lc])
+        perf_logger = cbk.PerformanceLogger(epoch_logs='all', batch_logs=None, callbacks=[save_lc])
         cbacks.append(perf_logger)
+
+        if kback._BACKEND == 'tensorflow':
+            h = kcbk.TensorBoard(
+                log_dir=pt.join(opts.out_dir, 'logs'),
+                histogram_freq=1,
+                write_graph=True,
+                write_images=False)
+            cbacks.append(h)
 
         return cbacks
 
@@ -242,40 +250,20 @@ class App(object):
         targets = get_targets(opts.train_files[0], opts.targets)
 
         # TODO: class weights
+        nb_train_sample = count_samples(opts.train_files, opts.nb_train_sample, opts.batch_size)
         train_data = base.data_generator(opts.train_files, targets,
+                                         dna_wlen=0, cpg_wlen=None,
                                          batch_size=opts.batch_size,
-                                         nb_sample=opts.nb_train_sample)
-        nb_train_sample = count_samples(opts.train_files, opts.nb_train_sample)
-        nb_train_sample = (nb_train_sample // opts.batch_size) * opts.batch_size
+                                         nb_sample=nb_train_sample)
         if opts.val_files:
+            nb_val_sample = count_samples(opts.val_files, opts.nb_val_sample, opts.batch_size)
             val_data = base.data_generator(opts.val_files, targets,
+                                           dna_wlen=0, cpg_wlen=None,
                                            batch_size=opts.batch_size,
-                                           nb_sample=opts.nb_val_sample)
-            nb_val_sample = count_samples(opts.val_files, opts.nb_val_sample)
+                                           nb_sample=nb_val_sample)
         else:
             val_data = None
             nb_val_sample = None
-
-        i = 0
-        for x, y, w in train_data:
-            assert len(x) == 1
-            x = x[0]
-            assert x.shape[0] == opts.batch_size
-            assert x.shape[1] == 501
-            assert x.shape[2] == 4
-            assert np.all(x.sum(axis=2) == 1)
-
-            for j in range(len(y)):
-                yj = y[j]
-                wj = w[j]
-                assert len(yj) == len(x)
-                assert len(wj) == len(x)
-                assert np.all(yj[wj == 0] == pp.CPG_NAN)
-                h = yj[wj != 0]
-                assert np.all((h == 0) | (h == 1))
-            i += 1
-            if i > 5:
-                break
 
         log.info('Build model ...')
         inputs = []
@@ -304,7 +292,7 @@ class App(object):
             nb_val_samples=nb_val_sample,
             max_q_size=opts.data_q_size,
             nb_worker=opts.data_nb_worker,
-            verbose=2)
+            verbose=1 if opts.verbose else 2)
 
         # Use best weights on validation set
         h = pt.join(opts.out_dir, 'model_weights.h5')

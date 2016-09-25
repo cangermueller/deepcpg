@@ -39,15 +39,22 @@ class EarlyStopping(Callback):
 
 class PerformanceLogger(Callback):
 
-    def __init__(self, batch_logs=['loss', 'acc'],
-                 epoch_logs=['loss', 'acc'], callbacks=[]):
+    def __init__(self, epoch_logs=['loss', 'acc'], batch_logs=None,
+                 callbacks=[]):
         if batch_logs is None:
             batch_logs = []
         if epoch_logs is None:
             epoch_logs = []
+        self._check_logs(epoch_logs)
+        self._check_logs(batch_logs)
+
         self.batch_logs = batch_logs
         self.epoch_logs = epoch_logs
         self.callbacks = callbacks
+
+    def _check_logs(self, logs):
+        if isinstance(logs, str) and logs != 'all':
+            raise ValueError('Invalid logs "%s"!' % logs)
 
     def on_train_begin(self, logs={}):
         self._batch_logs = []
@@ -57,11 +64,13 @@ class PerformanceLogger(Callback):
         self._batch_logs.append([])
 
     def on_batch_end(self, batch, logs={}):
+        if isinstance(self.batch_logs, str) and self.batch_logs == 'all':
+            self.batch_logs = sorted(logs.keys())
         l = {k: v for k, v in logs.items() if k in self.batch_logs}
         self._batch_logs[-1].append(l)
 
     def on_epoch_end(self, batch, logs={}):
-        if not isinstance(self.epoch_logs, list):
+        if isinstance(self.epoch_logs, str) and self.epoch_logs == 'all':
             self.epoch_logs = sorted(logs.keys())
         l = {k: v for k, v in logs.items() if k in self.epoch_logs}
         self._epoch_logs.append(l)

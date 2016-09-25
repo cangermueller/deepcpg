@@ -12,6 +12,7 @@ import pandas as pd
 from deepcpg.data import dna
 from deepcpg.data import fasta
 from deepcpg.data import io
+from deepcpg import feature_extractor as fext
 
 
 CPG_NAN=-1
@@ -124,7 +125,7 @@ class App(object):
         p.add_argument(
             '--chunk_size',
             type=int,
-            default=10000,
+            default=100000,
             help='Chunk size')
         p.add_argument(
             '-o', '--out_dir',
@@ -149,8 +150,10 @@ class App(object):
             log.setLevel(logging.INFO)
         log.debug(opts)
 
-        if opts.dna_db and opts.dna_wlen % 2 == 0:
+        if opts.dna_wlen and opts.dna_wlen % 2 == 0:
             raise '--dna_wlen must be odd!'
+        if opts.cpg_wlen and opts.cpg_wlen % 2 != 0:
+            raise '--cpg_wlen must be even!'
 
         pos_table = None
         if opts.pos_file:
@@ -188,7 +191,7 @@ class App(object):
             chromo_pos = pos_table.loc[pos_table.chromo == chromo].pos.values
             chromo_cpgs = []
             for cpg_table in cpg_tables:
-                cpg_table = cpg_table.loc[cpg_table.chromo==chromo]
+                cpg_table = cpg_table.loc[cpg_table.chromo == chromo]
                 chromo_cpgs.append(map_values(cpg_table.value.values,
                                               cpg_table.pos.values,
                                               chromo_pos,
@@ -207,7 +210,7 @@ class App(object):
             nb_chunk = int(np.ceil(len(chromo_pos) / opts.chunk_size))
 
             chromo_dna = None
-            if opts.dna_db:
+            if opts.dna_wlen:
                 chromo_dna = fasta.read_chromo(opts.dna_db, chromo)
 
             for chunk in range(nb_chunk):
@@ -234,6 +237,24 @@ class App(object):
                     log.info('Extract DNA sequence windows ...')
                     dna_wins = extract_seq_windows(chromo_dna, pos=chunk_pos, wlen=opts.dna_wlen)
                     chunk_file.create_dataset('dna', data=dna_wins, dtype=np.int8, compression='gzip')
+
+                if opts.cpg_wlen:
+                    log.info('Extract CpG neighbors ...')
+                    cpg_ext = fext.KnnCpgFeatureExtractor(opts.cpg_wlen // 2)
+                    context_group = chunk_file.create_group('cpg_context')
+                    for target_name, cpg_table in zip(target_names, cpg_tables):
+                        cpg_table = cpg_table.loc[cpg_table.chromo == chromo]
+                        knn_state, knn_dist = cpg_ext.extract(chunk_pos, cpg_table.pos.values, cpg_table.value.values)
+                        nan = np.isnan(knn_state)
+                        knn_state = knn_state.astype(np.int8, copy=False)
+                        knn_state[nan] = CPG_NAN
+                        knn_dist = knn_dist.astype(np.float32, copy=False)
+                        knn_dist[nan] = CPG_NAN
+
+                        group = context_group.create_group(target_name)
+                        group.create_dataset('state', data=knn_state, compression='gzip')
+                        group.create_dataset('dist', data=knn_dist, compression='gzip')
+
 
                 chunk_file.close()
 

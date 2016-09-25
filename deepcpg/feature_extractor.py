@@ -6,19 +6,8 @@ class KnnCpgFeatureExtractor(object):
     same position.
     """
 
-    def __init__(self, k=1, dist=True):
+    def __init__(self, k=1):
         self.k = k
-        self.dist = dist
-
-        n = 4 if self.dist else 2
-        t = [''] * n * k
-        for i in range(k):
-            t[k - 1 - i] = 'cpg_l%d' % (i + 1)
-            t[k + i] = 'cpg_r%d' % (i + 1)
-            if self.dist:
-                t[3 * k - 1 - i] = 'dist_l%d' % (i + 1)
-                t[3 * k + i] = 'dist_r%d' % (i + 1)
-        self.labels = t
 
     def extract(self, x, y, ys):
         """Extracts state and distance of k CpG sites next to target sites.
@@ -32,11 +21,9 @@ class KnnCpgFeatureExtractor(object):
 
         Returns
         -------
-        numpy array with len(x) rows and 4*k columns:
-            0:k     CpG states left side
-            k:2k    CpG states right side
-            2k:3k   Distances left side
-            3k:4k   Distances right side
+        Tuple (cpg, dist) with numpy arrays of dimension (len(x), 2k):
+            cpg: CpG states to the left (0:k) and right (k:2k)
+            dist: Distances to the left (0:k) and right (k:2k)
         """
 
         n = len(x)
@@ -44,9 +31,11 @@ class KnnCpgFeatureExtractor(object):
         k = self.k
         kk = 2 * self.k
         yc = self.__larger_equal(x, y)
-        dtype = np.float32 if self.dist else np.float16
-        rv = np.empty((n, len(self.labels)), dtype=dtype)
-        rv.fill(np.nan)
+        knn_cpg = np.empty((n, kk), dtype=np.float16)
+        knn_cpg.fill(np.nan)
+        knn_dist = np.empty((n, kk), dtype=np.float32)
+        knn_dist.fill(np.nan)
+
         for i in range(n):
             # Left side
             yl = yc[i] - k
@@ -59,13 +48,8 @@ class KnnCpgFeatureExtractor(object):
                     yl = 0
                 xr += 1
                 yr += 1
-                # CpG states
-                rv[i, xl:xr] = ys[yl:yr]
-                xl += kk
-                xr += kk
-                # Distance
-                if self.dist:
-                    rv[i, xl:xr] = np.abs(y[yl:yr] - x[i])
+                knn_cpg[i, xl:xr] = ys[yl:yr]
+                knn_dist[i, xl:xr] = np.abs(y[yl:yr] - x[i])
 
             # Right side
             yl = yc[i]
@@ -84,15 +68,10 @@ class KnnCpgFeatureExtractor(object):
             xl += k
             xr += k + 1
             yr += 1
-            # CpG state
-            rv[i, xl:xr] = ys[yl:yr]
-            xl += kk
-            xr += kk
-            # Distance
-            if self.dist:
-                rv[i, xl:xr] = np.abs(y[yl:yr] - x[i])
+            knn_cpg[i, xl:xr] = ys[yl:yr]
+            knn_dist[i, xl:xr] = np.abs(y[yl:yr] - x[i])
 
-        return rv
+        return (knn_cpg, knn_dist)
 
     def __larger_equal(self, x, y):
         """Returns for each x[i] index j, s.t. y[j] >= x[i].
@@ -188,4 +167,3 @@ class IntervalFeatureExtractor(object):
 
     def extract(self, x, ys, ye):
         return self.index_intervals(x, ys, ye) >= 0
-
