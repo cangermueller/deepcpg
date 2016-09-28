@@ -227,21 +227,24 @@ class App(object):
                 chunk_file.create_dataset('pos', data=chunk_pos, dtype=np.int32)
 
                 if chromo_cpgs:
-                    group = chunk_file.create_group('cpg')
+                    out_group = chunk_file.create_group('outputs')
                     for i, chromo_cpg in enumerate(chromo_cpgs):
-                        group.create_dataset(target_names[i],
-                                             data=chromo_cpg, dtype=np.int8,
-                                             compression='gzip')
+                        name = 'cpg/%s' % target_names[i]
+                        out_group.create_dataset(name,
+                                                 data=chromo_cpg, dtype=np.int8,
+                                                 compression='gzip')
+
+                in_group = chunk_file.create_group('inputs')
 
                 if chromo_dna:
                     log.info('Extract DNA sequence windows ...')
                     dna_wins = extract_seq_windows(chromo_dna, pos=chunk_pos, wlen=opts.dna_wlen)
-                    chunk_file.create_dataset('dna', data=dna_wins, dtype=np.int8, compression='gzip')
+                    in_group.create_dataset('dna', data=dna_wins, dtype=np.int8, compression='gzip')
 
                 if opts.cpg_wlen:
                     log.info('Extract CpG neighbors ...')
                     cpg_ext = fext.KnnCpgFeatureExtractor(opts.cpg_wlen // 2)
-                    context_group = chunk_file.create_group('cpg_context')
+                    context_group = in_group.create_group('cpg_context')
                     for target_name, cpg_table in zip(target_names, cpg_tables):
                         cpg_table = cpg_table.loc[cpg_table.chromo == chromo]
                         knn_state, knn_dist = cpg_ext.extract(chunk_pos, cpg_table.pos.values, cpg_table.value.values)

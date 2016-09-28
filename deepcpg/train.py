@@ -9,6 +9,7 @@ import random
 
 import h5py as h5
 import numpy as np
+import pandas as pd
 
 from keras import backend as kback
 from keras import layers as kl
@@ -19,23 +20,33 @@ from keras import callbacks as kcbk
 
 from deepcpg import callbacks as cbk
 from deepcpg.models import base
-from deepcpg.data import preprocess as pp
+from deepcpg import utils
+from deepcpg.data import io
+from deepcpg.data.preprocess import CPG_NAN
 
 
 # TODO:
-# Normalize inputs
+# Check class weights
+
+def get_class_weights(data_files, outputs):
+    names = {'outputs': outputs}
+    weights = {}
+    for name, output in io.h5_read(data_files, names).items():
+        output = output[output != CPG_NAN]
+        frac_ones = np.sum(output == 1) / len(output)
+        weights[name] = {0: 1 - frac_ones, 1: frac_ones}
+    return weights
 
 
-def get_targets(data_file, target_filter=None):
+def get_outputs(data_file, output_filter=None, nb_output=None):
     data_file = h5.File(data_file, 'r')
-    targets = list(data_file['cpg'].keys())
-    if target_filter is not None:
-        if isinstance(target_filter, list):
-            targets = [target for target in targets if target in target_filter]
-        else:
-            targets = targets[:target_filter]
+    outputs = list(data_file['outputs'].keys())
     data_file.close()
-    return targets
+    if output_filter is not None:
+        outputs = utils.filter_regex(outputs, output_filter)
+    if nb_output:
+        outputs = outputs[:nb_output]
+    return outputs
 
 
 def perf_logs_str(logs):
@@ -95,9 +106,13 @@ class App(object):
             default='./train',
             help='Output directory')
         p.add_argument(
-            '--targets',
-            help='Target names or number of targets',
+            '--outputs',
+            help='List of regex to filter outputs',
             nargs='+')
+        p.add_argument(
+            '--nb_output',
+            type=int,
+            help='Maximum number of outputs')
         p.add_argument(
             '--nb_epoch',
             help='Maximum # training epochs',
@@ -183,15 +198,18 @@ class App(object):
         opts = self.opts
         cbacks = []
 
-        h = kcbk.EarlyStopping('val_loss' if opts.val_files else 'loss',
-                               patience=opts.early_stop,
-                               verbose=1)
-        cbacks.append(h)
+        if opts.val_files:
+            h = kcbk.EarlyStopping('val_loss' if opts.val_files else 'loss',
+                                   patience=opts.early_stop,
+                                   verbose=1)
+            cbacks.append(h)
 
         h = kcbk.ModelCheckpoint(pt.join(opts.out_dir, 'model_weights_last.h5'),
                                  save_best_only=False)
         cbacks.append(h)
+        monitor = 'val_loss' if opts.val_files else 'loss'
         h = kcbk.ModelCheckpoint(pt.join(opts.out_dir, 'model_weights.h5'),
+                                 monitor=monitor,
                                  save_best_only=True, verbose=1)
         cbacks.append(h)
 
@@ -202,15 +220,17 @@ class App(object):
             lambda epoch: opts.lr * opts.lr_decay**epoch)
         cbacks.append(h)
 
-        def save_lc():
-            log = {'lc.csv': perf_logger.epoch_frame()}
-            for k, v in log.items():
-                with open(pt.join(opts.out_dir, k), 'w') as f:
-                    f.write(perf_logs_str(v))
+        def save_lc(epoch, epoch_logs, val_epoch_logs):
+            logs = {'lc.csv': epoch_logs, 'lc_val.csv': val_epoch_logs}
+            for name, logs in logs.items():
+                if not logs:
+                    continue
+                logs = pd.DataFrame(logs)
+                with open(pt.join(opts.out_dir, name), 'w') as f:
+                    f.write(perf_logs_str(logs))
 
-        # TODO: Check with val loss; grep loss / acc?
-        perf_logger = cbk.PerformanceLogger(epoch_logs='all', batch_logs=None, callbacks=[save_lc])
-        cbacks.append(perf_logger)
+        self.perf_logger = cbk.PerformanceLogger(callbacks=[save_lc])
+        cbacks.append(self.perf_logger)
 
         if kback._BACKEND == 'tensorflow':
             h = kcbk.TensorBoard(
@@ -234,7 +254,6 @@ class App(object):
         if opts.seed is not None:
             np.random.seed(opts.seed)
             random.seed(opts.seed)
-        sys.setrecursionlimit(10**6)
 
         self.log = log
         self.opts = opts
@@ -247,20 +266,22 @@ class App(object):
         log.info('Setup callbacks')
         cbacks = self.callbacks()
 
-        targets = get_targets(opts.train_files[0], opts.targets)
+        outputs = get_outputs(opts.train_files[0], opts.outputs)
+        class_weights = get_class_weights(opts.train_files, outputs)
 
-        # TODO: class weights
         nb_train_sample = count_samples(opts.train_files, opts.nb_train_sample, opts.batch_size)
-        train_data = base.data_generator(opts.train_files, targets,
+        train_data = base.data_reader(opts.train_files, outputs,
                                          dna_wlen=0, cpg_wlen=None,
                                          batch_size=opts.batch_size,
-                                         nb_sample=nb_train_sample)
+                                         nb_sample=nb_train_sample,
+                                        class_weights=class_weights)
         if opts.val_files:
             nb_val_sample = count_samples(opts.val_files, opts.nb_val_sample, opts.batch_size)
-            val_data = base.data_generator(opts.val_files, targets,
+            val_data = base.data_reader(opts.val_files, outputs,
                                            dna_wlen=0, cpg_wlen=None,
                                            batch_size=opts.batch_size,
-                                           nb_sample=nb_val_sample)
+                                           nb_sample=nb_val_sample,
+                                           class_weights=class_weights)
         else:
             val_data = None
             nb_val_sample = None
@@ -273,7 +294,7 @@ class App(object):
                           dropout=opts.dropout,
                           l1_decay=opts.l1_decay,
                           l2_decay=opts.l2_decay)
-        outputs = base.add_cpg_outputs(stem, targets)
+        outputs = base.add_cpg_outputs(stem, outputs)
         model = kmod.Model(input=inputs, output=outputs)
         model.summary()
         base.save_model(model, pt.join(opts.out_dir, 'model.json'))
@@ -285,6 +306,7 @@ class App(object):
 
         # Train model
         log.info('Train model')
+        print()
         model.fit_generator(
             train_data, nb_train_sample, opts.nb_epoch,
             callbacks=cbacks,
@@ -292,7 +314,7 @@ class App(object):
             nb_val_samples=nb_val_sample,
             max_q_size=opts.data_q_size,
             nb_worker=opts.data_nb_worker,
-            verbose=1 if opts.verbose else 2)
+            verbose=1 if opts.verbose else 0)
 
         # Use best weights on validation set
         h = pt.join(opts.out_dir, 'model_weights.h5')
@@ -301,19 +323,12 @@ class App(object):
 
         model.save(pt.join(opts.out_dir, 'model.h5'))
 
-        if opts.nb_epoch > 0:
-            for cback in cbacks:
-                if isinstance(cback, cbk.PerformanceLogger):
-                    perf_logger = cback
-                    break
-            lc = perf_logger.epoch_frame()
-            print('\n\nLearning curve:')
-            print(perf_logs_str(lc))
-            if len(lc) > 5:
-                lc = lc.loc[lc.epoch > 2]
-            lc.set_index('epoch', inplace=True)
-            ax = lc.plot(figsize=(10, 6))
-            ax.get_figure().savefig(pt.join(opts.out_dir, 'lc.png'))
+        print('\nTraining set performance:')
+        print(utils.format_table(self.perf_logger.epoch_logs))
+
+        if self.perf_logger.val_epoch_logs:
+            print('\nValidation set performance:')
+            print(utils.format_table(self.perf_logger.val_epoch_logs))
 
         log.info('Done!')
 

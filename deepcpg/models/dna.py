@@ -1,11 +1,15 @@
+from os import path as pt
+
 import h5py as h5
 import numpy as np
 
 from keras import layers as kl
+from keras import models as km
 from keras import regularizers as kr
 
 from ..data.preprocess import CPG_NAN
 from ..data import dna
+from ..data import io
 
 """TODO
 Residual block
@@ -17,46 +21,68 @@ CpG as before or separate networks?
 """
 
 
-def get_sample_weights(y, class_weights):
-    y = y[:]
-    if not class_weights:
-        class_weights = {0: 0.5, 1: 0.5}
-    sample_weights = np.zeros(y.shape, dtype='float16')
-    for cla, weight in class_weights.items():
-        sample_weights[y == cla] = weight
-    return sample_weights
+def data_reader(data_files, outputs,
+                dna_wlen=None, cpg_wlen=None, cpg_max_dist=25000,
+                class_weights=None, *args, **kwargs):
+    """
+    dna_wlen=None: no dna
+    dna_wlen=0: all
+    """
+
+    names = {'outputs': outputs}
+
+    if dna_wlen is not None:
+        names.append('inputs/dna')
+
+    if cpg_wlen is not None:
+        for output in outputs:
+            names.append('inputs/cpg_context/%s/state' % output)
+            names.append('inputs/cpg_context/%s/dist' % output)
+
+    for data_raw in io.h5_reader(data_files, names, *args, **kwargs):
+        inputs = dict()
+        outputs = dict()
+        weights = dict()
+
+        if dna_wlen is not None:
+            dna = data_raw['inputs/dna']
+            if dna_wlen > 0:
+                cur_wlen = dna.shape[1]
+                center = cur_wlen // 2
+                delta = dna_wlen // 2
+                dna = dna[:, center - delta, center + delta + 1]
+            dna = dna.int2onehot(dna)
+            inputs['inputs/dna'] = dna
+
+        if cpg_wlen is not None:
+            for output in outputs:
+                state = data_raw['inputs/cpg_context/%s/state' % output]
+                dist = data_raw['inputs/cpg_context/%s/dist' % output]
+                nan = state == CPG_NAN
+                if np.any(nan):
+                    tmp = np.sum(state == 1) / state.size
+                    state[nan] = np.random.binomial(1, tmp, nan.sum())
+                    dist[nan] = cpg_max_dist
+                dist = np.minimum(dist, cpg_max_dist) / cpg_max_dist
+                cpg = np.empty(list(state.shape) + [2], dtype=np.float32)
+                cpg[:, :, 0] = state
+                cpg[:, :, 1] = dist
+                if cpg_wlen > 0:
+                    cur_wlen = cpg.shape[1]
+                    center = cur_wlen // 2
+                    delta = cpg_wlen // 2
+                    cpg = cpg[:, center - delta, center + delta]
+                inputs['inputs/cpg_context/%s' % output] = cpg
+
+        for output in outputs:
+            name = 'outputs/%s' % output
+            inputs[name] = data_raw[name]
+            cweights = class_weights[name] if class_weights else None
+            weights[name] = get_sample_weights(inputs[name], cweights)
+
+        yield (inputs, outputs, weights)
 
 
-def get_class_weights(data_files, target):
-    nb_zero = 0
-    nb_sample = 0
-    for data_file in data_files:
-        data_file = h5.File(data_file, 'r')
-        y = data_file['cpg'][target].value
-        nb_zero += y == 0
-        nb_sample += len(y)
-    frac_zero = nb_zero / nb_sample
-    return {0: 1 - frac_zero, 1: frac_zero}
-
-
-def save_model(model, json_file, weights_file=None):
-    with open(json_file, 'w') as f:
-        f.write(model.to_json())
-    if weights_file is not None:
-        model.save_weights(weights_file, overwrite=True)
-
-
-def load_model(json_file, weights_file=None):
-    from keras import models as kmod
-
-    with open(json_file, 'r') as f:
-        model = f.read()
-    model = kmod.model_from_json(model)
-    if weights_file:
-        model.load_weights(weights_file)
-
-
-# TODO: Allow to use smaller wlen
 def data_generator(data_files, targets, batch_size=128, nb_sample=None,
                    dna_wlen=None, cpg_wlen=None, cpg_max_dist=25000,
                    class_weights=None, shuffle=True,
@@ -106,11 +132,11 @@ def data_generator(data_files, targets, batch_size=128, nb_sample=None,
                 data_files = data_files[:file_idx + 1]
                 break
 
-            xs = []
+            xs = dict()
             if dna_wlen is not None:
                 x = data_file['dna'][batch_start:batch_end, dna_cols]
                 x = dna.int2onehot(x)
-                xs.append(x)
+                xs['x/dna'] = x
 
             if cpg_wlen is not None:
                 for target in targets:
@@ -127,14 +153,15 @@ def data_generator(data_files, targets, batch_size=128, nb_sample=None,
                     x = np.empty(list(state.shape) + [2], dtype=np.float32)
                     x[:, :, 0] = state
                     x[:, :, 1] = dist
-                    xs.append(x)
+                    xs['x/cpg'] = x
 
-            ys = []
-            ws = []
+            ys = dict()
+            ws = dict()
             for target in targets:
                 y = data_file['cpg'][target][batch_start:batch_end]
-                ws.append(get_sample_weights(y, class_weights))
-                ys.append(y)
+                name = 'cpg/%s' % target
+                ws[name] = get_sample_weights(y, class_weights)
+                ys[name] = y
 
             yield (xs, ys, ws)
 
@@ -145,29 +172,30 @@ def data_generator(data_files, targets, batch_size=128, nb_sample=None,
             nb_seen = 0
 
 
-def model(x, dropout=0.0, l1_decay=0.0, l2_decay=0.0):
+def model01(x, dropout=0.0, l1_decay=0.0, l2_decay=0.0):
     w_reg = kr.WeightRegularizer(l1=l1_decay, l2=l2_decay)
+    bn_axis = 2
+
     x = kl.Conv1D(64, 9, init='he_uniform', W_regularizer=w_reg)(x)
-    # TODO: add axis!!!!!!!!
-    x = kl.BatchNormalization()(x)
+    x = kl.BatchNormalization(axis=bn_axis)(x)
     x = kl.Activation('relu')(x)
     x = kl.Dropout(dropout)(x)
     x = kl.MaxPooling1D(2, 2)(x)
 
     x = kl.Conv1D(128, 3, init='he_uniform', W_regularizer=w_reg)(x)
-    x = kl.BatchNormalization()(x)
+    x = kl.BatchNormalization(axis=bn_axis)(x)
     x = kl.Activation('relu')(x)
     x = kl.Dropout(dropout)(x)
     x = kl.MaxPooling1D(2, 2)(x)
 
     x = kl.Conv1D(256, 3, init='he_uniform', W_regularizer=w_reg)(x)
-    x = kl.BatchNormalization()(x)
+    x = kl.BatchNormalization(axis=bn_axis)(x)
     x = kl.Activation('relu')(x)
     x = kl.Dropout(dropout)(x)
     x = kl.MaxPooling1D(2, 2)(x)
 
     x = kl.Conv1D(512, 3, init='he_uniform', W_regularizer=w_reg)(x)
-    x = kl.BatchNormalization()(x)
+    x = kl.BatchNormalization(axis=bn_axis)(x)
     x = kl.Activation('relu')(x)
     x = kl.Dropout(dropout)(x)
     x = kl.MaxPooling1D(2, 2)(x)
@@ -175,12 +203,3 @@ def model(x, dropout=0.0, l1_decay=0.0, l2_decay=0.0):
     x = kl.GlobalAveragePooling1D()(x)
 
     return x
-
-
-def add_cpg_outputs(x, targets):
-    outputs = []
-    for target in targets:
-        output = kl.Dense(1, init='he_uniform', activation='sigmoid',
-                          name='cpg/%s' % target)(x)
-        outputs.append(output)
-    return outputs
