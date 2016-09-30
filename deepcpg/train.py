@@ -11,73 +11,45 @@ import h5py as h5
 import numpy as np
 import pandas as pd
 
-from keras import backend as kback
-from keras import layers as kl
-from keras import models as kmod
-from keras import optimizers as kopt
+from keras.backend import _BACKEND
+from keras.models import Model
+from keras.optimizers import Adam
 
 from keras import callbacks as kcbk
 
 from deepcpg import callbacks as cbk
-from deepcpg.models import base
-from deepcpg import utils
-from deepcpg.data import io
-from deepcpg.data.preprocess import CPG_NAN
+from deepcpg import data as dat
+from deepcpg import models as mod
+from deepcpg import utils as ut
 
 
 # TODO:
 # Check class weights
 
-def get_class_weights(data_files, outputs):
-    names = {'outputs': outputs}
+def get_class_weights(data_files, output_names):
+    names = {'outputs': output_names}
     weights = {}
-    for name, output in io.h5_read(data_files, names).items():
-        output = output[output != CPG_NAN]
+    for name, output in dat.h5_read(data_files, names).items():
+        output = output[output != dat.CPG_NAN]
         frac_ones = np.sum(output == 1) / len(output)
-        weights[name] = {0: 1 - frac_ones, 1: frac_ones}
+        weights[name.replace('outputs/', '')] = {0: 1 - frac_ones, 1: frac_ones}
     return weights
 
 
-def get_outputs(data_file, output_filter=None, nb_output=None):
+def h5_ls(data_file, group='/', keys_filter=None, nb_keys=None):
     data_file = h5.File(data_file, 'r')
-    outputs = list(data_file['outputs'].keys())
+    keys = list(data_file[group].keys())
     data_file.close()
-    if output_filter is not None:
-        outputs = utils.filter_regex(outputs, output_filter)
-    if nb_output:
-        outputs = outputs[:nb_output]
-    return outputs
+    if keys_filter is not None:
+        keys = ut.filter_regex(keys, keys_filter)
+    if nb_keys:
+        keys = keys[:nb_keys]
+    return keys
 
 
 def perf_logs_str(logs):
     t = logs.to_csv(None, sep='\t', float_format='%.4f', index=False)
     return t
-
-
-def get_dna_wlen(data_file):
-    data_file = h5.File(data_file, 'r')
-    wlen = data_file['dna'].shape[1]
-    return wlen
-
-
-def get_cpg_wlen(data_file):
-    data_file = h5.File(data_file, 'r')
-    wlen = data_file['dna'].shape[1]
-    return wlen
-
-
-def count_samples(data_files, nb_max=None, batch_size=None):
-    nb_sample = 0
-    for data_file in data_files:
-        data_file = h5.File(data_file, 'r')
-        nb_sample += len(data_file['pos'])
-        data_file.close()
-        if nb_max and nb_sample > nb_max:
-            nb_sample = nb_max
-            break
-    if batch_size:
-        nb_sample = (nb_sample // batch_size) * batch_size
-    return nb_sample
 
 
 class App(object):
@@ -106,13 +78,25 @@ class App(object):
             default='./train',
             help='Output directory')
         p.add_argument(
-            '--outputs',
+            '--output_names',
             help='List of regex to filter outputs',
             nargs='+')
         p.add_argument(
             '--nb_output',
             type=int,
             help='Maximum number of outputs')
+        p.add_argument(
+            '--context_names',
+            help='List of regex to filter CpG context units',
+            nargs='+')
+        p.add_argument(
+            '--nb_context',
+            type=int,
+            help='Maximum number of context units')
+        p.add_argument(
+            '--model_name',
+            help='Model name',
+            default='dna01')
         p.add_argument(
             '--nb_epoch',
             help='Maximum # training epochs',
@@ -164,9 +148,12 @@ class App(object):
             help='Write log messages to file')
         p.add_argument(
             '--dna_wlen',
-            help='DNA window lengths',
-            type=int,
-            default=501)
+            help='DNA window length',
+            type=int)
+        p.add_argument(
+            '--cpg_wlen',
+            help='CpG window length',
+            type=int)
         p.add_argument(
             '--dropout',
             help='Dropout rate',
@@ -232,7 +219,7 @@ class App(object):
         self.perf_logger = cbk.PerformanceLogger(callbacks=[save_lc])
         cbacks.append(self.perf_logger)
 
-        if kback._BACKEND == 'tensorflow':
+        if _BACKEND == 'tensorflow':
             h = kcbk.TensorBoard(
                 log_dir=pt.join(opts.out_dir, 'logs'),
                 histogram_freq=1,
@@ -263,49 +250,90 @@ class App(object):
             os.makedirs(opts.out_dir, exist_ok=True)
 
         # Setup callbacks
-        log.info('Setup callbacks')
+        log.info('Initializing callbacks ...')
         cbacks = self.callbacks()
 
-        outputs = get_outputs(opts.train_files[0], opts.outputs)
-        class_weights = get_class_weights(opts.train_files, outputs)
+        log.info('Building model ...')
+        output_names = h5_ls(opts.train_files[0], 'outputs',
+                             opts.output_names, opts.nb_output)
+        class_weights = get_class_weights(opts.train_files, output_names)
 
-        nb_train_sample = count_samples(opts.train_files, opts.nb_train_sample, opts.batch_size)
-        train_data = base.data_reader(opts.train_files, outputs,
-                                         dna_wlen=0, cpg_wlen=None,
-                                         batch_size=opts.batch_size,
-                                         nb_sample=nb_train_sample,
-                                        class_weights=class_weights)
-        if opts.val_files:
-            nb_val_sample = count_samples(opts.val_files, opts.nb_val_sample, opts.batch_size)
-            val_data = base.data_reader(opts.val_files, outputs,
-                                           dna_wlen=0, cpg_wlen=None,
-                                           batch_size=opts.batch_size,
-                                           nb_sample=nb_val_sample,
-                                           class_weights=class_weights)
-        else:
-            val_data = None
-            nb_val_sample = None
-
-        log.info('Build model ...')
-        inputs = []
-        inputs.append(kl.Input(shape=(get_dna_wlen(opts.train_files[0]), 4),
-                               name='x/dna'))
-        stem = base.model(inputs[0],
-                          dropout=opts.dropout,
+        builder = mod.get_class(opts.model_name)
+        builder = builder(dropout=opts.dropout,
                           l1_decay=opts.l1_decay,
                           l2_decay=opts.l2_decay)
-        outputs = base.add_cpg_outputs(stem, outputs)
-        model = kmod.Model(input=inputs, output=outputs)
-        model.summary()
-        base.save_model(model, pt.join(opts.out_dir, 'model.json'))
 
-        optimizer = kopt.Adam(lr=opts.lr)
+        if opts.model_name.lower().startswith('dna'):
+            dna_wlen = dat.get_dna_wlen(opts.train_files[0], opts.dna_wlen)
+            inputs = builder.inputs(dna_wlen)
+
+            def reader(*args, **kwargs):
+                return builder.reader(dna_wlen=dna_wlen,
+                                      *args, **kwargs)
+
+        elif opts.model_name.lower().startswith('cpg'):
+            cpg_wlen = dat.get_cpg_wlen(opts.train_files[0], opts.cpg_wlen)
+            context_names = h5_ls(opts.train_files[0], 'inputs/cpg_context',
+                                  opts.context_names,
+                                  opts.cpg_wlen)
+            inputs = builder.inputs(len(context_names), cpg_wlen)
+
+            def reader(*args, **kwargs):
+                return builder.reader(cpg_names=context_names,
+                                      cpg_wlen=cpg_wlen,
+                                      *args, **kwargs)
+        else:
+            dna_wlen = dat.get_dna_wlen(opts.train_files[0], opts.dna_wlen)
+            cpg_wlen = dat.get_cpg_wlen(opts.train_files[0], opts.cpg_wlen)
+            context_names = h5_ls(opts.train_files[0], 'inputs/cpg_context',
+                                  opts.context_names,
+                                  opts.cpg_wlen)
+
+            inputs = builder.inputs(dna_wlen, len(context_names), cpg_wlen)
+
+            def reader(*args, **kwargs):
+                return builder.reader(dna_wlen=dna_wlen,
+                                      cpg_names=context_names,
+                                      cpg_wlen=cpg_wlen,
+                                      *args, **kwargs)
+
+        stem = builder(inputs)
+        outputs = mod.add_outputs(stem, output_names)
+        model = Model(input=inputs, output=outputs, name=opts.model_name)
+        model.summary()
+        mod.save_model(model, pt.join(opts.out_dir, 'model.json'))
+
+        optimizer = Adam(lr=opts.lr)
         log.info('Compile model ...')
         model.compile(optimizer=optimizer, loss='binary_crossentropy',
                       metrics=['accuracy'])
 
+        log.info('Reading data ...')
+        nb_train_sample = dat.get_nb_sample(opts.train_files,
+                                            opts.nb_train_sample,
+                                            opts.batch_size)
+        train_data = reader(opts.train_files,
+                            output_names=output_names,
+                            batch_size=opts.batch_size,
+                            nb_sample=nb_train_sample,
+                            loop=True, shuffle=True,
+                            class_weights=class_weights)
+        if opts.val_files:
+            nb_val_sample = dat.get_nb_sample(opts.val_files,
+                                              opts.nb_val_sample,
+                                              opts.batch_size)
+            val_data = reader(opts.val_files,
+                              output_names=output_names,
+                              batch_size=opts.batch_size,
+                              nb_sample=nb_val_sample,
+                              loop=True, shuffle=False,
+                              class_weights=class_weights)
+        else:
+            val_data = None
+            nb_val_sample = None
+
         # Train model
-        log.info('Train model')
+        log.info('Training model ...')
         print()
         model.fit_generator(
             train_data, nb_train_sample, opts.nb_epoch,
@@ -324,11 +352,11 @@ class App(object):
         model.save(pt.join(opts.out_dir, 'model.h5'))
 
         print('\nTraining set performance:')
-        print(utils.format_table(self.perf_logger.epoch_logs))
+        print(ut.format_table(self.perf_logger.epoch_logs))
 
         if self.perf_logger.val_epoch_logs:
             print('\nValidation set performance:')
-            print(utils.format_table(self.perf_logger.val_epoch_logs))
+            print(ut.format_table(self.perf_logger.val_epoch_logs))
 
         log.info('Done!')
 

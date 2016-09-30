@@ -4,24 +4,24 @@ import argparse
 import sys
 import logging
 import os.path as pt
+import re
 
 import h5py as h5
 import numpy as np
 import pandas as pd
 
+from deepcpg import data
 from deepcpg.data import dna
 from deepcpg.data import fasta
-from deepcpg.data import io
 from deepcpg import feature_extractor as fext
 
-
-CPG_NAN=-1
 
 # TODO:
 # * Update comments
 # * Check asserts
 # * logging
 # * check with missing args
+
 def prepro_pos_table(pos_table):
     table = pos_table.groupby('chromo')
     table = table.apply(lambda df: pd.DataFrame({'pos': np.unique(df['pos'])}))
@@ -29,6 +29,14 @@ def prepro_pos_table(pos_table):
     table = table[['chromo', 'pos']]
     table.sort_values(['chromo', 'pos'], inplace=True)
     return table
+
+
+def output_name_from_filename(filename):
+    name = pt.splitext(pt.basename(filename))[0]
+    match = re.match(r'([^.]+)\.?', name)
+    assert match
+    name = match.group(1)
+    return name
 
 
 def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
@@ -53,7 +61,7 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
     return seq_wins
 
 
-def map_values(values, pos, target_pos, dtype=None, nan=CPG_NAN):
+def map_values(values, pos, target_pos, dtype=None, nan=data.CPG_NAN):
     assert len(values) == len(pos)
     assert np.all(pos == np.sort(pos))
     assert np.all(target_pos == np.sort(target_pos))
@@ -167,12 +175,14 @@ class App(object):
             pos_table = prepro_pos_table(pos_table)
 
         cpg_tables = []
-        target_names = []
+        output_names = []
         if opts.cpg_files:
             log.info('Read CpG files ...')
             for cpg_file in opts.cpg_files:
-                cpg_tables.append(io.read_cpg_table(cpg_file, chromos=opts.chromos))
-                target_names.append(pt.splitext(pt.basename(cpg_file))[0])
+                _cpg_file = data.GzipFile(cpg_file, 'r')
+                cpg_tables.append(data.read_cpg_table(_cpg_file, chromos=opts.chromos))
+                _cpg_file.close()
+                output_names.append(output_name_from_filename(cpg_file))
             if pos_table is None:
                 pos_table = []
                 for cpg_table in cpg_tables:
@@ -199,7 +209,7 @@ class App(object):
 
             if opts.min_cpg_cov:
                 idx = np.hstack([x.reshape(-1, 1) for x in chromo_cpgs])
-                idx = np.sum(idx != CPG_NAN, axis=1) >= opts.min_cpg_cov
+                idx = np.sum(idx != data.CPG_NAN, axis=1) >= opts.min_cpg_cov
                 tmp = '%s sites matched minimum coverage filter'
                 tmp %= format_out_of(idx.sum(), len(idx))
                 log.info(tmp)
@@ -229,7 +239,7 @@ class App(object):
                 if chromo_cpgs:
                     out_group = chunk_file.create_group('outputs')
                     for i, chromo_cpg in enumerate(chromo_cpgs):
-                        name = 'cpg/%s' % target_names[i]
+                        name = 'cpg_%s' % output_names[i]
                         out_group.create_dataset(name,
                                                  data=chromo_cpg, dtype=np.int8,
                                                  compression='gzip')
@@ -245,16 +255,16 @@ class App(object):
                     log.info('Extract CpG neighbors ...')
                     cpg_ext = fext.KnnCpgFeatureExtractor(opts.cpg_wlen // 2)
                     context_group = in_group.create_group('cpg_context')
-                    for target_name, cpg_table in zip(target_names, cpg_tables):
+                    for output_name, cpg_table in zip(output_names, cpg_tables):
                         cpg_table = cpg_table.loc[cpg_table.chromo == chromo]
                         knn_state, knn_dist = cpg_ext.extract(chunk_pos, cpg_table.pos.values, cpg_table.value.values)
                         nan = np.isnan(knn_state)
                         knn_state = knn_state.astype(np.int8, copy=False)
-                        knn_state[nan] = CPG_NAN
+                        knn_state[nan] = data.CPG_NAN
                         knn_dist = knn_dist.astype(np.float32, copy=False)
-                        knn_dist[nan] = CPG_NAN
+                        knn_dist[nan] = data.CPG_NAN
 
-                        group = context_group.create_group(target_name)
+                        group = context_group.create_group(output_name)
                         group.create_dataset('state', data=knn_state, compression='gzip')
                         group.create_dataset('dist', data=knn_dist, compression='gzip')
 

@@ -1,4 +1,7 @@
 from collections import OrderedDict
+import re
+
+import numpy as np
 
 
 def format_row(values, widths=None, sep=' | '):
@@ -60,3 +63,35 @@ def filter_regex(x, regexs):
             if re.search(regex, xi):
                 xf.add(xi)
     return sorted(list(xf))
+
+
+class ProgressBar(object):
+
+    def __init__(self, nb_tot, logger=print, interval=0.1):
+        if nb_tot <= 0:
+            raise ValueError('Total value must be greater than zero!')
+        self.nb_tot = nb_tot
+        self.logger = logger
+        self.interval = interval
+        self._value = 0
+        self._nb_interval = 0
+
+    def update(self, amount):
+        tricker = self._value == 0
+        amount = min(amount, self.nb_tot - self._value)
+        self._value += amount
+        self._nb_interval += amount
+        tricker |= self._nb_interval >= int(self.nb_tot * self.interval)
+        tricker |= self._value >= self.nb_tot
+        if tricker:
+            nb_digit = int(np.floor(np.log10(self.nb_tot))) + 1
+            msg = '{value:{nb_digit}d}/{nb_tot:d} ({per:3.1f}%)'
+            msg = msg.format(value=self._value, nb_digit=nb_digit,
+                             nb_tot=self.nb_tot,
+                             per=self._value / self.nb_tot * 100)
+            self.logger(msg)
+            self._nb_interval = 0
+
+    def close(self):
+        if self._value < self.nb_tot:
+            self.update(self.nb_tot)

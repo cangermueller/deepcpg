@@ -5,6 +5,40 @@ import numpy as np
 import pandas as pd
 
 
+CPG_NAN=-1
+
+
+def get_nb_sample(data_files, nb_max=None, batch_size=None):
+    nb_sample = 0
+    for data_file in data_files:
+        data_file = h5.File(data_file, 'r')
+        nb_sample += len(data_file['pos'])
+        data_file.close()
+        if nb_max and nb_sample > nb_max:
+            nb_sample = nb_max
+            break
+    if batch_size:
+        nb_sample = (nb_sample // batch_size) * batch_size
+    return nb_sample
+
+
+def get_dna_wlen(data_file, max_len=None):
+    data_file = h5.File(data_file, 'r')
+    wlen = data_file['/inputs/dna'].shape[1]
+    if max_len:
+        wlen = min(max_len, wlen)
+    return wlen
+
+
+def get_cpg_wlen(data_file, max_len=None):
+    data_file = h5.File(data_file, 'r')
+    group = data_file['/inputs/cpg_context']
+    wlen = group['%s/dist' % list(group.keys())[0]].shape[1]
+    if max_len:
+        wlen = min(max_len, wlen)
+    return wlen
+
+
 def read_cpg_table(path, chromos=None, nrows=None, round=True, sort=True):
     d = pd.read_table(path, header=None, usecols=[0, 1, 2], nrows=nrows,
                       dtype={0: np.str, 1: np.int32, 2: np.float32},
@@ -23,25 +57,36 @@ def read_cpg_table(path, chromos=None, nrows=None, round=True, sort=True):
     return d
 
 
-def stack_data(data):
+def add_to_dict(src, dst):
+    for key, value in src.items():
+        if isinstance(value, dict):
+            if key not in dst:
+                dst[key] = dict()
+            tmp = add_to_dict(value, dst[key])
+        else:
+            if key not in dst:
+                dst[key] = []
+            dst[key].append(value)
+
+
+def stack_dict(data):
     sdata = dict()
     for key, value in data.items():
         if isinstance(value, dict):
-            sdata[key] = stack_data(value)
+            sdata[key] = stack_dict(value)
         else:
             fun = np.vstack if value[0].ndim > 1 else np.hstack
             sdata[key] = fun(value)
     return sdata
 
 
-def write_data(data, path):
+def h5_write_data(data, path):
     is_root = isinstance(path, str)
-    if is_root:
-        group = h5.File(path, 'w')
+    group = h5.File(path, 'w') if is_root else path
     for key, value in data.items():
         if isinstance(value, dict):
-            key_group = h5.create_group(key)
-            write_data(value, key_group)
+            key_group = group.create_group(key)
+            h5_write_data(value, key_group)
         else:
             group[key] = value
     if is_root:
@@ -53,20 +98,25 @@ def h5_hnames_to_names(hnames):
     for key, value in hnames.items():
         if isinstance(value, dict):
             for name in h5_hnames_to_names(value):
-                names.append('/%s/%s' % (key, name))
+                names.append('%s/%s' % (key, name))
+        elif isinstance(value, list):
+            for name in value:
+                names.append('%s/%s' % (key, name))
+        elif isinstance(value, str):
+            names.append('%s/%s' % (key, value))
         else:
             names.append(key)
     return names
 
 
-def h5_read_all(data_files, names, *args, **kwargs):
+def h5_read(data_files, names, *args, **kwargs):
     data = dict()
-    reader = h5_reader(names, names, loop=False, *args, **kwargs)
+    reader = h5_reader(data_files, names, loop=False, *args, **kwargs)
     for data_batch in reader:
         for key, value in data_batch.items():
             values = data.setdefault(key, [])
             values.append(value)
-    data = stack_data(data)
+    data = stack_dict(data)
     return data
 
 

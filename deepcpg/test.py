@@ -5,13 +5,12 @@ import sys
 import logging
 import os.path as pt
 
-import h5py as h5
-import numpy as np
 import pandas as pd
 
-from deepcpg.models import base
+from deepcpg import data as dat
 from deepcpg import evaluation as ev
-
+from deepcpg import models as mod
+from deepcpg.utils import ProgressBar
 
 
 class App(object):
@@ -32,15 +31,24 @@ class App(object):
             nargs='+',
             help='Test data files')
         p.add_argument(
-            'model_files',
+            '--model_files',
             nargs='+',
             help='Model files')
+        p.add_argument(
+            '--model_name',
+            help='Model name',
+            default='dna01')
         p.add_argument(
             '-o', '--out_summary',
             help='Output summary file')
         p.add_argument(
             '--out_data',
             help='Output file with predictions and labels')
+        p.add_argument(
+            '--batch_size',
+            help='Batch size',
+            type=int,
+            default=128)
         p.add_argument(
             '--nb_sample',
             help='Number of samples',
@@ -68,48 +76,66 @@ class App(object):
         else:
             log.setLevel(logging.INFO)
 
-        model = base.load_model(opts.model_files)
+        log.info('Loading model ...')
+        model = mod.load_model(opts.model_files)
+        dna_wlen = int(model.inputs[0].get_shape()[1])
+        nb_sample = dat.get_nb_sample(opts.test_files, opts.nb_sample)
 
+        log.info('Reading data ...')
+        model_builder = mod.dna.get_model_class(opts.model_name)()
+        test_data = model_builder.reader(opts.test_files,
+                                         output_names=model.output_names,
+                                         dna_wlen=dna_wlen,
+                                         nb_sample=nb_sample,
+                                         batch_size=opts.batch_size,
+                                         loop=False, shuffle=False)
 
+        meta_reader = dat.h5_reader(opts.test_files, ['chromo', 'pos'],
+                                    nb_sample=nb_sample,
+                                    batch_size=opts.batch_size,
+                                    loop=False, shuffle=False)
 
-        names = dict.fromkeys(['chromo', 'pos'])
-        names['inputs'] = model.input_names
-        names['outputs'] = model.output_names
-
-        reader = base.hdf5_reader(opts.test_files, names,
-                                  batch_size=opts.batch_size,
-                                  nb_sample=opts.nb_sample)
-
+        log.info('Predicting ...')
         data = dict()
-        for data_batch in reader:
-            tmp = model.predict(data_batch['inputs'])
-            tmp = {name: tmp[i] for i, name in enumerate(model.output_names)}
-            data_batch['preds'] = tmp
+        progbar = ProgressBar(nb_sample, log.info)
+        for inputs, outputs, weights in test_data:
+            batch_size = len(list(inputs.values())[0])
+            progbar.update(batch_size)
 
-            for key in ['chromo', 'pos', 'outputs', 'preds']:
-                value = data.setdefault(key, [])
-                value.append(data_batch[key])
+            preds = model.predict(inputs)
+            pred = [pred.squeeze() for pred in preds]
 
-        data = stack_data(data)
+            data_batch = dict()
+            data_batch['preds'] = dict()
+            for name, pred in zip(model.output_names, preds):
+                data_batch['preds'][name] = pred
+            data_batch['outputs'] = outputs
+            data_batch['weights'] = weights
+            for name, value in next(meta_reader).items():
+                data_batch[name] = value
+            dat.add_to_dict(data_batch, data)
+
+        progbar.close()
+
+        data = dat.stack_dict(data)
 
         perf = []
         for output in model.output_names:
             tmp = ev.evaluate(data['outputs'][output], data['preds'][output])
             perf.append(pd.DataFrame(tmp, index=[output]))
         perf = pd.concat(perf)
-        mean = pd.DataFrame(perf.mean(), index=['mean'])
-        perf = pd.concat((perf, mean))
+        mean = perf.mean()
+        mean.name = 'mean'
+        perf.append(mean)
+        perf.index.name = 'output'
         perf.reset_index(inplace=True)
 
-        tmp = perf.to_csv(None, sep='\t', index=False)
-        print(tmp)
-
+        print(perf.to_string())
         if opts.out_summary:
-            with open(opts.out_summary, 'w') as f:
-                f.write(tmp)
+            perf.to_csv(opts.out_summary, sep='\t', index=False)
 
         if opts.out_data:
-            write_data(data, opts.out_data)
+            dat.h5_write_data(data, opts.out_data)
 
         log.info('Done!')
 

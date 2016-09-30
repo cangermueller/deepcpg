@@ -3,7 +3,7 @@ from collections import OrderedDict
 import numpy as np
 import sklearn.metrics as skm
 
-from .data.preprocess import CPG_NAN
+from .data import CPG_NAN
 
 
 
