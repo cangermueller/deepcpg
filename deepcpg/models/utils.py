@@ -1,4 +1,4 @@
-from os import path as pt
+import os
 
 from keras import models as km
 from keras import layers as kl
@@ -19,7 +19,7 @@ def get_sample_weights(y, class_weights):
 
 
 def save_model(model, model_file, weights_file=None):
-    if pt.splitext(model_file)[1] == '.h5':
+    if os.path.splitext(model_file)[1] == '.h5':
         model.save(model_file)
     else:
         with open(model_file, 'w') as f:
@@ -31,7 +31,7 @@ def save_model(model, model_file, weights_file=None):
 def load_model(model_files):
     if not isinstance(model_files, list):
         model_files = [model_files]
-    if pt.splitext(model_files[0])[1] == '.h5':
+    if os.path.splitext(model_files[0])[1] == '.h5':
         model = km.load_model(model_files[0])
     else:
         with open(model_files[0], 'r') as f:
@@ -84,17 +84,17 @@ class Model(object):
 
     def reader(self, data_files, output_names=None,
                use_dna=True, dna_wlen=None,
-               cpg_names=None, cpg_wlen=None, cpg_max_dist=25000,
+               replicate_names=None, cpg_wlen=None, cpg_max_dist=25000,
                class_weights=None, *args, **kwargs):
 
         names = []
         if use_dna:
             names.append('inputs/dna')
 
-        if cpg_names:
-            for name in cpg_names:
-                names.append('inputs/cpg_context/%s/state' % name)
-                names.append('inputs/cpg_context/%s/dist' % name)
+        if replicate_names:
+            for name in replicate_names:
+                names.append('inputs/cpg/%s/state' % name)
+                names.append('inputs/cpg/%s/dist' % name)
 
         if output_names:
             names.extend(['outputs/%s' % name for name in output_names])
@@ -106,16 +106,16 @@ class Model(object):
                 inputs['dna'] = self._prepro_dna(data_raw['inputs/dna'],
                                                  dna_wlen)
 
-            if cpg_names:
+            if replicate_names:
                 states = []
                 dists = []
-                for cpg_name in cpg_names:
-                    tmp = 'inputs/cpg_context/%s/' % cpg_name
+                for name in replicate_names:
+                    tmp = 'inputs/cpg/%s/' % name
                     states.append(data_raw[tmp + 'state'])
                     dists.append(data_raw[tmp + 'dist'])
                 states, dists = self._prepro_cpg(states, dists, cpg_wlen)
-                inputs['cpg_context/state'] = states
-                inputs['cpg_context/dist'] = dists
+                inputs['cpg/state'] = states
+                inputs['cpg/dist'] = dists
 
             if not output_names:
                 yield inputs

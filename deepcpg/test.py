@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
-import argparse
 import sys
-import logging
-import os.path as pt
+import os
 
+import argparse
 import pandas as pd
+import logging
 
 from deepcpg import data as dat
 from deepcpg import evaluation as ev
@@ -16,7 +16,7 @@ from deepcpg.utils import ProgressBar
 class App(object):
 
     def run(self, args):
-        name = pt.basename(args[0])
+        name = os.path.basename(args[0])
         parser = self.create_parser(name)
         opts = parser.parse_args(args[1:])
         return self.main(name, opts)
@@ -27,7 +27,7 @@ class App(object):
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
             description='Tests the performance of a model')
         p.add_argument(
-            'test_files',
+            'data_files',
             nargs='+',
             help='Test data files')
         p.add_argument(
@@ -35,15 +35,15 @@ class App(object):
             nargs='+',
             help='Model files')
         p.add_argument(
-            '--model_name',
-            help='Model name',
-            default='dna01')
-        p.add_argument(
             '-o', '--out_summary',
             help='Output summary file')
         p.add_argument(
             '--out_data',
             help='Output file with predictions and labels')
+        p.add_argument(
+            '--replicate_names',
+            help='List of regex to filter CpG context units',
+            nargs='+')
         p.add_argument(
             '--batch_size',
             help='Batch size',
@@ -78,27 +78,46 @@ class App(object):
 
         log.info('Loading model ...')
         model = mod.load_model(opts.model_files)
-        dna_wlen = int(model.inputs[0].get_shape()[1])
-        nb_sample = dat.get_nb_sample(opts.test_files, opts.nb_sample)
+        model_builder = mod.get_class(model.name)
+
+        if model.name.lower().startswith('dna'):
+            dna_wlen = int(model.inputs[0].get_shape()[1])
+            model_builder = model_builder(dna_wlen=dna_wlen)
+
+        elif model.name.lower().startswith('cpg'):
+            cpg_wlen = int(model.inputs[0].get_shape()[2])
+            replicate_names = dat.h5_ls(opts.data_files[0], 'inputs/cpg',
+                                        opts.replicate_names)
+            model_builder = model_builder(replicate_names,
+                                          cpg_wlen=cpg_wlen)
+
+        else:
+            dna_wlen = int(model.inputs[0].get_shape()[1])
+            cpg_wlen = int(model.inputs[0].get_shape()[2])
+            replicate_names = dat.h5_ls(opts.data_files[0], 'inputs/cpg',
+                                        opts.replicate_names)
+            model_builder = model_builder(replicate_names,
+                                          cpg_wlen=cpg_wlen,
+                                          dna_wlen=dna_wlen)
 
         log.info('Reading data ...')
-        model_builder = mod.dna.get_model_class(opts.model_name)()
-        test_data = model_builder.reader(opts.test_files,
-                                         output_names=model.output_names,
-                                         dna_wlen=dna_wlen,
-                                         nb_sample=nb_sample,
-                                         batch_size=opts.batch_size,
-                                         loop=False, shuffle=False)
+        nb_sample = dat.get_nb_sample(opts.data_files, opts.nb_sample)
 
-        meta_reader = dat.h5_reader(opts.test_files, ['chromo', 'pos'],
+        meta_reader = dat.h5_reader(opts.data_files, ['chromo', 'pos'],
                                     nb_sample=nb_sample,
                                     batch_size=opts.batch_size,
                                     loop=False, shuffle=False)
 
+        data_reader = model_builder.reader(opts.data_files,
+                                           output_names=model.output_names,
+                                           nb_sample=nb_sample,
+                                           batch_size=opts.batch_size,
+                                           loop=False, shuffle=False)
+
         log.info('Predicting ...')
         data = dict()
         progbar = ProgressBar(nb_sample, log.info)
-        for inputs, outputs, weights in test_data:
+        for inputs, outputs, weights in data_reader:
             batch_size = len(list(inputs.values())[0])
             progbar.update(batch_size)
 

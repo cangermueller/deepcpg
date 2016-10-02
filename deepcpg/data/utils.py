@@ -4,8 +4,9 @@ import h5py as h5
 import numpy as np
 import pandas as pd
 
+from ..utils import filter_regex
 
-CPG_NAN=-1
+CPG_NAN = -1
 
 
 def get_nb_sample(data_files, nb_max=None, batch_size=None):
@@ -32,15 +33,15 @@ def get_dna_wlen(data_file, max_len=None):
 
 def get_cpg_wlen(data_file, max_len=None):
     data_file = h5.File(data_file, 'r')
-    group = data_file['/inputs/cpg_context']
+    group = data_file['/inputs/cpg']
     wlen = group['%s/dist' % list(group.keys())[0]].shape[1]
     if max_len:
         wlen = min(max_len, wlen)
     return wlen
 
 
-def read_cpg_table(path, chromos=None, nrows=None, round=True, sort=True):
-    d = pd.read_table(path, header=None, usecols=[0, 1, 2], nrows=nrows,
+def read_cpg_table(filename, chromos=None, nrows=None, round=True, sort=True):
+    d = pd.read_table(filename, header=None, usecols=[0, 1, 2], nrows=nrows,
                       dtype={0: np.str, 1: np.int32, 2: np.float32},
                       comment='#')
     d.columns = ['chromo', 'pos', 'value']
@@ -62,7 +63,7 @@ def add_to_dict(src, dst):
         if isinstance(value, dict):
             if key not in dst:
                 dst[key] = dict()
-            tmp = add_to_dict(value, dst[key])
+            add_to_dict(value, dst[key])
         else:
             if key not in dst:
                 dst[key] = []
@@ -80,9 +81,20 @@ def stack_dict(data):
     return sdata
 
 
-def h5_write_data(data, path):
-    is_root = isinstance(path, str)
-    group = h5.File(path, 'w') if is_root else path
+def h5_ls(data_file, group='/', keys_filter=None, nb_keys=None):
+    data_file = h5.File(data_file, 'r')
+    keys = list(data_file[group].keys())
+    data_file.close()
+    if keys_filter is not None:
+        keys = filter_regex(keys, keys_filter)
+    if nb_keys:
+        keys = keys[:nb_keys]
+    return keys
+
+
+def h5_write_data(data, filename):
+    is_root = isinstance(filename, str)
+    group = h5.File(filename, 'w') if is_root else filename
     for key, value in data.items():
         if isinstance(value, dict):
             key_group = group.create_group(key)

@@ -1,4 +1,4 @@
-from os import path as pt
+import os
 from glob import glob
 import gzip as gz
 
@@ -42,14 +42,12 @@ def read_file(filename, gzip=None):
 
 
 def read_chromo(dna_db, chromo):
-    path = glob(pt.join(dna_db, '*.chromosome.%s.*fa.gz' % chromo))
-    if len(path) != 1:
+    filename = glob(os.path.join(dna_db, '*.chromosome.%s.*fa.gz' % chromo))
+    if len(filename) != 1:
         raise 'File for chromosome "%s" not found in "%s"!' (chromo, dna_db)
-    path = path[0]
+    filename = filename[0]
 
-    fasta_seqs = read_file(path)
+    fasta_seqs = read_file(filename)
     if len(fasta_seqs) != 1:
-        raise 'Single sequence expected in file "%s"!' % path
+        raise 'Single sequence expected in file "%s"!' % filename
     return fasta_seqs[0].seq
-
-

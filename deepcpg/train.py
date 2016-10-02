@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 
-import argparse
-import sys
-import logging
 import os
-import os.path as pt
 import random
+import sys
 
-import h5py as h5
+import argparse
+import logging
 import numpy as np
 import pandas as pd
 
@@ -36,17 +34,6 @@ def get_class_weights(data_files, output_names):
     return weights
 
 
-def h5_ls(data_file, group='/', keys_filter=None, nb_keys=None):
-    data_file = h5.File(data_file, 'r')
-    keys = list(data_file[group].keys())
-    data_file.close()
-    if keys_filter is not None:
-        keys = ut.filter_regex(keys, keys_filter)
-    if nb_keys:
-        keys = keys[:nb_keys]
-    return keys
-
-
 def perf_logs_str(logs):
     t = logs.to_csv(None, sep='\t', float_format='%.4f', index=False)
     return t
@@ -55,7 +42,7 @@ def perf_logs_str(logs):
 class App(object):
 
     def run(self, args):
-        name = pt.basename(args[0])
+        name = os.path.basename(args[0])
         parser = self.create_parser(name)
         opts = parser.parse_args(args[1:])
         return self.main(name, opts)
@@ -86,13 +73,9 @@ class App(object):
             type=int,
             help='Maximum number of outputs')
         p.add_argument(
-            '--context_names',
+            '--replicate_names',
             help='List of regex to filter CpG context units',
             nargs='+')
-        p.add_argument(
-            '--nb_context',
-            type=int,
-            help='Maximum number of context units')
         p.add_argument(
             '--model_name',
             help='Model name',
@@ -191,11 +174,12 @@ class App(object):
                                    verbose=1)
             cbacks.append(h)
 
-        h = kcbk.ModelCheckpoint(pt.join(opts.out_dir, 'model_weights_last.h5'),
+        h = kcbk.ModelCheckpoint(os.path.join(opts.out_dir,
+                                              'model_weights_last.h5'),
                                  save_best_only=False)
         cbacks.append(h)
         monitor = 'val_loss' if opts.val_files else 'loss'
-        h = kcbk.ModelCheckpoint(pt.join(opts.out_dir, 'model_weights.h5'),
+        h = kcbk.ModelCheckpoint(os.path.join(opts.out_dir, 'model_weights.h5'),
                                  monitor=monitor,
                                  save_best_only=True, verbose=1)
         cbacks.append(h)
@@ -213,7 +197,7 @@ class App(object):
                 if not logs:
                     continue
                 logs = pd.DataFrame(logs)
-                with open(pt.join(opts.out_dir, name), 'w') as f:
+                with open(os.path.join(opts.out_dir, name), 'w') as f:
                     f.write(perf_logs_str(logs))
 
         self.perf_logger = cbk.PerformanceLogger(callbacks=[save_lc])
@@ -221,7 +205,7 @@ class App(object):
 
         if _BACKEND == 'tensorflow':
             h = kcbk.TensorBoard(
-                log_dir=pt.join(opts.out_dir, 'logs'),
+                log_dir=os.path.join(opts.out_dir, 'logs'),
                 histogram_freq=1,
                 write_graph=True,
                 write_images=False)
@@ -246,7 +230,7 @@ class App(object):
         self.opts = opts
 
         # Create output directory if not existing
-        if not pt.exists(opts.out_dir):
+        if not os.path.exists(opts.out_dir):
             os.makedirs(opts.out_dir, exist_ok=True)
 
         # Setup callbacks
@@ -254,54 +238,46 @@ class App(object):
         cbacks = self.callbacks()
 
         log.info('Building model ...')
-        output_names = h5_ls(opts.train_files[0], 'outputs',
-                             opts.output_names, opts.nb_output)
+        output_names = dat.h5_ls(opts.train_files[0], 'outputs',
+                                 opts.output_names, opts.nb_output)
         class_weights = get_class_weights(opts.train_files, output_names)
 
-        builder = mod.get_class(opts.model_name)
-        builder = builder(dropout=opts.dropout,
-                          l1_decay=opts.l1_decay,
-                          l2_decay=opts.l2_decay)
+        model_builder = mod.get_class(opts.model_name)
 
         if opts.model_name.lower().startswith('dna'):
             dna_wlen = dat.get_dna_wlen(opts.train_files[0], opts.dna_wlen)
-            inputs = builder.inputs(dna_wlen)
-
-            def reader(*args, **kwargs):
-                return builder.reader(dna_wlen=dna_wlen,
-                                      *args, **kwargs)
+            model_builder = model_builder(dna_wlen=dna_wlen,
+                                          dropout=opts.dropout,
+                                          l1_decay=opts.l1_decay,
+                                          l2_decay=opts.l2_decay)
 
         elif opts.model_name.lower().startswith('cpg'):
             cpg_wlen = dat.get_cpg_wlen(opts.train_files[0], opts.cpg_wlen)
-            context_names = h5_ls(opts.train_files[0], 'inputs/cpg_context',
-                                  opts.context_names,
-                                  opts.cpg_wlen)
-            inputs = builder.inputs(len(context_names), cpg_wlen)
-
-            def reader(*args, **kwargs):
-                return builder.reader(cpg_names=context_names,
-                                      cpg_wlen=cpg_wlen,
-                                      *args, **kwargs)
+            replicate_names = dat.h5_ls(opts.train_files[0], 'inputs/cpg',
+                                        opts.replicate_names)
+            model_builder = model_builder(replicate_names,
+                                          cpg_wlen=cpg_wlen,
+                                          dropout=opts.dropout,
+                                          l1_decay=opts.l1_decay,
+                                          l2_decay=opts.l2_decay)
         else:
             dna_wlen = dat.get_dna_wlen(opts.train_files[0], opts.dna_wlen)
             cpg_wlen = dat.get_cpg_wlen(opts.train_files[0], opts.cpg_wlen)
-            context_names = h5_ls(opts.train_files[0], 'inputs/cpg_context',
-                                  opts.context_names,
-                                  opts.cpg_wlen)
+            replicate_names = dat.h5_ls(opts.train_files[0], 'inputs/cpg',
+                                        opts.replicate_names)
+            model_builder = model_builder(replicate_names=replicate_names,
+                                          cpg_wlen=cpg_wlen,
+                                          dna_wlen=dna_wlen,
+                                          dropout=opts.dropout,
+                                          l1_decay=opts.l1_decay,
+                                          l2_decay=opts.l2_decay)
 
-            inputs = builder.inputs(dna_wlen, len(context_names), cpg_wlen)
-
-            def reader(*args, **kwargs):
-                return builder.reader(dna_wlen=dna_wlen,
-                                      cpg_names=context_names,
-                                      cpg_wlen=cpg_wlen,
-                                      *args, **kwargs)
-
-        stem = builder(inputs)
+        inputs = model_builder.inputs()
+        stem = model_builder(inputs)
         outputs = mod.add_outputs(stem, output_names)
         model = Model(input=inputs, output=outputs, name=opts.model_name)
         model.summary()
-        mod.save_model(model, pt.join(opts.out_dir, 'model.json'))
+        mod.save_model(model, os.path.join(opts.out_dir, 'model.json'))
 
         optimizer = Adam(lr=opts.lr)
         log.info('Compile model ...')
@@ -312,22 +288,22 @@ class App(object):
         nb_train_sample = dat.get_nb_sample(opts.train_files,
                                             opts.nb_train_sample,
                                             opts.batch_size)
-        train_data = reader(opts.train_files,
-                            output_names=output_names,
-                            batch_size=opts.batch_size,
-                            nb_sample=nb_train_sample,
-                            loop=True, shuffle=True,
-                            class_weights=class_weights)
+        train_data = model_builder.reader(opts.train_files,
+                                          output_names=output_names,
+                                          batch_size=opts.batch_size,
+                                          nb_sample=nb_train_sample,
+                                          loop=True, shuffle=True,
+                                          class_weights=class_weights)
         if opts.val_files:
             nb_val_sample = dat.get_nb_sample(opts.val_files,
                                               opts.nb_val_sample,
                                               opts.batch_size)
-            val_data = reader(opts.val_files,
-                              output_names=output_names,
-                              batch_size=opts.batch_size,
-                              nb_sample=nb_val_sample,
-                              loop=True, shuffle=False,
-                              class_weights=class_weights)
+            val_data = model_builder.reader(opts.val_files,
+                                            output_names=output_names,
+                                            batch_size=opts.batch_size,
+                                            nb_sample=nb_val_sample,
+                                            loop=True, shuffle=False,
+                                            class_weights=class_weights)
         else:
             val_data = None
             nb_val_sample = None
@@ -345,11 +321,11 @@ class App(object):
             verbose=1 if opts.verbose else 0)
 
         # Use best weights on validation set
-        h = pt.join(opts.out_dir, 'model_weights.h5')
-        if pt.isfile(h):
+        h = os.path.join(opts.out_dir, 'model_weights.h5')
+        if os.path.isfile(h):
             model.load_weights(h)
 
-        model.save(pt.join(opts.out_dir, 'model.h5'))
+        model.save(os.path.join(opts.out_dir, 'model.h5'))
 
         print('\nTraining set performance:')
         print(ut.format_table(self.perf_logger.epoch_logs))

@@ -3,9 +3,9 @@ import numpy as np
 import sys
 
 
-def read_bed(path, sort=False, usecols=[0, 1, 2], *args, **kwargs):
+def read_bed(filename, sort=False, usecols=[0, 1, 2], *args, **kwargs):
     """Read chromo,start,end from BED file without formatting chromo."""
-    d = pd.read_table(path, header=None, usecols=usecols, *args, **kwargs)
+    d = pd.read_table(filename, header=None, usecols=usecols, *args, **kwargs)
     d.columns = range(d.shape[1])
     d.rename(columns={0: 'chromo', 1: 'start', 2: 'end'}, inplace=True)
     if sort:

@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
-import argparse
-import sys
-import logging
-import os.path as pt
+import os
 import re
+import sys
 
+import argparse
+import logging
 import h5py as h5
 import numpy as np
 import pandas as pd
@@ -32,7 +32,7 @@ def prepro_pos_table(pos_table):
 
 
 def output_name_from_filename(filename):
-    name = pt.splitext(pt.basename(filename))[0]
+    name = os.path.splitext(os.path.basename(filename))[0]
     match = re.match(r'([^.]+)\.?', name)
     assert match
     name = match.group(1)
@@ -90,7 +90,7 @@ def format_out_of(out, of):
 class App(object):
 
     def run(self, args):
-        name = pt.basename(args[0])
+        name = os.path.basename(args[0])
         parser = self.create_parser(name)
         opts = parser.parse_args(args[1:])
         return self.main(name, opts)
@@ -180,7 +180,8 @@ class App(object):
             log.info('Read CpG files ...')
             for cpg_file in opts.cpg_files:
                 _cpg_file = data.GzipFile(cpg_file, 'r')
-                cpg_tables.append(data.read_cpg_table(_cpg_file, chromos=opts.chromos))
+                cpg_tables.append(data.read_cpg_table(_cpg_file,
+                                                      chromos=opts.chromos))
                 _cpg_file.close()
                 output_names.append(output_name_from_filename(cpg_file))
             if pos_table is None:
@@ -228,9 +229,9 @@ class App(object):
                 chunk_start = chunk * opts.chunk_size
                 chunk_end = min(len(chromo_pos), chunk_start + opts.chunk_size)
                 chunk_pos = chromo_pos[chunk_start:chunk_end]
-                path = 'c%s_%06d-%06d.h5' % (chromo, chunk_start, chunk_end)
-                path = pt.join(opts.out_dir, path)
-                chunk_file = h5.File(path, 'w')
+                filename = 'c%s_%06d-%06d.h5' % (chromo, chunk_start, chunk_end)
+                filename = os.path.join(opts.out_dir, filename)
+                chunk_file = h5.File(filename, 'w')
 
                 chunk_file.create_dataset('chromo', shape=(len(chunk_pos),), dtype='S2')
                 chunk_file['chromo'][:] = chromo.encode()
@@ -254,7 +255,7 @@ class App(object):
                 if opts.cpg_wlen:
                     log.info('Extract CpG neighbors ...')
                     cpg_ext = fext.KnnCpgFeatureExtractor(opts.cpg_wlen // 2)
-                    context_group = in_group.create_group('cpg_context')
+                    context_group = in_group.create_group('cpg')
                     for output_name, cpg_table in zip(output_names, cpg_tables):
                         cpg_table = cpg_table.loc[cpg_table.chromo == chromo]
                         knn_state, knn_dist = cpg_ext.extract(chunk_pos, cpg_table.pos.values, cpg_table.value.values)

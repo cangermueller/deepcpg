@@ -12,30 +12,45 @@ Constant for init?
 
 class JointModel(Model):
 
-    def reader(self, data_files, cpg_names, *args, **kwargs):
+    def __init__(self, replicate_names, cpg_wlen=None, dna_wlen=None,
+                 *args, **kwargs):
+        super(JointModel, self).__init__(*args, **kwargs)
+        self.replicate_names = replicate_names
+        self.cpg_wlen = cpg_wlen
+        self.dna_wlen = dna_wlen
+
+    def reader(self, data_files, *args, **kwargs):
         super_reader = super(JointModel, self).reader
         for data in super_reader(data_files,
                                  use_dna=True,
-                                 cpg_names=cpg_names,
+                                 dna_wlen=self.dna_wlen,
+                                 replicate_names=self.replicate_names,
+                                 cpg_wlen=self.cpg_wlen,
                                  *args, **kwargs):
             yield data
 
-    def inputs(self, dna_wlen, nb_context, cpg_wlen):
+    def inputs(self):
         inputs = []
-        inputs.append(kl.Input(shape=(dna_wlen, 4),
+        inputs.append(kl.Input(shape=(self.dna_wlen, 4),
                                name='dna'))
-        inputs.append(kl.Input(shape=(nb_context, cpg_wlen),
-                               name='cpg_context/state'))
-        inputs.append(kl.Input(shape=(nb_context, cpg_wlen),
-                               name='cpg_context/dist'))
+        shape = (len(self.replicate_names), self.cpg_wlen)
+        inputs.append(kl.Input(shape=shape, name='cpg/state'))
+        inputs.append(kl.Input(shape=shape, name='cpg/dist'))
         return inputs
 
 
 class Joint01(JointModel):
 
-    def __init__(self, *args, **kwargs):
-        self.dna_model = mdna.Dna01(*args, **kwargs)
-        self.cpg_model = mcpg.Cpg01(*args, **kwargs)
+    def __init__(self, replicate_names, cpg_wlen=None, dna_wlen=None,
+                 *args, **kwargs):
+        super(Joint01, self).__init__(replicate_names,
+                                      cpg_wlen=cpg_wlen,
+                                      dna_wlen=dna_wlen,
+                                      *args, **kwargs)
+        self.dna_model = mdna.Dna01(dna_wlen=dna_wlen, *args, **kwargs)
+        self.cpg_model = mcpg.Cpg01(replicate_names=replicate_names,
+                                    cpg_wlen=cpg_wlen,
+                                    *args, **kwargs)
 
     def __call__(self, inputs):
         dna_stem = self.dna_model(inputs[:1])
