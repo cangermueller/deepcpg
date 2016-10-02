@@ -81,19 +81,19 @@ class App(object):
         model_builder = mod.get_class(model.name)
 
         if model.name.lower().startswith('dna'):
-            dna_wlen = int(model.inputs[0].get_shape()[1])
+            dna_wlen = int(model.input_shape[0][1])
             model_builder = model_builder(dna_wlen=dna_wlen)
 
         elif model.name.lower().startswith('cpg'):
-            cpg_wlen = int(model.inputs[0].get_shape()[2])
+            cpg_wlen = int(model.input_shape[1][2])
             replicate_names = dat.h5_ls(opts.data_files[0], 'inputs/cpg',
                                         opts.replicate_names)
             model_builder = model_builder(replicate_names,
                                           cpg_wlen=cpg_wlen)
 
         else:
-            dna_wlen = int(model.inputs[0].get_shape()[1])
-            cpg_wlen = int(model.inputs[0].get_shape()[2])
+            dna_wlen = int(model.input_shape[0][1])
+            cpg_wlen = int(model.input_shape[1][2])
             replicate_names = dat.h5_ls(opts.data_files[0], 'inputs/cpg',
                                         opts.replicate_names)
             model_builder = model_builder(replicate_names,

@@ -166,7 +166,7 @@ class PerformanceLogger(Callback):
 
         if do_log:
             table = OrderedDict()
-            table['progress'] = [self._nb_seen / (self.params['nb_sample'] + 1e-5) * 100]
+            table['progress (%)'] = [self._nb_seen / (self.params['nb_sample'] + 1e-5) * 100]
             table['time (min)'] = ['%.2f' % ((time() - self._time_start) / 60)]
             for k, v in self._batch_logs.items():
                 table[k] = [v[-1]]

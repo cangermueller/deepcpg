@@ -91,7 +91,7 @@ class App(object):
             type=int,
             default=128)
         p.add_argument(
-            '--early_stop',
+            '--early_stopping',
             help='Early stopping patience',
             type=int,
             default=3)
@@ -170,7 +170,7 @@ class App(object):
 
         if opts.val_files:
             h = kcbk.EarlyStopping('val_loss' if opts.val_files else 'loss',
-                                   patience=opts.early_stop,
+                                   patience=opts.early_stopping,
                                    verbose=1)
             cbacks.append(h)
 
