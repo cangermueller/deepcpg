@@ -4,6 +4,13 @@ import re
 import numpy as np
 
 
+def get_from_module(identifier, module_params):
+    res = module_params.get(identifier)
+    if not res:
+        raise ValueError('Invalid identifier "%s"!' % identifier)
+    return res
+
+
 def format_row(values, widths=None, sep=' | '):
     if widths:
         tmp = []
