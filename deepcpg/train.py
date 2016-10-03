@@ -208,7 +208,7 @@ class App(object):
                 log_dir=os.path.join(opts.out_dir, 'logs'),
                 histogram_freq=1,
                 write_graph=True,
-                write_images=False)
+                write_images=True)
             cbacks.append(h)
 
         return cbacks
