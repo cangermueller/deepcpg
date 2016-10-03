@@ -21,8 +21,8 @@ from deepcpg import models as mod
 from deepcpg import utils as ut
 
 
-# TODO:
-# Check class weights
+LOG_PRECISION = 5
+
 
 def get_class_weights(data_files, output_names):
     names = {'outputs': output_names}
@@ -200,7 +200,8 @@ class App(object):
                 with open(os.path.join(opts.out_dir, name), 'w') as f:
                     f.write(perf_logs_str(logs))
 
-        self.perf_logger = cbk.PerformanceLogger(callbacks=[save_lc])
+        self.perf_logger = cbk.PerformanceLogger(callbacks=[save_lc],
+                                                 precision=LOG_PRECISION)
         cbacks.append(self.perf_logger)
 
         if _BACKEND == 'tensorflow':
@@ -294,6 +295,7 @@ class App(object):
                                           nb_sample=nb_train_sample,
                                           loop=True, shuffle=True,
                                           class_weights=class_weights)
+        import ipdb; ipdb.set_trace()
         if opts.val_files:
             nb_val_sample = dat.get_nb_sample(opts.val_files,
                                               opts.nb_val_sample,
@@ -328,11 +330,12 @@ class App(object):
         model.save(os.path.join(opts.out_dir, 'model.h5'))
 
         print('\nTraining set performance:')
-        print(ut.format_table(self.perf_logger.epoch_logs))
+        print(ut.format_table(self.perf_logger.epoch_logs, precision=5))
 
         if self.perf_logger.val_epoch_logs:
             print('\nValidation set performance:')
-            print(ut.format_table(self.perf_logger.val_epoch_logs))
+            print(ut.format_table(self.perf_logger.val_epoch_logs,
+                                  precision=LOG_PRECISION))
 
         log.info('Done!')
 

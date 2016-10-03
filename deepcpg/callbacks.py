@@ -44,9 +44,11 @@ class EarlyStopping(Callback):
 
 class PerformanceLogger(Callback):
 
-    def __init__(self, metrics=['loss', 'acc'], log_freq=0.1, callbacks=[], logger=print):
+    def __init__(self, metrics=['loss', 'acc'], log_freq=0.1,
+                 precision=4, callbacks=[], logger=print):
         self.metrics = metrics
         self.log_freq = log_freq
+        self.precision = precision
         self.callbacks = callbacks
         self.logger = logger
         self._line = '=' * 100
@@ -132,7 +134,7 @@ class PerformanceLogger(Callback):
             for k, v in self.val_epoch_logs.items():
                 table[k].append(v[-1])
         self._log('')
-        self._log(format_table(table))
+        self._log(format_table(table, precision=self.precision))
 
         for callback in self.callbacks:
             callback(epoch, self.epoch_logs, self.val_epoch_logs)
@@ -170,7 +172,8 @@ class PerformanceLogger(Callback):
             table['time (min)'] = ['%.2f' % ((time() - self._time_start) / 60)]
             for k, v in self._batch_logs.items():
                 table[k] = [v[-1]]
-            self._log(format_table(table, header=self._batch==1))
+            self._log(format_table(table, precision=self.precision,
+                                   header=self._batch==1))
 
 class Timer(Callback):
 
