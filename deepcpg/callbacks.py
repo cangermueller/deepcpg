@@ -1,11 +1,12 @@
 from collections import OrderedDict
+from pkg_resources import parse_version
 from time import time
 import warnings
 
+from keras import backend as K
 from keras.callbacks import Callback
 from keras import backend as kback
 
-import pandas as pd
 import numpy as np
 
 from .utils import format_table
@@ -72,7 +73,8 @@ class PerformanceLogger(Callback):
             if metric in logs:
                 avg.append(metric)
             else:
-                outputs.extend(sorted([log for log in logs if log.endswith('_' + metric)]))
+                tmp = [log for log in logs if log.endswith('_' + metric)]
+                outputs.extend(sorted(tmp))
         keys = avg + outputs
         logs_dict = OrderedDict()
         for key in keys:
@@ -120,8 +122,9 @@ class PerformanceLogger(Callback):
                 v.append(None)
 
         for k, v in self.val_epoch_logs.items():
-            if 'val_' + k in logs:
-                v.append(logs[k])
+            k_val = 'val_' + k
+            if k_val in logs:
+                v.append(logs[k_val])
             else:
                 v.append(None)
 
@@ -164,16 +167,22 @@ class PerformanceLogger(Callback):
         if self._nb_seen_freq > int(self.params['nb_sample'] * self.log_freq):
             self.nb_seen_freq = 0
             do_log = True
-        do_log = do_log or self._batch == 1 or self._nb_seen == self.params['nb_sample']
+        do_log |= self._batch == 1 or self._nb_seen == self.params['nb_sample']
 
         if do_log:
             table = OrderedDict()
-            table['progress (%)'] = [self._nb_seen / (self.params['nb_sample'] + 1e-5) * 100]
-            table['time (min)'] = ['%.2f' % ((time() - self._time_start) / 60)]
+            prog = self._nb_seen / (self.params['nb_sample'] + 1e-5) * 100
+            precision = []
+            table['progress (%)'] = [prog]
+            precision.append(1)
+            table['time (min)'] = [(time() - self._time_start) / 60]
+            precision.append(1)
             for k, v in self._batch_logs.items():
                 table[k] = [v[-1]]
-            self._log(format_table(table, precision=self.precision,
-                                   header=self._batch==1))
+                precision.append(self.precision)
+            self._log(format_table(table, precision=precision,
+                                   header=self._batch == 1))
+
 
 class Timer(Callback):
 
@@ -193,3 +202,115 @@ class Timer(Callback):
             if self.verbose:
                 print('Stop training after %.2fh' % (elapsed / 3600))
             self.model.stop_training = True
+
+
+class TensorBoard(Callback):
+    ''' Tensorboard basic visualizations.
+
+    This callback writes a log for TensorBoard, which allows
+    you to visualize dynamic graphs of your training and test
+    metrics, as well as activation histograms for the different
+    layers in your model.
+
+    TensorBoard is a visualization tool provided with TensorFlow.
+
+    If you have installed TensorFlow with pip, you should be able
+    to launch TensorBoard from the command line:
+    ```
+    tensorboard --logdir=/full_path_to_your_logs
+    ```
+    You can find more information about TensorBoard
+    [here](https://www.tensorflow.org/versions/master/how_tos/summaries_and_tensorboard/index.html).
+
+    # Arguments
+        log_dir: the path of the directory where to save the log
+            files to be parsed by Tensorboard
+        histogram_freq: frequency (in epochs) at which to compute activation
+            histograms for the layers of the model. If set to 0,
+            histograms won't be computed.
+        write_graph: whether to visualize the graph in Tensorboard.
+            The log file can become quite large when
+            write_graph is set to True.
+    '''
+
+    def __init__(self, log_dir='./logs', histogram_freq=0, write_graph=True,
+                 write_images=False):
+        super(TensorBoard, self).__init__()
+        if K._BACKEND != 'tensorflow':
+            raise Exception('TensorBoard callback only works '
+                            'with the TensorFlow backend.')
+        self.log_dir = log_dir
+        self.histogram_freq = histogram_freq
+        self.merged = None
+        self.write_graph = write_graph
+        self.write_images = write_images
+
+    def _set_model(self, model):
+        import tensorflow as tf
+        import keras.backend.tensorflow_backend as KTF
+
+        self.model = model
+        self.sess = KTF.get_session()
+        if self.histogram_freq and self.merged is None:
+            for layer in self.model.layers:
+
+                for weight in layer.weights:
+                    tf.histogram_summary(weight.name, weight)
+
+                    if self.write_images:
+                        w_img = tf.squeeze(weight)
+
+                        shape = w_img.get_shape()
+                        if len(shape) > 1 and shape[0] > shape[1]:
+                            w_img = tf.transpose(w_img)
+
+                        if len(shape) == 1:
+                            w_img = tf.expand_dims(w_img, 0)
+
+                        w_img = tf.expand_dims(tf.expand_dims(w_img, 0), -1)
+
+                        tf.image_summary(weight.name, w_img)
+
+                if hasattr(layer, 'output'):
+                    tf.histogram_summary('{}_out'.format(layer.name),
+                                         layer.output)
+        self.merged = tf.merge_all_summaries()
+        if self.write_graph:
+            if parse_version(tf.__version__) >= parse_version('0.8.0'):
+                self.writer = tf.train.SummaryWriter(self.log_dir,
+                                                     self.sess.graph)
+            else:
+                self.writer = tf.train.SummaryWriter(self.log_dir,
+                                                     self.sess.graph_def)
+        else:
+            self.writer = tf.train.SummaryWriter(self.log_dir)
+
+    def on_epoch_end(self, epoch, logs={}):
+        import tensorflow as tf
+
+        if self.model.validation_data and self.histogram_freq:
+            import ipdb; ipdb.set_trace()
+            if epoch % self.histogram_freq == 0:
+                # TODO: implement batched calls to sess.run
+                # (current call will likely go OOM on GPU)
+                if self.model.uses_learning_phase:
+                    cut_v_data = len(self.model.inputs)
+                    val_data = self.model.validation_data[:cut_v_data] + [0]
+                    tensors = self.model.inputs + [K.learning_phase()]
+                else:
+                    val_data = self.model.validation_data
+                    tensors = self.model.inputs
+                feed_dict = dict(zip(tensors, val_data))
+                result = self.sess.run([self.merged], feed_dict=feed_dict)
+                summary_str = result[0]
+                self.writer.add_summary(summary_str, epoch)
+
+        for name, value in logs.items():
+            if name in ['batch', 'size']:
+                continue
+            summary = tf.Summary()
+            summary_value = summary.value.add()
+            summary_value.simple_value = value
+            summary_value.tag = name
+            self.writer.add_summary(summary, epoch)
+        self.writer.flush()

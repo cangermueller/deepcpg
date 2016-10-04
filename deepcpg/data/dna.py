@@ -1,14 +1,14 @@
 import numpy as np
 
 
-char2int_ = {'A': 0, 'T': 1, 'G': 2, 'C': 3, 'N': 4}
-int2char_ = {v: k for k, v in char2int_.items()}
+CHAR_TO_INT = {'A': 0, 'T': 1, 'G': 2, 'C': 3, 'N': 4}
+INT_TO_CHAR = {v: k for k, v in CHAR_TO_INT.items()}
 
 def char2int(seq):
-    return [char2int_[x] for x in seq.upper()]
+    return [CHAR_TO_INT[x] for x in seq.upper()]
 
 def int2char(seq, join=True):
-    t = [int2char_[x] for x in seq]
+    t = [INT_TO_CHAR[x] for x in seq]
     if join:
         t = ''.join(t)
     return t

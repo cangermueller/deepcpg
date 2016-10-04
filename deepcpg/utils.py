@@ -25,23 +25,25 @@ def format_table(table, colwidth=None, precision=2, header=True, sep=' | '):
     if not colwidth:
         colwidth = 0
     col_names = list(table.keys())
+    if not isinstance(precision, list):
+        precision = [precision] * len(col_names)
     col_widths = []
     tot_width = 0
     nb_row = None
     ftable = OrderedDict()
-    for name in col_names:
-        width = len(name)
+    for col_idx, col_name in enumerate(col_names):
+        width = len(col_name)
         values = []
-        for value in table[name]:
+        for value in table[col_name]:
             if value is None:
                 value = ''
             elif isinstance(value, float):
-                value = '{0:.{1}f}'.format(value, precision)
+                value = '{0:.{1}f}'.format(value, precision[col_idx])
             else:
                 value = str(value)
             width = max(width, len(value))
             values.append(value)
-        ftable[name] = values
+        ftable[col_name] = values
         col_widths.append(width)
         if not nb_row:
             nb_row = len(values)

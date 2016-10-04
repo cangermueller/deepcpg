@@ -21,7 +21,7 @@ from deepcpg import models as mod
 from deepcpg import utils as ut
 
 
-LOG_PRECISION = 5
+LOG_PRECISION = 4
 
 
 def get_class_weights(data_files, output_names):
@@ -205,7 +205,7 @@ class App(object):
         cbacks.append(self.perf_logger)
 
         if _BACKEND == 'tensorflow':
-            h = kcbk.TensorBoard(
+            h = cbk.TensorBoard(
                 log_dir=os.path.join(opts.out_dir, 'logs'),
                 histogram_freq=1,
                 write_graph=True,
@@ -289,17 +289,20 @@ class App(object):
         nb_train_sample = dat.get_nb_sample(opts.train_files,
                                             opts.nb_train_sample,
                                             opts.batch_size)
+        if not nb_train_sample:
+            raise ValueError('Two few training samples!')
         train_data = model_builder.reader(opts.train_files,
                                           output_names=output_names,
                                           batch_size=opts.batch_size,
                                           nb_sample=nb_train_sample,
                                           loop=True, shuffle=True,
                                           class_weights=class_weights)
-        import ipdb; ipdb.set_trace()
         if opts.val_files:
             nb_val_sample = dat.get_nb_sample(opts.val_files,
                                               opts.nb_val_sample,
                                               opts.batch_size)
+            if not nb_val_sample:
+                raise ValueError('Two few validation samples!')
             val_data = model_builder.reader(opts.val_files,
                                             output_names=output_names,
                                             batch_size=opts.batch_size,
@@ -322,7 +325,7 @@ class App(object):
             nb_worker=opts.data_nb_worker,
             verbose=1 if opts.verbose else 0)
 
-        # Use best weights on validation set
+        Use best weights on validation set
         h = os.path.join(opts.out_dir, 'model_weights.h5')
         if os.path.isfile(h):
             model.load_weights(h)
@@ -330,7 +333,8 @@ class App(object):
         model.save(os.path.join(opts.out_dir, 'model.h5'))
 
         print('\nTraining set performance:')
-        print(ut.format_table(self.perf_logger.epoch_logs, precision=5))
+        print(ut.format_table(self.perf_logger.epoch_logs,
+                              precision=LOG_PRECISION))
 
         if self.perf_logger.val_epoch_logs:
             print('\nValidation set performance:')

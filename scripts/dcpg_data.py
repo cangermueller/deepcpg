@@ -137,8 +137,8 @@ class App(object):
             help='Chunk size')
         p.add_argument(
             '-o', '--out_dir',
-            default='.',
-            help='Output directory')
+            help='Output directory',
+            default='.')
         p.add_argument(
             '--verbose',
             help='More detailed log messages',
@@ -180,8 +180,10 @@ class App(object):
             log.info('Read CpG files ...')
             for cpg_file in opts.cpg_files:
                 _cpg_file = data.GzipFile(cpg_file, 'r')
-                cpg_tables.append(data.read_cpg_table(_cpg_file,
-                                                      chromos=opts.chromos))
+                tmp = data.read_cpg_table(_cpg_file,
+                                          chromos=opts.chromos,
+                                          nrows=opts.nb_sample)
+                cpg_tables.append(tmp)
                 _cpg_file.close()
                 output_names.append(output_name_from_filename(cpg_file))
             if pos_table is None:
@@ -233,7 +235,8 @@ class App(object):
                 filename = os.path.join(opts.out_dir, filename)
                 chunk_file = h5.File(filename, 'w')
 
-                chunk_file.create_dataset('chromo', shape=(len(chunk_pos),), dtype='S2')
+                chunk_file.create_dataset('chromo', shape=(len(chunk_pos),),
+                                          dtype='S2')
                 chunk_file['chromo'][:] = chromo.encode()
                 chunk_file.create_dataset('pos', data=chunk_pos, dtype=np.int32)
 
@@ -241,16 +244,20 @@ class App(object):
                     out_group = chunk_file.create_group('outputs')
                     for i, chromo_cpg in enumerate(chromo_cpgs):
                         name = 'cpg_%s' % output_names[i]
+                        chunk_cpg = chromo_cpg[chunk_start:chunk_end]
                         out_group.create_dataset(name,
-                                                 data=chromo_cpg, dtype=np.int8,
+                                                 data=chunk_cpg,
+                                                 dtype=np.int8,
                                                  compression='gzip')
 
                 in_group = chunk_file.create_group('inputs')
 
                 if chromo_dna:
                     log.info('Extract DNA sequence windows ...')
-                    dna_wins = extract_seq_windows(chromo_dna, pos=chunk_pos, wlen=opts.dna_wlen)
-                    in_group.create_dataset('dna', data=dna_wins, dtype=np.int8, compression='gzip')
+                    dna_wins = extract_seq_windows(chromo_dna, pos=chunk_pos,
+                                                   wlen=opts.dna_wlen)
+                    in_group.create_dataset('dna', data=dna_wins, dtype=np.int8,
+                                            compression='gzip')
 
                 if opts.cpg_wlen:
                     log.info('Extract CpG neighbors ...')
@@ -258,7 +265,10 @@ class App(object):
                     context_group = in_group.create_group('cpg')
                     for output_name, cpg_table in zip(output_names, cpg_tables):
                         cpg_table = cpg_table.loc[cpg_table.chromo == chromo]
-                        knn_state, knn_dist = cpg_ext.extract(chunk_pos, cpg_table.pos.values, cpg_table.value.values)
+                        tmp = cpg_ext.extract(chunk_pos,
+                                              cpg_table.pos.values,
+                                              cpg_table.value.values)
+                        knn_state, knn_dist = tmp
                         nan = np.isnan(knn_state)
                         knn_state = knn_state.astype(np.int8, copy=False)
                         knn_state[nan] = data.CPG_NAN
@@ -266,9 +276,10 @@ class App(object):
                         knn_dist[nan] = data.CPG_NAN
 
                         group = context_group.create_group(output_name)
-                        group.create_dataset('state', data=knn_state, compression='gzip')
-                        group.create_dataset('dist', data=knn_dist, compression='gzip')
-
+                        group.create_dataset('state', data=knn_state,
+                                             compression='gzip')
+                        group.create_dataset('dist', data=knn_dist,
+                                             compression='gzip')
 
                 chunk_file.close()
 

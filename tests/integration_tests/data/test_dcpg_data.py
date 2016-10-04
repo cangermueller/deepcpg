@@ -1,0 +1,172 @@
+import os
+
+import numpy as np
+
+from deepcpg.data import h5_read, CPG_NAN
+from deepcpg.data.fasta import read_chromo
+from deepcpg.data.dna import CHAR_TO_INT
+
+
+class TestMake(object):
+
+    def setup_class(self):
+        self.data_path = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            'data')
+        self.data_files = [
+            os.path.join(self.data_path, 'c18_000000-005000.h5'),
+            os.path.join(self.data_path, 'c18_005000-008712.h5'),
+            os.path.join(self.data_path, 'c19_000000-005000.h5'),
+            os.path.join(self.data_path, 'c19_005000-008311.h5')
+        ]
+
+        names = ['chromo', 'pos',
+                 '/inputs/dna',
+                 '/inputs/cpg/BS27_4_SER/dist',
+                 '/inputs/cpg/BS27_4_SER/state',
+                 '/inputs/cpg/BS28_2_SER/dist',
+                 '/inputs/cpg/BS28_2_SER/state',
+                 '/outputs/cpg_BS27_4_SER',
+                 '/outputs/cpg_BS28_2_SER'
+                 ]
+        self.data = h5_read(self.data_files, names)
+        self.chromo = self.data['chromo']
+        self.pos = self.data['pos']
+
+    def _test_outputs(self, name, expected):
+        actual = self.data['/outputs/%s' % name]
+        for e in expected:
+            idx = (self.chromo == e[0].encode()) & (self.pos == e[1])
+            assert idx.sum() == 1
+            assert actual[idx] == e[2]
+
+    def test_outputs(self):
+        expected = [('18', 3000023, 1.0),
+                    ('18', 3000086, 1.0),
+                    ('18', 3012584, 0.0),
+                    ('19', 4398070, 0.0),
+                    ('19', 4428709, 1.0),
+                    ('19', 4442494, 0.0),
+                    ('19', 4447847, 1.0)
+                    ]
+        self._test_outputs('cpg_BS27_4_SER', expected)
+
+        expected = [('18', 3000092, 1.0),
+                    ('18', 3010064, 0.0),
+                    ('18', 3140338, 1.0),
+                    ('18', 3143169, 0.0),
+                    ('19', 4187854, 1.0),
+                    ('19', 4190571, 0.0),
+                    ('19', 4192788, 0.0),
+                    ('19', 4202077, 0.0)
+                    ]
+        self._test_outputs('cpg_BS28_2_SER', expected)
+
+    def _test_dna(self, chromo):
+        pos = self.pos[self.chromo == chromo.encode()]
+        dna = self.data['/inputs/dna'][self.chromo == chromo.encode()]
+        dna_wlen = dna.shape[1]
+        center = dna_wlen // 2
+
+        dna_seq = read_chromo(os.path.join(self.data_path, '../dna_db'),
+                              chromo)
+
+        idxs = np.linspace(0, len(pos) - 1, 100).astype(np.int32)
+        for idx in idxs:
+            p = pos[idx] - 1
+            assert dna_seq[p:(p + 2)] == 'CG'
+            assert dna[idx, center] == 3
+            assert dna[idx, center + 1] == 2
+            assert dna[idx, center + 10] == CHAR_TO_INT[dna_seq[p + 10]]
+            assert dna[idx, center - 10] == CHAR_TO_INT[dna_seq[p - 10]]
+
+    def test_dna(self):
+        dna = self.data['/inputs/dna']
+        dna_wlen = dna.shape[1]
+        center = dna_wlen // 2
+        assert np.all(dna[:, center] == 3)
+        assert np.all(dna[:, (center + 1)] == 2)
+        self._test_dna('18')
+        self._test_dna('19')
+
+    def _test_cpg_neighbors(self, name, expected):
+        data_name = '/inputs/cpg/%s/' % name
+        dist = self.data[data_name + 'dist'][100:-100]
+        center = dist.shape[1] // 2
+        assert np.all((dist[:, center - 2] > dist[:, center - 1]) |
+                      (dist[:, center - 2] == CPG_NAN))
+        assert np.all((dist[:, center] < dist[:, center + 1]) |
+                      (dist[:, center + 1] == CPG_NAN))
+
+        for exp in expected:
+            pos = exp[1]
+            idx = (self.chromo == exp[0].encode()) & (self.pos == pos)
+            assert self.pos[idx] == pos
+            assert np.sum(idx) == 1
+            state = self.data[data_name + 'state'][idx].ravel()
+            dist = self.data[data_name + 'dist'][idx].ravel()
+            for i, left in enumerate(exp[2]):
+                exp_dist = pos - left[0]
+                exp_state = left[1]
+                assert dist[center - i - 1] == exp_dist
+                assert state[center - i - 1] == exp_state
+            for i, right in enumerate(exp[3]):
+                exp_dist = right[0] - pos
+                exp_state = right[1]
+                assert dist[center + i] == exp_dist
+                assert state[center + i] == exp_state
+
+    def test_cpg_neighbors(self):
+        name = 'BS27_4_SER'
+        expected = [
+            ('18', 3000086,
+             ((3000023, 1.0),),
+             ((3000092, 1.0), (3000163, 0.0), (3000310, 1.0))
+             ),
+            ('18', 3000734,
+             ((3000612, 1.0), (3000315, 1.0), (3000310, 1.0), (3000163, 0.0)),
+             ((3000944, 0.0), (3001029, 0.0), (3001188, 0.0), (3004806, 1.0))
+             ),
+            ('18', 3047425,
+             ((3047423, 1.0), (3046073, 0.0), (3046067, 1.0), (3046046, 0.0)),
+             ((3047447, 0.0), (3047969, 0.0), (3047981, 0.0), (3047983, 1.0))
+             ),
+            ('19', 4364170,
+             ((4363861, 1.0), (4362993, 1.0), (4359854, 1.0), (4359157, 1.0)),
+             ((4372573, 1.0), (4376976, 1.0), (4377019, 1.0), (4378828, 1.0))
+             ),
+            ('19', 4428709,
+             ((4410664, 1.0), (4407849, 0.0), (4406810, 1.0), (4406758, 1.0)),
+             ((4429964, 1.0), (4429969, 1.0), (4430127, 1.0), (4430346, 0.0))
+             ),
+            ('19', 4447818,
+             ((4447814, 1.0), (4447803, 1.0)),
+             ((4447821, 1.0), (4447847, 1.0))
+             )
+        ]
+        self._test_cpg_neighbors(name, expected)
+
+        name = 'BS28_2_SER'
+        expected = [
+            ('18', 3010211,
+             ((3010138, 1.0), (3010136, 0.0), (3010075, 1.0), (3010064, 0.0)),
+             ((3010417, 1.0), (3010759, 1.0), (3012388, 1.0), (3012676, 1.0))
+             ),
+            ('18', 3039508,
+             ((3038883, 1.0), (3038680, 0.0), (3038462, 1.0), (3031302, 0.0)),
+             ((3039540, 1.0), (3039543, 1.0), (3039805, 1.0), (3039828, 1.0))
+             ),
+            ('19', 4201639,
+             ((4201628, 0.0), (4201623, 0.0), (4201621, 1.0), (4201599, 0.0)),
+             ((4201645, 0.0), (4201657, 0.0), (4201677, 0.0), (4201688, 0.0))
+             ),
+            ('19', 4185486,
+             ((4185440, 1.0), (4184916, 1.0), (4184889, 0.0)),
+             ((4185488, 0.0), (4186125, 0.0), (4187662, 1.0))
+             ),
+            ('19', 4201967,
+             ((4201946, 0.0), (4201923, 0.0), (4201821, 0.0)),
+             ((4201972, 0.0), (4202077, 0.0))
+             )
+        ]
+        self._test_cpg_neighbors(name, expected)

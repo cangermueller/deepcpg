@@ -1,10 +1,7 @@
 import numpy as np
 import numpy.testing as npt
-import sys
-import pytest
-import os.path as pt
 
-from predict import feature_extractor as fe
+from deepcpg.data import feature_extractor as fe
 
 
 class TestKnnCpgFeatureExtractor(object):
@@ -25,6 +22,12 @@ class TestKnnCpgFeatureExtractor(object):
         result = f(x, y)
         npt.assert_array_equal(result, expect)
 
+    def _compare(self, results, expected):
+        ctr = expected.shape[1] // 2
+        npt.assert_array_almost_equal(results[0], expected[:, :ctr], 4,
+                                      'States mismatch!')
+        npt.assert_array_almost_equal(results[1], expected[:, ctr:], 4,
+                                      'Distances mismatch!')
 
     def test_extract_k1(self):
         y = np.array([1, 3, 5, 8, 15])
@@ -35,7 +38,7 @@ class TestKnnCpgFeatureExtractor(object):
                            [1, 1, 1, 2],
                            [1, 0, 2, 5]])
         result = fe.KnnCpgFeatureExtractor(1).extract(x, y, ys)
-        npt.assert_array_equal(result, expect)
+        self._compare(result, expect)
 
         x = np.array([0, 1, 3, 11, 15, 20])
         expect = np.array([[np.nan, 0, np.nan, 1],
@@ -45,7 +48,7 @@ class TestKnnCpgFeatureExtractor(object):
                            [1, np.nan, 7, np.nan],
                            [0, np.nan, 5, np.nan]])
         result = fe.KnnCpgFeatureExtractor(1).extract(x, y, ys)
-        npt.assert_array_equal(result, expect)
+        self._compare(result, expect)
 
     def test_extract_k2(self):
         y = np.array([1, 3, 5, 8, 15])
@@ -55,7 +58,7 @@ class TestKnnCpgFeatureExtractor(object):
                            [0, 1, 1, 0, 3, 1, 2, 9],
                            [1, 1, 0, np.nan, 5, 2, 5, np.nan]])
         result = fe.KnnCpgFeatureExtractor(2).extract(x, y, ys)
-        npt.assert_array_equal(result, expect)
+        self._compare(result, expect)
 
         x = np.array([0, 1, 3, 8, 11, 15, 20])
         expect = np.array([[np.nan, np.nan, 0, 0, np.nan, np.nan, 1, 3],
@@ -66,7 +69,7 @@ class TestKnnCpgFeatureExtractor(object):
                            [1, 1, np.nan, np.nan, 10, 7, np.nan, np.nan],
                            [1, 0, np.nan, np.nan, 12, 5, np.nan, np.nan]])
         result = fe.KnnCpgFeatureExtractor(2).extract(x, y, ys)
-        npt.assert_array_equal(result, expect)
+        self._compare(result, expect)
 
     def test_extract_k3(self):
         y = np.array([1, 3, 5, 8, 15])
@@ -78,7 +81,7 @@ class TestKnnCpgFeatureExtractor(object):
                            [0, 1, 1, 0, np.nan, np.nan, 7, 5, 2, 5, np.nan, np.nan],
                            [0, 1, 1, np.nan, np.nan, np.nan, 12, 10, 7, np.nan, np.nan, np.nan]])
         result = fe.KnnCpgFeatureExtractor(3).extract(x, y, ys)
-        npt.assert_array_equal(result, expect)
+        self._compare(result, expect)
 
 
 class TestIntervalFeatureExtractor(object):
@@ -99,8 +102,7 @@ class TestIntervalFeatureExtractor(object):
         x = np.array([[1, 2],
                       [3, 4], [4, 5],
                       [6, 8], [8, 8], [8, 9],
-                      [10, 15], [10, 11], [11, 14], [14, 16]]
-                      )
+                      [10, 15], [10, 11], [11, 14], [14, 16]])
         expect = [[1, 2], [3, 5], [6, 9], [10, 16]]
         result = np.array(f(x[:, 0], x[:, 1])).T
         npt.assert_array_equal(result, expect)

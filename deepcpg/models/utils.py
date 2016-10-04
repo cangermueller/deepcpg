@@ -66,7 +66,7 @@ class Model(object):
             dna = dna[:, (center - delta):(center + delta + 1)]
         return int2onehot(dna)
 
-    def _prepro_cpg(self, states, dists, cpg_max_dist):
+    def _prepro_cpg(self, states, dists, cpg_wlen=None, cpg_max_dist=25000):
         prepro_states = []
         prepro_dists = []
         for state, dist in zip(states, dists):
@@ -80,6 +80,12 @@ class Model(object):
             prepro_dists.append(np.expand_dims(dist, 1))
         prepro_states = np.concatenate(prepro_states, axis=1)
         prepro_dists = np.concatenate(prepro_dists, axis=1)
+        if cpg_wlen:
+            center = prepro_states.shape[2] // 2
+            delta = cpg_wlen // 2
+            tmp = slice(center - delta, center + delta)
+            prepro_states = prepro_states[:, :, tmp]
+            prepro_dists = prepro_dists[:, :, tmp]
         return (prepro_states, prepro_dists)
 
     def reader(self, data_files, output_names=None,
@@ -113,7 +119,8 @@ class Model(object):
                     tmp = 'inputs/cpg/%s/' % name
                     states.append(data_raw[tmp + 'state'])
                     dists.append(data_raw[tmp + 'dist'])
-                states, dists = self._prepro_cpg(states, dists, cpg_wlen)
+                states, dists = self._prepro_cpg(states, dists, cpg_wlen,
+                                                 cpg_max_dist)
                 inputs['cpg/state'] = states
                 inputs['cpg/dist'] = dists
 

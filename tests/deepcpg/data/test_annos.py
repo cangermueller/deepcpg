@@ -1,10 +1,8 @@
 import numpy as np
 import numpy.testing as npt
-import sys
-import os.path as pt
 import pandas as pd
 
-from predict import annos
+from deepcpg.data import annotations as annos
 
 
 def test_join_overlapping():

@@ -122,6 +122,8 @@ class App(object):
             progbar.update(batch_size)
 
             preds = model.predict(inputs)
+            if not isinstance(preds, list):
+                preds = [preds]
             pred = [pred.squeeze() for pred in preds]
 
             data_batch = dict()

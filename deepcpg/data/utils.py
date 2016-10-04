@@ -134,11 +134,12 @@ def h5_read(data_files, names, *args, **kwargs):
 
 def h5_reader(data_files, names, batch_size=128, nb_sample=None, shuffle=False,
               loop=False):
+    if not isinstance(data_files, list):
+        data_files = [data_files]
     if isinstance(names, dict):
         names = h5_hnames_to_names(names)
     file_idx = 0
     nb_seen = 0
-    data_files = list(data_files)
     if nb_sample is None:
         nb_sample = np.inf
 
