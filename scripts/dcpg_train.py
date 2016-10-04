@@ -9,7 +9,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from keras.backend import _BACKEND
+from keras import backend as K
 from keras.models import Model
 from keras.optimizers import Adam
 
@@ -19,6 +19,8 @@ from deepcpg import callbacks as cbk
 from deepcpg import data as dat
 from deepcpg import models as mod
 from deepcpg import utils as ut
+
+from tensorflow.contrib.metrics import streaming_auc
 
 
 LOG_PRECISION = 4
@@ -201,10 +203,11 @@ class App(object):
                     f.write(perf_logs_str(logs))
 
         self.perf_logger = cbk.PerformanceLogger(callbacks=[save_lc],
+                                                 metrics=['loss', 'acc'],
                                                  precision=LOG_PRECISION)
         cbacks.append(self.perf_logger)
 
-        if _BACKEND == 'tensorflow':
+        if K._BACKEND == 'tensorflow':
             h = cbk.TensorBoard(
                 log_dir=os.path.join(opts.out_dir, 'logs'),
                 histogram_freq=1,
@@ -282,8 +285,9 @@ class App(object):
 
         optimizer = Adam(lr=opts.lr)
         log.info('Compile model ...')
+
         model.compile(optimizer=optimizer, loss='binary_crossentropy',
-                      metrics=['accuracy'])
+                      metrics=['acc'])
 
         log.info('Reading data ...')
         nb_train_sample = dat.get_nb_sample(opts.train_files,
@@ -325,7 +329,7 @@ class App(object):
             nb_worker=opts.data_nb_worker,
             verbose=1 if opts.verbose else 0)
 
-        Use best weights on validation set
+        # Use best weights on validation set
         h = os.path.join(opts.out_dir, 'model_weights.h5')
         if os.path.isfile(h):
             model.load_weights(h)
