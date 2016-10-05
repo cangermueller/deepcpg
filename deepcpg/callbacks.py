@@ -182,6 +182,7 @@ class PerformanceLogger(Callback):
                 precision.append(self.precision)
             self._log(format_table(table, precision=precision,
                                    header=self._batch == 1))
+            self._nb_seen_freq = 0
 
 
 class Timer(Callback):
@@ -289,7 +290,6 @@ class TensorBoard(Callback):
         import tensorflow as tf
 
         if self.model.validation_data and self.histogram_freq:
-            import ipdb; ipdb.set_trace()
             if epoch % self.histogram_freq == 0:
                 # TODO: implement batched calls to sess.run
                 # (current call will likely go OOM on GPU)

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from collections import OrderedDict
 import os
 import random
 import sys
@@ -20,25 +21,110 @@ from deepcpg import data as dat
 from deepcpg import models as mod
 from deepcpg import utils as ut
 
-from tensorflow.contrib.metrics import streaming_auc
-
 
 LOG_PRECISION = 4
 
 
-def get_class_weights(data_files, output_names):
+def get_output_stats(data_files, output_names):
     names = {'outputs': output_names}
-    weights = {}
-    for name, output in dat.h5_read(data_files, names).items():
-        output = output[output != dat.CPG_NAN]
-        frac_ones = np.sum(output == 1) / len(output)
-        weights[name.replace('outputs/', '')] = {0: 1 - frac_ones, 1: frac_ones}
+    stats = OrderedDict()
+    reader = dat.h5_reader(data_files, names, loop=False, shuffle=True)
+    for batch in reader:
+        for name in output_names:
+            output = batch['outputs/%s' % name]
+            output = output[output != dat.CPG_NAN]
+            stat = stats.setdefault(name, [0, 0])
+            stat[0] += len(output)
+            stat[1] += np.sum(output == 1)
+    return stats
+
+
+def get_class_weights(stats):
+    weights = OrderedDict()
+    for name, stat in stats.items():
+        frac_ones = stat[1] / (stat[0] + ut.EPS)
+        weights[name] = {0: frac_ones, 1: 1 - frac_ones}
     return weights
 
 
 def perf_logs_str(logs):
     t = logs.to_csv(None, sep='\t', float_format='%.4f', index=False)
     return t
+
+
+def acc(y, z):
+    #  idx = tf.where(K.not_equal(y, dat.CPG_NAN))
+    zr = K.round(z)
+    w = K.cast(K.not_equal(y, dat.CPG_NAN), K.floatx())
+
+    m = K.cast(K.equal(y, zr), K.floatx())
+    acc = K.sum(m * w) / K.sum(w)
+
+    m = K.cast(K.equal(y, zr), K.floatx())
+    acc = K.sum(m * w) / K.sum(w)
+
+    return acc
+
+
+def compute_metrics_tf(actuals, predictions):
+    import tensorflow as tf
+    #  weights = K.cast(K.not_equal(predictions, dat.CPG_NAN), K.floatx())
+    predictions = K.round(predictions)
+
+    ones_like_actuals = tf.ones_like(actuals)
+    zeros_like_actuals = tf.zeros_like(actuals)
+    ones_like_predictions = tf.ones_like(predictions)
+    zeros_like_predictions = tf.zeros_like(predictions)
+
+    tp = tf.reduce_sum(
+        tf.cast(
+            tf.logical_and(
+                tf.equal(actuals, ones_like_actuals),
+                tf.equal(predictions, ones_like_predictions)
+            ),
+            "float"
+        )
+    )
+
+    tn = tf.reduce_sum(
+        tf.cast(
+            tf.logical_and(
+                tf.equal(actuals, zeros_like_actuals),
+                tf.equal(predictions, zeros_like_predictions)
+            ),
+            "float"
+        )
+    )
+
+    fp = tf.reduce_sum(
+        tf.cast(
+            tf.logical_and(
+                tf.equal(actuals, zeros_like_actuals),
+                tf.equal(predictions, ones_like_predictions)
+            ),
+            "float"
+        )
+    )
+
+    fn = tf.reduce_sum(
+        tf.cast(
+            tf.logical_and(
+                tf.equal(actuals, ones_like_actuals),
+                tf.equal(predictions, zeros_like_predictions)
+            ),
+            "float"
+        )
+    )
+
+    metrics = OrderedDict()
+    metrics['acc'] = (tp + tn) / (tp + fp + tn + fn)
+    metrics['prec'] = tp / (tp + fp)
+    metrics['tpr'] = tp / (tp + fn)
+    metrics['fpr'] = fp / (tp + fn)
+    metrics['f1'] = (2 * (metrics['prec'] * metrics['tpr'])) /\
+        (metrics['prec'] + metrics['tpr'])
+
+    return metrics
 
 
 class App(object):
@@ -202,8 +288,9 @@ class App(object):
                 with open(os.path.join(opts.out_dir, name), 'w') as f:
                     f.write(perf_logs_str(logs))
 
+        metrics = ['loss'] + list(self.metrics.keys())
         self.perf_logger = cbk.PerformanceLogger(callbacks=[save_lc],
-                                                 metrics=['loss', 'acc'],
+                                                 metrics=metrics,
                                                  precision=LOG_PRECISION)
         cbacks.append(self.perf_logger)
 
@@ -237,15 +324,26 @@ class App(object):
         if not os.path.exists(opts.out_dir):
             os.makedirs(opts.out_dir, exist_ok=True)
 
-        # Setup callbacks
-        log.info('Initializing callbacks ...')
-        cbacks = self.callbacks()
-
-        log.info('Building model ...')
+        log.info('Computing output statistics ...')
         output_names = dat.h5_ls(opts.train_files[0], 'outputs',
                                  opts.output_names, opts.nb_output)
-        class_weights = get_class_weights(opts.train_files, output_names)
+        output_stats = get_output_stats(opts.train_files, output_names)
+        class_weights = get_class_weights(output_stats)
 
+        table = OrderedDict()
+        for name, stat in output_stats.items():
+            frac_ones = stat[1] / (stat[0] + ut.EPS) * 100
+            table.setdefault('name', []).append(name)
+            table.setdefault('nb_obs', []).append(stat[0])
+            table.setdefault('0 (%)', []).append(100 - frac_ones)
+            table.setdefault('1 (%)', []).append(frac_ones)
+            table.setdefault('weight 0', []).append(class_weights[name][0])
+            table.setdefault('weight 1', []).append(class_weights[name][1])
+        print('Output statistics:')
+        print(ut.format_table(table))
+        print()
+
+        log.info('Building model ...')
         model_builder = mod.get_class(opts.model_name)
 
         if opts.model_name.lower().startswith('dna'):
@@ -286,8 +384,14 @@ class App(object):
         optimizer = Adam(lr=opts.lr)
         log.info('Compile model ...')
 
+        self.metrics = OrderedDict()
+        self.metrics['acc'] = acc
+
         model.compile(optimizer=optimizer, loss='binary_crossentropy',
-                      metrics=['acc'])
+                      metrics=list(self.metrics.values()))
+
+        log.info('Initializing callbacks ...')
+        cbacks = self.callbacks()
 
         log.info('Reading data ...')
         nb_train_sample = dat.get_nb_sample(opts.train_files,

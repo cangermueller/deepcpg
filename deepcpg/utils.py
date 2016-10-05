@@ -3,6 +3,8 @@ import re
 
 import numpy as np
 
+EPS = 1e-5
+
 
 def get_from_module(identifier, module_params):
     res = module_params.get(identifier)
