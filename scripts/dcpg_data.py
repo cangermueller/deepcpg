@@ -13,7 +13,7 @@ import pandas as pd
 from deepcpg import data
 from deepcpg.data import dna
 from deepcpg.data import fasta
-from deepcpg import feature_extractor as fext
+from deepcpg.data import feature_extractor as fext
 
 
 # TODO:
