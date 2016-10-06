@@ -3,7 +3,7 @@ import re
 
 import numpy as np
 
-EPS = 1e-5
+EPS = 10e-8
 
 
 def get_from_module(identifier, module_params):

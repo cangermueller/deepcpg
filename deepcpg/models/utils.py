@@ -1,5 +1,6 @@
 import os
 
+from keras import backend as K
 from keras import models as km
 from keras import layers as kl
 import numpy as np
@@ -12,7 +13,8 @@ def get_sample_weights(y, class_weights):
     y = y[:]
     if not class_weights:
         class_weights = {0: 0.5, 1: 0.5}
-    sample_weights = np.zeros(y.shape, dtype='float16')
+    sample_weights = np.zeros(y.shape, dtype=K.floatx())
+    sample_weights.fill(K.epsilon())
     for cla, weight in class_weights.items():
         sample_weights[y == cla] = weight
     return sample_weights
@@ -111,6 +113,7 @@ class Model(object):
             if use_dna:
                 inputs['dna'] = self._prepro_dna(data_raw['inputs/dna'],
                                                  dna_wlen)
+                inputs['dna'] = inputs['dna']
 
             if replicate_names:
                 states = []
@@ -134,6 +137,13 @@ class Model(object):
                     outputs[name] = data_raw['outputs/%s' % name]
                     cweights = class_weights[name] if class_weights else None
                     weights[name] = get_sample_weights(outputs[name], cweights)
+
+                #  tensors = dict()
+                #  tensors.update(inputs)
+                #  tensors.update(outputs)
+                #  tensors.update(weights)
+                #  for name, tensor in tensors.items():
+                    #  assert np.all(tensor != np.nan)
 
                 yield (inputs, outputs, weights)
 

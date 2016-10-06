@@ -19,7 +19,7 @@ from keras import callbacks as kcbk
 from deepcpg import callbacks as cbk
 from deepcpg import data as dat
 from deepcpg import models as mod
-from deepcpg import utils as ut
+from deepcpg.utils import format_table, EPS
 
 
 LOG_PRECISION = 4
@@ -42,7 +42,7 @@ def get_output_stats(data_files, output_names):
 def get_class_weights(stats):
     weights = OrderedDict()
     for name, stat in stats.items():
-        frac_ones = stat[1] / (stat[0] + ut.EPS)
+        frac_ones = stat[1] / (stat[0] + EPS)
         weights[name] = {0: frac_ones, 1: 1 - frac_ones}
     return weights
 
@@ -58,10 +58,7 @@ def acc(y, z):
     w = K.cast(K.not_equal(y, dat.CPG_NAN), K.floatx())
 
     m = K.cast(K.equal(y, zr), K.floatx())
-    acc = K.sum(m * w) / K.sum(w)
-
-    m = K.cast(K.equal(y, zr), K.floatx())
-    acc = K.sum(m * w) / K.sum(w)
+    acc = K.sum(m * w) / (K.sum(w) + K.epsilon())
 
     return acc
 
@@ -332,7 +329,7 @@ class App(object):
 
         table = OrderedDict()
         for name, stat in output_stats.items():
-            frac_ones = stat[1] / (stat[0] + ut.EPS) * 100
+            frac_ones = stat[1] / (stat[0] + EPS) * 100
             table.setdefault('name', []).append(name)
             table.setdefault('nb_obs', []).append(stat[0])
             table.setdefault('0 (%)', []).append(100 - frac_ones)
@@ -340,7 +337,7 @@ class App(object):
             table.setdefault('weight 0', []).append(class_weights[name][0])
             table.setdefault('weight 1', []).append(class_weights[name][1])
         print('Output statistics:')
-        print(ut.format_table(table))
+        print(format_table(table))
         print()
 
         log.info('Building model ...')
@@ -441,13 +438,13 @@ class App(object):
         model.save(os.path.join(opts.out_dir, 'model.h5'))
 
         print('\nTraining set performance:')
-        print(ut.format_table(self.perf_logger.epoch_logs,
-                              precision=LOG_PRECISION))
+        print(format_table(self.perf_logger.epoch_logs,
+                           precision=LOG_PRECISION))
 
         if self.perf_logger.val_epoch_logs:
             print('\nValidation set performance:')
-            print(ut.format_table(self.perf_logger.val_epoch_logs,
-                                  precision=LOG_PRECISION))
+            print(format_table(self.perf_logger.val_epoch_logs,
+                               precision=LOG_PRECISION))
 
         log.info('Done!')
 
