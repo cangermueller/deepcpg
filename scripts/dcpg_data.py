@@ -120,8 +120,9 @@ class App(object):
             help='Position file')
         p.add_argument(
             '--min_cpg_cov',
-            type=int,
-            help='Filter sites by CpG coverage')
+            type=float,
+            help='Filter sites by CpG coverage. Number of observations per '
+                'site, or percentage if smaller than 1.')
         p.add_argument(
             '--chromos',
             nargs='+',
@@ -211,8 +212,12 @@ class App(object):
                                               dtype=np.int8))
 
             if opts.min_cpg_cov:
+                min_cpg_cov = opts.min_cpg_cov
+                if min_cpg_cov < 1:
+                    min_cpg_cov = max(1, int(len(chromo_cpgs) * min_cpg_cov))
+                import ipdb; ipdb.set_trace()
                 idx = np.hstack([x.reshape(-1, 1) for x in chromo_cpgs])
-                idx = np.sum(idx != data.CPG_NAN, axis=1) >= opts.min_cpg_cov
+                idx = np.sum(idx != data.CPG_NAN, axis=1) >= min_cpg_cov
                 tmp = '%s sites matched minimum coverage filter'
                 tmp %= format_out_of(idx.sum(), len(idx))
                 log.info(tmp)
