@@ -9,7 +9,7 @@ from keras import backend as kback
 
 import numpy as np
 
-from .utils import format_table
+from .utils import format_table, EPS
 
 
 class EarlyStopping(Callback):
@@ -160,7 +160,8 @@ class PerformanceLogger(Callback):
                 self._totals[k] += v * batch_size
 
         for k in self._batch_logs.keys():
-            self._batch_logs[k].append(self._totals[k] / (self._nb_seen + 1e-5))
+            tmp = self._totals[k] / (self._nb_seen + EPS)
+            self._batch_logs[k].append(tmp)
 
         do_log = False
         self._nb_seen_freq += batch_size
@@ -171,7 +172,8 @@ class PerformanceLogger(Callback):
 
         if do_log:
             table = OrderedDict()
-            prog = self._nb_seen / (self.params['nb_sample'] + 1e-5) * 100
+            prog = self._nb_seen / (self.params['nb_sample'] + EPS)
+            prog *= 100
             precision = []
             table['progress (%)'] = [prog]
             precision.append(1)

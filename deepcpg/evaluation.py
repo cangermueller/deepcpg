@@ -4,7 +4,7 @@ import numpy as np
 import sklearn.metrics as skm
 
 from .data import CPG_NAN
-
+from .utils import EPS
 
 
 def cor(y, z):
@@ -65,11 +65,10 @@ def f1(y, z, r=True):
 
 
 def nll(y, z):
-    eps = 1e-6
     y = y.ravel()
     z = z.ravel()
-    t = y * np.log2(np.maximum(z, eps))
-    t += (1 - y) * np.log2(np.maximum(1 - z, eps))
+    t = y * np.log2(np.maximum(z, EPS))
+    t += (1 - y) * np.log2(np.maximum(1 - z, EPS))
     t = t.sum() / len(t)
     return -t
 
