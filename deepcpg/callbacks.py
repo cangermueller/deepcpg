@@ -1,56 +1,25 @@
 from collections import OrderedDict
+import os
 from pkg_resources import parse_version
 from time import time
-import warnings
 
 from keras import backend as K
 from keras.callbacks import Callback
-from keras import backend as kback
 
 import numpy as np
 
 from .utils import format_table, EPS
 
 
-class EarlyStopping(Callback):
-    def __init__(self, monitor='val_loss', patience=0, verbose=0):
-        super(Callback, self).__init__()
-
-        self.monitor = monitor
-        self.patience = patience
-        self.verbose = verbose
-        self.best_score = np.inf
-        self.counter = 0
-
-    def on_epoch_end(self, epoch, logs={}):
-        score = logs.get(self.monitor)
-        if score is None:
-            warnings.warn("Early stopping requires %s!" % (self.monitor),
-                          RuntimeWarning)
-
-        if np.isnan(score):
-            if self.verbose > 0:
-                print("Epoch %d: stop due to nan" % (epoch))
-            self.model.stop_training = True
-        elif score < self.best_score:
-            self.counter = 0
-            self.best_score = score
-        else:
-            self.counter += 1
-            if self.counter > self.patience:
-                if self.verbose > 0:
-                    print("Epoch %d: early stopping" % (epoch))
-                self.model.stop_training = True
-
-
 class PerformanceLogger(Callback):
 
     def __init__(self, metrics=['loss', 'acc'], log_freq=0.1,
-                 precision=4, callbacks=[], logger=print):
+                 precision=4, callbacks=[], verbose=1, logger=print):
         self.metrics = metrics
         self.log_freq = log_freq
         self.precision = precision
         self.callbacks = callbacks
+        self.verbose = verbose
         self.logger = logger
         self._line = '=' * 100
         self.epoch_logs = None
@@ -67,19 +36,37 @@ class PerformanceLogger(Callback):
             logs = [log for log in logs if not log.startswith('val_')]
         else:
             logs = [log[4:] for log in logs if log.startswith('val_')]
-        avg = []
-        outputs = []
-        for metric in self.metrics:
-            if metric in logs:
-                avg.append(metric)
-            else:
-                tmp = [log for log in logs if log.endswith('_' + metric)]
-                outputs.extend(sorted(tmp))
-        keys = avg + outputs
+
+        metrics = OrderedDict()
+        for name in self.metrics:
+            if name in logs:
+                metrics[name] = [name]
+            output_logs = [log for log in logs if log.endswith('_' + name)]
+            if len(output_logs):
+                if name not in metrics:
+                    metrics[name] = [name]
+                metrics[name].extend(output_logs)
+
         logs_dict = OrderedDict()
-        for key in keys:
-            logs_dict[key] = []
-        return logs_dict
+        for mean_name, names in metrics.items():
+            for name in names:
+                logs_dict[name] = []
+
+        return metrics, logs_dict
+
+    def _update_means(self, logs, metrics):
+        for mean_name, names in metrics.items():
+            if logs[mean_name][-1] is not None:
+                continue
+            mean = 0
+            count = 0
+            for name in names:
+                if name in logs:
+                    if logs[name][-1] is not None:
+                        mean += logs[name][-1]
+                        count += 1
+            mean /= count + EPS
+            logs[mean_name][-1] = mean
 
     def on_train_begin(self, logs={}):
         self._time_start = time()
@@ -87,7 +74,7 @@ class PerformanceLogger(Callback):
         s.append('Epochs: %d' % (self.params['nb_epoch']))
         s.append('Samples: %d' % (self.params['nb_sample']))
         if hasattr(self, 'model'):
-            tmp = 'Learning rate: %f' % (kback.eval(self.model.optimizer.lr))
+            tmp = 'Learning rate: %f' % (K.eval(self.model.optimizer.lr))
             s.append(tmp)
         s = '\n'.join(s)
         self._log(s)
@@ -112,14 +99,16 @@ class PerformanceLogger(Callback):
             self.batch_logs.append(self._batch_logs)
 
         if not self.epoch_logs:
-            self.epoch_logs = self._init_logs(logs)
-            self.val_epoch_logs = self._init_logs(logs, False)
+            self._epoch_metrics, self.epoch_logs = self._init_logs(logs)
+            tmp = self._init_logs(logs, False)
+            self._val_epoch_metrics, self.val_epoch_logs = tmp
 
         for k, v in self.epoch_logs.items():
             if k in logs:
                 v.append(logs[k])
             else:
                 v.append(None)
+        self._update_means(self.epoch_logs, self._epoch_metrics)
 
         for k, v in self.val_epoch_logs.items():
             k_val = 'val_' + k
@@ -127,15 +116,18 @@ class PerformanceLogger(Callback):
                 v.append(logs[k_val])
             else:
                 v.append(None)
+        self._update_means(self.val_epoch_logs, self._val_epoch_metrics)
 
         table = OrderedDict()
         table['split'] = ['train']
         for k, v in self.epoch_logs.items():
-            table[k] = [v[-1]]
+            if self.verbose or k in self._epoch_metrics:
+                table[k] = [v[-1]]
         if self.val_epoch_logs:
             table['split'].append('val')
             for k, v in self.val_epoch_logs.items():
-                table[k].append(v[-1])
+                if self.verbose or k in self._val_epoch_metrics:
+                    table[k].append(v[-1])
         self._log('')
         self._log(format_table(table, precision=self.precision))
 
@@ -150,18 +142,23 @@ class PerformanceLogger(Callback):
             self._nb_batch = int(np.ceil(self.params['nb_sample'] / batch_size))
 
         if not self._batch_logs:
-            self._batch_logs = self._init_logs(logs.keys())
+            self._batch_metrics, self._batch_logs = self._init_logs(logs.keys())
             self._totals = OrderedDict()
             for k in self._batch_logs.keys():
-                self._totals[k] = 0
+                if k in logs:
+                    self._totals[k] = 0
 
         for k, v in logs.items():
             if k in self._totals:
                 self._totals[k] += v * batch_size
 
         for k in self._batch_logs.keys():
-            tmp = self._totals[k] / (self._nb_seen + EPS)
+            if k in self._totals:
+                tmp = self._totals[k] / (self._nb_seen + EPS)
+            else:
+                tmp = None
             self._batch_logs[k].append(tmp)
+        self._update_means(self._batch_logs, self._batch_metrics)
 
         do_log = False
         self._nb_seen_freq += batch_size
@@ -179,32 +176,45 @@ class PerformanceLogger(Callback):
             precision.append(1)
             table['time (min)'] = [(time() - self._time_start) / 60]
             precision.append(1)
-            for k, v in self._batch_logs.items():
-                table[k] = [v[-1]]
-                precision.append(self.precision)
+
+            for name, logs in self._batch_logs.items():
+                if self.verbose or name in self._batch_metrics:
+                    table[name] = [self._batch_logs[name][-1]]
+                    precision.append(self.precision)
+
             self._log(format_table(table, precision=precision,
                                    header=self._batch == 1))
             self._nb_seen_freq = 0
 
 
-class Timer(Callback):
+class TrainingStopper(Callback):
 
-    def __init__(self, max_time=None, verbose=1):
+    def __init__(self, max_time=None, stop_file=None,
+                 verbose=1, logger=print):
         """max_time in seconds."""
         self.max_time = max_time
+        self.stop_file = stop_file
         self.verbose = verbose
+        self.logger = logger
 
     def on_train_begin(self, logs={}):
         self._time_start = time()
 
+    def log(self, msg):
+        if self.verbose:
+            self.logger(msg)
+
     def on_epoch_end(self, batch, logs={}):
-        if self.max_time is None:
-            return
-        elapsed = time() - self._time_start
-        if elapsed > self.max_time:
-            if self.verbose:
-                print('Stop training after %.2fh' % (elapsed / 3600))
-            self.model.stop_training = True
+        if self.max_time is not None:
+            elapsed = time() - self._time_start
+            if elapsed > self.max_time:
+                self.log('Stopping training after %.2fh' % (elapsed / 3600))
+                self.model.stop_training = True
+
+        if self.stop_file:
+            if os.path.isfile(self.stop_file):
+                self.log('Stopping training due to stop file!')
+                self.model.stop_training = True
 
 
 class TensorBoard(Callback):

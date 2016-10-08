@@ -15,12 +15,10 @@ def get_from_module(identifier, module_params):
 
 def format_row(values, widths=None, sep=' | '):
     if widths:
-        tmp = []
+        _values = []
         for value, width in zip(values, widths):
-            f = '%{0}s'.format(width)
-            tmp.append(f % value)
-        values = tmp
-    return sep.join(values)
+            _values.append('{0:>{1}s}'.format(value, width))
+    return sep.join(_values)
 
 
 def format_table(table, colwidth=None, precision=2, header=True, sep=' | '):

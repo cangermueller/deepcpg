@@ -19,6 +19,7 @@ from keras import callbacks as kcbk
 from deepcpg import callbacks as cbk
 from deepcpg import data as dat
 from deepcpg import models as mod
+from deepcpg.evaluation import tensor_metrics
 from deepcpg.utils import format_table, EPS
 
 
@@ -50,78 +51,6 @@ def get_class_weights(stats):
 def perf_logs_str(logs):
     t = logs.to_csv(None, sep='\t', float_format='%.4f', index=False)
     return t
-
-
-def acc(y, z):
-    #  idx = tf.where(K.not_equal(y, dat.CPG_NAN))
-    zr = K.round(z)
-    w = K.cast(K.not_equal(y, dat.CPG_NAN), K.floatx())
-
-    m = K.cast(K.equal(y, zr), K.floatx())
-    acc = K.sum(m * w) / (K.sum(w) + K.epsilon())
-
-    return acc
-
-
-def compute_metrics_tf(actuals, predictions):
-    import tensorflow as tf
-    #  weights = K.cast(K.not_equal(predictions, dat.CPG_NAN), K.floatx())
-    predictions = K.round(predictions)
-
-    ones_like_actuals = tf.ones_like(actuals)
-    zeros_like_actuals = tf.zeros_like(actuals)
-    ones_like_predictions = tf.ones_like(predictions)
-    zeros_like_predictions = tf.zeros_like(predictions)
-
-    tp = tf.reduce_sum(
-        tf.cast(
-            tf.logical_and(
-                tf.equal(actuals, ones_like_actuals),
-                tf.equal(predictions, ones_like_predictions)
-            ),
-            "float"
-        )
-    )
-
-    tn = tf.reduce_sum(
-        tf.cast(
-            tf.logical_and(
-                tf.equal(actuals, zeros_like_actuals),
-                tf.equal(predictions, zeros_like_predictions)
-            ),
-            "float"
-        )
-    )
-
-    fp = tf.reduce_sum(
-        tf.cast(
-            tf.logical_and(
-                tf.equal(actuals, zeros_like_actuals),
-                tf.equal(predictions, ones_like_predictions)
-            ),
-            "float"
-        )
-    )
-
-    fn = tf.reduce_sum(
-        tf.cast(
-            tf.logical_and(
-                tf.equal(actuals, ones_like_actuals),
-                tf.equal(predictions, zeros_like_predictions)
-            ),
-            "float"
-        )
-    )
-
-    metrics = OrderedDict()
-    metrics['acc'] = (tp + tn) / (tp + fp + tn + fn)
-    metrics['prec'] = tp / (tp + fp)
-    metrics['tpr'] = tp / (tp + fn)
-    metrics['fpr'] = fp / (tp + fn)
-    metrics['f1'] = (2 * (metrics['prec'] * metrics['tpr'])) /\
-        (metrics['prec'] + metrics['tpr'])
-
-    return metrics
 
 
 class App(object):
@@ -203,10 +132,17 @@ class App(object):
             help='Maximum training time in hours',
             type=float)
         p.add_argument(
+            '--stop_file',
+            help='Stop training if this file exists')
+        p.add_argument(
             '--seed',
             help='Seed of rng',
             type=int,
             default=0)
+        p.add_argument(
+            '--no_log_outputs',
+            help='Do not log performance metrics of individual outputs',
+            action='store_true')
         p.add_argument(
             '--verbose',
             help='More detailed log messages',
@@ -254,27 +190,31 @@ class App(object):
         cbacks = []
 
         if opts.val_files:
-            h = kcbk.EarlyStopping('val_loss' if opts.val_files else 'loss',
-                                   patience=opts.early_stopping,
-                                   verbose=1)
-            cbacks.append(h)
+            cbacks.append(kcbk.EarlyStopping(
+                'val_loss' if opts.val_files else 'loss',
+                patience=opts.early_stopping,
+                verbose=1
+            ))
 
-        h = kcbk.ModelCheckpoint(os.path.join(opts.out_dir,
-                                              'model_weights_last.h5'),
-                                 save_best_only=False)
-        cbacks.append(h)
+        cbacks.append(kcbk.ModelCheckpoint(
+            os.path.join(opts.out_dir, 'model_weights_last.h5'),
+            save_best_only=False))
         monitor = 'val_loss' if opts.val_files else 'loss'
-        h = kcbk.ModelCheckpoint(os.path.join(opts.out_dir, 'model_weights.h5'),
-                                 monitor=monitor,
-                                 save_best_only=True, verbose=1)
-        cbacks.append(h)
+        cbacks.append(kcbk.ModelCheckpoint(
+            os.path.join(opts.out_dir, 'model_weights.h5'),
+            monitor=monitor,
+            save_best_only=True, verbose=1
+        ))
 
-        if opts.max_time is not None:
-            cbacks.append(cbk.Timer(opts.max_time * 3600 * 0.8))
+        max_time = opts.max_time * 3600 * 0.8 if opts.max_time else None
+        cbacks.append(cbk.TrainingStopper(
+            max_time=max_time,
+            stop_file=opts.stop_file,
+            verbose=1
+        ))
 
-        h = kcbk.LearningRateScheduler(
-            lambda epoch: opts.lr * opts.lr_decay**epoch)
-        cbacks.append(h)
+        cbacks.append(kcbk.LearningRateScheduler(
+            lambda epoch: opts.lr * opts.lr_decay**epoch))
 
         def save_lc(epoch, epoch_logs, val_epoch_logs):
             logs = {'lc.csv': epoch_logs, 'lc_val.csv': val_epoch_logs}
@@ -286,18 +226,21 @@ class App(object):
                     f.write(perf_logs_str(logs))
 
         metrics = ['loss'] + list(self.metrics.keys())
-        self.perf_logger = cbk.PerformanceLogger(callbacks=[save_lc],
-                                                 metrics=metrics,
-                                                 precision=LOG_PRECISION)
+        self.perf_logger = cbk.PerformanceLogger(
+            callbacks=[save_lc],
+            metrics=metrics,
+            precision=LOG_PRECISION,
+            verbose=not opts.no_log_outputs
+        )
         cbacks.append(self.perf_logger)
 
         if K._BACKEND == 'tensorflow':
-            h = cbk.TensorBoard(
-                log_dir=os.path.join(opts.out_dir, 'logs'),
+            cbacks.append(cbk.TensorBoard(
+                log_dir=opts.out_dir,
                 histogram_freq=1,
                 write_graph=True,
-                write_images=True)
-            cbacks.append(h)
+                write_images=True
+            ))
 
         return cbacks
 
@@ -381,8 +324,23 @@ class App(object):
         optimizer = Adam(lr=opts.lr)
         log.info('Compile model ...')
 
+        def acc(y, z):
+            return tensor_metrics(y, z)['acc']
+
+        def f1(y, z):
+            return tensor_metrics(y, z)['f1']
+
+        def tpr(y, z):
+            return tensor_metrics(y, z)['tnr']
+
+        def tnr(y, z):
+            return tensor_metrics(y, z)['tnr']
+
         self.metrics = OrderedDict()
         self.metrics['acc'] = acc
+        self.metrics['f1'] = f1
+        self.metrics['tpr'] = tpr
+        self.metrics['tnr'] = tnr
 
         model.compile(optimizer=optimizer, loss='binary_crossentropy',
                       metrics=list(self.metrics.values()))
@@ -428,7 +386,7 @@ class App(object):
             nb_val_samples=nb_val_sample,
             max_q_size=opts.data_q_size,
             nb_worker=opts.data_nb_worker,
-            verbose=1 if opts.verbose else 0)
+            verbose=0)
 
         # Use best weights on validation set
         h = os.path.join(opts.out_dir, 'model_weights.h5')
