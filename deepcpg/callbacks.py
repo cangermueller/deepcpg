@@ -73,15 +73,10 @@ class PerformanceLogger(Callback):
         s = []
         s.append('Epochs: %d' % (self.params['nb_epoch']))
         s.append('Samples: %d' % (self.params['nb_sample']))
-        # TODO: Check this
         if hasattr(self, 'model'):
-<<<<<<< HEAD
-            lr = float(kback.eval(self.model.optimizer.lr))
-            tmp = 'Learning rate: %f' % (lr)
-=======
-            tmp = 'Learning rate: %f' % (K.eval(self.model.optimizer.lr))
->>>>>>> 41818c819ca67f74fde5aea8d982c8169968bdc2
-            s.append(tmp)
+            lr = K.eval(self.model.optimizer.lr)
+            lr = float(np.asarray(lr))
+            s.append('Learning rate: %f' % (lr))
         s = '\n'.join(s)
         self._log(s)
 
