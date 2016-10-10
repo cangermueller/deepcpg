@@ -26,25 +26,11 @@ from deepcpg.utils import format_table, EPS
 LOG_PRECISION = 4
 
 
-def get_output_stats(data_files, output_names):
-    names = {'outputs': output_names}
-    stats = OrderedDict()
-    reader = dat.h5_reader(data_files, names, loop=False, shuffle=True)
-    for batch in reader:
-        for name in output_names:
-            output = batch['outputs/%s' % name]
-            output = output[output != dat.CPG_NAN]
-            stat = stats.setdefault(name, [0, 0])
-            stat[0] += len(output)
-            stat[1] += np.sum(output == 1)
-    return stats
-
-
 def get_class_weights(stats):
     weights = OrderedDict()
-    for name, stat in stats.items():
-        frac_ones = stat[1] / (stat[0] + EPS)
-        weights[name] = {0: frac_ones, 1: 1 - frac_ones}
+    for output, stat in stats.items():
+        frac_one = max(stat['frac_one'], EPS)
+        weights[output] = {0: frac_one, 1: 1 - frac_one}
     return weights
 
 
@@ -217,7 +203,8 @@ class App(object):
             lambda epoch: opts.lr * opts.lr_decay**epoch))
 
         def save_lc(epoch, epoch_logs, val_epoch_logs):
-            logs = {'lc.csv': epoch_logs, 'lc_val.csv': val_epoch_logs}
+            logs = {'lc_train.csv': epoch_logs,
+                    'lc_val.csv': val_epoch_logs}
             for name, logs in logs.items():
                 if not logs:
                     continue
@@ -267,18 +254,16 @@ class App(object):
         log.info('Computing output statistics ...')
         output_names = dat.h5_ls(opts.train_files[0], 'outputs',
                                  opts.output_names, opts.nb_output)
-        output_stats = get_output_stats(opts.train_files, output_names)
+        output_stats = dat.get_output_stats(opts.train_files, output_names)
         class_weights = get_class_weights(output_stats)
 
         table = OrderedDict()
         for name, stat in output_stats.items():
-            frac_ones = stat[1] / (stat[0] + EPS) * 100
             table.setdefault('name', []).append(name)
-            table.setdefault('nb_obs', []).append(stat[0])
-            table.setdefault('0 (%)', []).append(100 - frac_ones)
-            table.setdefault('1 (%)', []).append(frac_ones)
-            table.setdefault('weight 0', []).append(class_weights[name][0])
-            table.setdefault('weight 1', []).append(class_weights[name][1])
+            for key in ['nb_tot', 'frac_obs', 'frac_one', 'frac_zero']:
+                table.setdefault(key, []).append(stat[key])
+            table.setdefault('weight_one', []).append(class_weights[name][1])
+            table.setdefault('weight_zero', []).append(class_weights[name][0])
         print('Output statistics:')
         print(format_table(table))
         print()

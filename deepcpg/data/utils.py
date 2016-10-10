@@ -1,12 +1,33 @@
+from collections import Counter, OrderedDict
 import gzip
 
 import h5py as h5
 import numpy as np
 import pandas as pd
 
-from ..utils import filter_regex
+from ..utils import EPS, filter_regex
 
 CPG_NAN = -1
+
+
+def get_output_stats(data_files, output_names):
+    names = {'outputs': output_names}
+    stats = OrderedDict()
+    reader = h5_reader(data_files, names, loop=False, shuffle=True)
+    for batch in reader:
+        for name in output_names:
+            output = batch['outputs/%s' % name]
+            stat = stats.setdefault(name, Counter())
+            stat['nb_tot'] += len(output)
+            stat['frac_obs'] += np.sum(output != CPG_NAN)
+            stat['frac_one'] += np.sum(output == 1)
+            stat['frac_zero'] += np.sum(output == 0)
+
+    for stat in stats.values():
+        for key in ['frac_one', 'frac_zero']:
+            stat[key] /= (stat['frac_obs'] + EPS)
+        stat['frac_obs'] /= (stat['nb_tot'] + EPS)
+    return stats
 
 
 def get_nb_sample(data_files, nb_max=None, batch_size=None):
