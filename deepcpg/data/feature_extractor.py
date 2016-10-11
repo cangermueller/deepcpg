@@ -1,5 +1,7 @@
 import numpy as np
 
+from . import dna
+
 
 class KnnCpgFeatureExtractor(object):
     """Extracts k CpG sites next to target sites. Excludes CpG sites at the
@@ -167,3 +169,50 @@ class IntervalFeatureExtractor(object):
 
     def extract(self, x, ys, ye):
         return self.index_intervals(x, ys, ye) >= 0
+
+
+class KmersFeatureExtractor(object):
+
+    def __init__(self, kmer_len, char_to_int=dna.CHAR_TO_INT):
+        self.kmer_len = kmer_len
+        self.char_to_int = char_to_int
+        self.nb_char = len(dna.CHAR_TO_INT)
+        self.nb_kmer = self.nb_char**self.kmer_len
+
+    def nb_kmer(self):
+        """Return total number of kmers."""
+        return self.nb_char**self.kmer_len
+
+    def label(self, kmer):
+        """Return label of kmer id."""
+        label = ''
+        for k in range(self.kmer_len):
+            label += self.chrs[kmer % self.nb_char]
+            kmer = int(kmer / self.nb_char)
+        return label
+
+    def labels(self, kmers=None):
+        """Return labels of (all) kmers."""
+        if kmers is None:
+            kmers = range(self.nb_kmer())
+        return [self.label(kmer) for kmer in kmers]
+
+    def __call__(self, seq):
+        """Extracts kmer frequencies from integer sequences.
+
+        Parameters
+        ----------
+        s: numpy array of size M x N of M integer sequences of length N.
+
+        Returns
+        -------
+        freq: numpy array of size M x C of kmer frequencies.
+        """
+        kmer_freq = np.zeros((len(seq), self.nb_kmer), dtype=np.int32)
+        vec = np.array([self.nb_char**i for i in range(self.kmer_len)],
+                       dtype=np.int32)
+        for i in range(len(seq)):
+            for p in range(len(seq) - self.kmer_len + 1):
+                kmer = seq[i, p:(p + self.kmer_len)]
+                kmer_freq[i, kmer.dot(vec)] += 1
+        return kmer_freq

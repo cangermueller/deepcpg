@@ -13,6 +13,7 @@ Try batch norm inputs
 CpG as before or separate networks?
 Subsample with convolution
 Network in Network
+LSTM on top of conv
 """
 
 

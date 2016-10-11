@@ -11,6 +11,10 @@ def get_class(name):
         return dna.Dna01
     elif _name == 'cpg01':
         return cpg.Cpg01
+    elif _name == 'cpg02':
+        return cpg.Cpg02
+    elif _name == 'cpg03':
+        return cpg.Cpg03
     elif _name == 'joint01':
         return joint.Joint01
     else:

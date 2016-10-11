@@ -3,6 +3,7 @@
 import sys
 import os
 
+
 import argparse
 import pandas as pd
 import logging
@@ -77,6 +78,7 @@ class App(object):
             log.setLevel(logging.INFO)
 
         log.info('Loading model ...')
+
         model = mod.load_model(opts.model_files)
         model_builder = mod.get_class(model.name)
 

@@ -107,11 +107,11 @@ class App(object):
             default=0.95)
         p.add_argument(
             '--nb_train_sample',
-            help='Maximum # training samples per epoch',
+            help='Maximum # training samples',
             type=int)
         p.add_argument(
             '--nb_val_sample',
-            help='Maximum # validation samples per epoch',
+            help='Maximum # validation samples',
             type=int)
         p.add_argument(
             '--max_time',
@@ -304,6 +304,7 @@ class App(object):
         outputs = mod.add_outputs(stem, output_names)
         model = Model(input=inputs, output=outputs, name=opts.model_name)
         model.summary()
+
         mod.save_model(model, os.path.join(opts.out_dir, 'model.json'))
 
         optimizer = Adam(lr=opts.lr)
@@ -378,6 +379,11 @@ class App(object):
         if os.path.isfile(h):
             model.load_weights(h)
 
+        # TODO: Delete metrics since they cause problems when loading the model
+        # from h5 file
+        model.metrics = None
+        model.metrics_names = None
+        model.metrics_tensors = None
         model.save(os.path.join(opts.out_dir, 'model.h5'))
 
         print('\nTraining set performance:')
