@@ -17,9 +17,7 @@ from deepcpg.data import feature_extractor as fext
 
 
 # TODO:
-# * Update comments
 # * Check asserts
-# * logging
 # * check with missing args
 
 def prepro_pos_table(pos_table):
@@ -55,6 +53,10 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
             win += max(0, p + delta + 1 - len(seq)) * 'N'
             assert len(win) == wlen
         seq_wins[i] = dna.char2int(win)
+    # Randomly choose missing nucleotides
+    idx = seq_wins == dna.CHAR_TO_INT['N']
+    seq_wins[idx] = np.random.randint(0, 4, idx.sum())
+    assert seq_wins.max() < 4
     if cpg_sites:
         assert np.all(seq_wins[:, delta] == 3)
         assert np.all(seq_wins[:, delta + 1] == 2)
@@ -166,7 +168,7 @@ class App(object):
 
         pos_table = None
         if opts.pos_file:
-            log.info('Read position table ...')
+            log.info('Reading position table ...')
             pos_table = pd.read_table(opts.pos_file, usecols=[0, 1],
                                       dtype={0: str, 1: np.int32},
                                       header=None, comment='#')
@@ -178,7 +180,7 @@ class App(object):
         cpg_tables = []
         output_names = []
         if opts.cpg_files:
-            log.info('Read CpG files ...')
+            log.info('Reading CpG files ...')
             for cpg_file in opts.cpg_files:
                 _cpg_file = data.GzipFile(cpg_file, 'r')
                 tmp = data.read_cpg_table(_cpg_file,
@@ -215,7 +217,6 @@ class App(object):
                 min_cpg_cov = opts.min_cpg_cov
                 if min_cpg_cov < 1:
                     min_cpg_cov = max(1, int(len(chromo_cpgs) * min_cpg_cov))
-                import ipdb; ipdb.set_trace()
                 idx = np.hstack([x.reshape(-1, 1) for x in chromo_cpgs])
                 idx = np.sum(idx != data.CPG_NAN, axis=1) >= min_cpg_cov
                 tmp = '%s sites matched minimum coverage filter'
