@@ -323,7 +323,7 @@ class App(object):
             return tensor_metrics(y, z)['tnr']
 
         self.metrics = OrderedDict()
-        self.metrics['acc'] = acc
+        self.metrics['acc'] = 'acc'
         self.metrics['f1'] = f1
         self.metrics['tpr'] = tpr
         self.metrics['tnr'] = tnr
@@ -336,8 +336,7 @@ class App(object):
 
         log.info('Reading data ...')
         nb_train_sample = dat.get_nb_sample(opts.train_files,
-                                            opts.nb_train_sample,
-                                            opts.batch_size)
+                                            opts.nb_train_sample)
         if not nb_train_sample:
             raise ValueError('Two few training samples!')
         train_data = model_builder.reader(opts.train_files,
@@ -348,8 +347,7 @@ class App(object):
                                           class_weights=class_weights)
         if opts.val_files:
             nb_val_sample = dat.get_nb_sample(opts.val_files,
-                                              opts.nb_val_sample,
-                                              opts.batch_size)
+                                              opts.nb_val_sample)
             if not nb_val_sample:
                 raise ValueError('Two few validation samples!')
             val_data = model_builder.reader(opts.val_files,
@@ -374,18 +372,6 @@ class App(object):
             nb_worker=opts.data_nb_worker,
             verbose=0)
 
-        # Use best weights on validation set
-        h = os.path.join(opts.out_dir, 'model_weights.h5')
-        if os.path.isfile(h):
-            model.load_weights(h)
-
-        # TODO: Delete metrics since they cause problems when loading the model
-        # from h5 file
-        model.metrics = None
-        model.metrics_names = None
-        model.metrics_tensors = None
-        model.save(os.path.join(opts.out_dir, 'model.h5'))
-
         print('\nTraining set performance:')
         print(format_table(self.perf_logger.epoch_logs,
                            precision=LOG_PRECISION))
@@ -394,6 +380,76 @@ class App(object):
             print('\nValidation set performance:')
             print(format_table(self.perf_logger.val_epoch_logs,
                                precision=LOG_PRECISION))
+
+        from deepcpg.models import evaluate_generator
+
+        def test_eval(reader, nb_sample, nb_loop=2):
+            ref_data = None
+            for i in range(nb_loop):
+                perf, data = evaluate_generator(model, reader, nb_sample,
+                                                return_data=True)
+                print(perf.to_string())
+
+                data = OrderedDict(zip(['preds', 'inputs', 'weights'], data))
+                if ref_data:
+                    for key, value in data.items():
+                        for key2, value2 in data[key].items():
+                            dat = value2
+                            ref = ref_data[key][key2]
+                            if not np.all(dat == ref):
+                                print(key, key2)
+                                if key != 'preds':
+                                    print(dat[:20])
+                                    print(ref[:20])
+                                else:
+                                    print(np.sum(dat.round() != ref.round()))
+                else:
+                    ref_data = data
+
+        print('Training eval:')
+        test_eval(train_data, nb_train_sample)
+
+        print()
+        print('Validation eval:')
+        test_eval(val_data, nb_val_sample)
+
+
+        # TODO: Delete metrics since they cause problems when loading the model
+        # from HDF5 file
+        model.metrics = None
+        model.metrics_names = None
+        model.metrics_tensors = None
+        model.save(os.path.join(opts.out_dir, 'model.h5'))
+
+        from keras import models as km
+        model = km.load_model(os.path.join(opts.out_dir, 'model.h5'))
+
+        def test_eval2(data_files, nb_sample):
+            for i in range(3):
+                data_reader = model_builder.reader(data_files,
+                                                output_names=model.output_names,
+                                                nb_sample=nb_sample,
+                                                batch_size=opts.batch_size,
+                                                loop=False, shuffle=False)
+                test_eval(data_reader, nb_sample, nb_loop=1)
+
+        print('\nTraining eval2:')
+        test_eval2(opts.train_files, nb_train_sample)
+
+        print('\nVal eval2:')
+        test_eval2(opts.val_files, nb_val_sample)
+
+        #  print()
+        #  print('evaluate_generator val')
+        #  for i in range(3):
+            #  perf = model.evaluate_generator(val_data, nb_val_sample)
+            #  for name, _perf in zip(model.metrics_names, perf):
+                #  print('%s: %f' % (name, _perf))
+
+        # Use best weights on validation set
+        #  filename = os.path.join(opts.out_dir, 'model_weights.h5')
+        #  if os.path.isfile(filename):
+            #  model.load_weights(filename)
 
         log.info('Done!')
 

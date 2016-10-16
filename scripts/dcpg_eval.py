@@ -9,7 +9,7 @@ import pandas as pd
 import logging
 
 from deepcpg import data as dat
-from deepcpg import evaluation as ev
+from deepcpg.evaluation import evaluate
 from deepcpg import models as mod
 from deepcpg.utils import ProgressBar
 
@@ -26,7 +26,7 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Tests the performance of a model')
+            description='Evaluates the performance of a model')
         p.add_argument(
             'data_files',
             nargs='+',
@@ -77,8 +77,10 @@ class App(object):
         else:
             log.setLevel(logging.INFO)
 
-        log.info('Loading model ...')
+        if not opts.model_files:
+            raise ValueError('No model files provided!')
 
+        log.info('Loading model ...')
         model = mod.load_model(opts.model_files)
         model_builder = mod.get_class(model.name)
 
@@ -119,6 +121,7 @@ class App(object):
         log.info('Predicting ...')
         data = dict()
         progbar = ProgressBar(nb_sample, log.info)
+        nb_seen = 0
         for inputs, outputs, weights in data_reader:
             batch_size = len(list(inputs.values())[0])
             progbar.update(batch_size)
@@ -133,10 +136,13 @@ class App(object):
             for name, pred in zip(model.output_names, preds):
                 data_batch['preds'][name] = pred
             data_batch['outputs'] = outputs
-            data_batch['weights'] = weights
             for name, value in next(meta_reader).items():
                 data_batch[name] = value
             dat.add_to_dict(data_batch, data)
+
+            nb_seen += batch_size
+            if nb_seen >= nb_sample:
+                break
 
         progbar.close()
 
@@ -144,12 +150,12 @@ class App(object):
 
         perf = []
         for output in model.output_names:
-            tmp = ev.evaluate(data['outputs'][output], data['preds'][output])
+            tmp = evaluate(data['outputs'][output], data['preds'][output])
             perf.append(pd.DataFrame(tmp, index=[output]))
         perf = pd.concat(perf)
         mean = perf.mean()
         mean.name = 'mean'
-        perf.append(mean)
+        perf = perf.append(mean)
         perf.index.name = 'output'
         perf.reset_index(inplace=True)
 

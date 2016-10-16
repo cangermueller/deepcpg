@@ -87,3 +87,43 @@ class TestH5reader(object):
                          [4447803, 4447814, 4447818, 4447821, 4447847])
         npt.assert_equal(data['/outputs/cpg_BS27_4_SER'][-5:],
                          [1, 1, 1, 1, 1])
+
+    def test_nb_sample(self):
+        """Test nb_sample together with shuffle. Should always return the same,
+        if nb_sample < size of first data file."""
+
+        names = ['pos', '/outputs/cpg_BS27_4_SER']
+        data_ref = None
+        nb_sample = 100  # Smaller than size of first file
+        for i in range(10):
+            data = dat.h5_read(self.data_files, names, shuffle=True,
+                               nb_sample=nb_sample)
+            if data_ref:
+                for name in names:
+                    assert len(data_ref[name]) == nb_sample
+                    assert np.all(data_ref[name] == data[name])
+            else:
+                data_ref = data
+
+    def test_read_reader(self):
+        """Test if h5_read and h5_reader yield the same data."""
+        nb_sample = 7777
+        nb_loop = 10
+        names = ['pos', 'chromo', '/outputs/cpg_BS27_4_SER']
+
+        data = dat.h5_read(self.data_files, names, nb_sample=nb_sample)
+        reader = dat.h5_reader(self.data_files, names, nb_sample=nb_sample,
+                               loop=True)
+        for loop in range(nb_loop):
+            data_loop = dict()
+            nb_sample_loop = 0
+            while nb_sample_loop < nb_sample:
+                data_batch = next(reader)
+                for key, value in data_batch.items():
+                    data_loop.setdefault(key, []).append(value)
+                nb_sample_loop += len(value)
+            assert nb_sample_loop == nb_sample
+            for key, value in data_loop.items():
+                fun = np.vstack if value[0].ndim > 1 else np.hstack
+                data_loop[key] = fun(value)
+                assert np.all(data[key] == data_loop[key])

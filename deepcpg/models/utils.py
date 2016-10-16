@@ -4,9 +4,11 @@ from keras import backend as K
 from keras import models as km
 from keras import layers as kl
 import numpy as np
+import pandas as pd
 
-from ..data import CPG_NAN, h5_reader
+from .. import data as dat
 from ..data.dna import int2onehot
+from ..evaluation import evaluate
 
 
 def get_sample_weights(y, class_weights):
@@ -53,6 +55,80 @@ def add_outputs(x, output_names):
     return outputs
 
 
+def predict_generator(model, generator, nb_sample=None):
+    data = None
+    nb_seen = 0
+    for data_batch in generator:
+        if not isinstance(data_batch, list):
+            data_batch = list(data_batch)
+
+        if nb_sample:
+            # Reduce batch size if needed
+            nb_left = nb_sample - nb_seen
+            for data_item in data_batch:
+                for key, value in data_item.items():
+                    data_item[key] = data_item[key][:nb_left]
+
+        preds = model.predict(data_batch[0])
+        if not isinstance(preds, list):
+            preds = [preds]
+        preds = {name: pred for name, pred in zip(model.output_names, preds)}
+
+        if not data:
+            data = [dict() for i in range(len(data_batch))]
+        dat.add_to_dict(preds, data[0])
+        for i in range(1, len(data_batch)):
+            dat.add_to_dict(data_batch[i], data[i])
+
+        nb_seen += len(list(preds.values())[0])
+        if nb_sample and nb_seen >= nb_sample:
+            break
+
+    for i in range(len(data)):
+        data[i] = dat.stack_dict(data[i])
+        if nb_sample:
+            # TODO: Remove
+            assert len(list(data[i].values())[0]) == nb_sample
+    return data
+
+
+def evaluate_generator(model, generator, nb_sample, return_data=False):
+    data = predict_generator(model, generator, nb_sample)
+    perf = []
+    for output in model.output_names:
+        tmp = evaluate(data[1][output], data[0][output])
+        perf.append(pd.DataFrame(tmp, index=[output]))
+    perf = pd.concat(perf)
+    if return_data:
+        return (perf, data)
+    else:
+        return perf
+
+
+def read_from(reader, nb_sample=None):
+    data = None
+    nb_seen = 0
+    for data_batch in reader:
+        if not isinstance(data_batch, list):
+            data_batch = list(data_batch)
+
+        if not data:
+            data = [dict() for i in range(len(data_batch))]
+        for i in range(len(data_batch)):
+            dat.add_to_dict(data_batch[i], data[i])
+
+        nb_seen += len(list(data_batch[0].values())[0])
+        if nb_sample and nb_seen >= nb_sample:
+            break
+
+    for i in range(len(data)):
+        data[i] = dat.stack_dict(data[i])
+        if nb_sample:
+            for key, value in data[i].items():
+                data[i][key] = value[:nb_sample]
+    return data
+
+
 class Model(object):
 
     def __init__(self, dropout=0.0, l1_decay=0.0, l2_decay=0.0):
@@ -72,7 +148,7 @@ class Model(object):
         prepro_states = []
         prepro_dists = []
         for state, dist in zip(states, dists):
-            nan = state == CPG_NAN
+            nan = state == dat.CPG_NAN
             if np.any(nan):
                 tmp = np.sum(state == 1) / state.size
                 state[nan] = np.random.binomial(1, tmp, nan.sum())
@@ -107,7 +183,7 @@ class Model(object):
         if output_names:
             names.extend(['outputs/%s' % name for name in output_names])
 
-        for data_raw in h5_reader(data_files, names, *args, **kwargs):
+        for data_raw in dat.h5_reader(data_files, names, *args, **kwargs):
             inputs = dict()
 
             if use_dna:

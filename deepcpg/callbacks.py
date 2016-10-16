@@ -140,7 +140,8 @@ class PerformanceLogger(Callback):
         batch_size = logs.get('size', 0)
         self._nb_seen += batch_size
         if self._nb_batch is None:
-            self._nb_batch = int(np.ceil(self.params['nb_sample'] / batch_size))
+            self._nb_batch = int(np.ceil(self.params['nb_sample'] /
+                                         (batch_size + EPS)))
 
         if not self._batch_logs:
             self._batch_metrics, self._batch_logs = self._init_logs(logs.keys())

@@ -6,6 +6,13 @@ import numpy as np
 EPS = 10e-8
 
 
+def move_columns_front(frame, columns):
+    if not isinstance(columns, list):
+        columns = [columns]
+    columns = [column for column in columns if column in frame.columns]
+    return frame[columns + list(frame.columns[~frame.columns.isin(columns)])]
+
+
 def get_from_module(identifier, module_params):
     res = module_params.get(identifier)
     if not res:

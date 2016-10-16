@@ -10,10 +10,11 @@ from ..utils import EPS, filter_regex
 CPG_NAN = -1
 
 
-def get_output_stats(data_files, output_names):
+def get_output_stats(data_files, output_names, nb_sample=None):
     names = {'outputs': output_names}
     stats = OrderedDict()
-    reader = h5_reader(data_files, names, loop=False, shuffle=True)
+    reader = h5_reader(data_files, names, loop=False, shuffle=False,
+                       nb_sample=nb_sample)
     for batch in reader:
         for name in output_names:
             output = batch['outputs/%s' % name]
@@ -142,9 +143,10 @@ def h5_hnames_to_names(hnames):
     return names
 
 
-def h5_read(data_files, names, *args, **kwargs):
+def h5_read(data_files, names, batch_size=1024, *args, **kwargs):
     data = dict()
-    reader = h5_reader(data_files, names, loop=False, *args, **kwargs)
+    reader = h5_reader(data_files, names, batch_size=batch_size, loop=False,
+                       *args, **kwargs)
     for data_batch in reader:
         for key, value in data_batch.items():
             values = data.setdefault(key, [])
@@ -153,42 +155,81 @@ def h5_read(data_files, names, *args, **kwargs):
     return data
 
 
+def h5_read_from(reader, nb_sample=None):
+    data = dict()
+    nb_seen = 0
+    for data_batch in reader:
+        for key, value in data_batch.items():
+            values = data.setdefault(key, [])
+            values.append(value)
+        nb_seen += len(list(data_batch.values())[0])
+        if nb_sample and nb_seen >= nb_sample:
+            break
+
+    data = stack_dict(data)
+    if nb_sample:
+        for key, value in data.items():
+            data[key] = value[:nb_sample]
+
+    return data
+
+
 def h5_reader(data_files, names, batch_size=128, nb_sample=None, shuffle=False,
               loop=False):
     if not isinstance(data_files, list):
         data_files = [data_files]
+    data_files = list(data_files) # Copy, since it might be changed by shuffling
     if isinstance(names, dict):
         names = h5_hnames_to_names(names)
-    file_idx = 0
-    nb_seen = 0
-    if nb_sample is None:
+
+    if nb_sample:
+        # Select the first k files s.t. the total sample size is at least
+        # nb_sample. Only these files will be shuffled.
+        _data_files = []
+        nb_seen = 0
+        for data_file in data_files:
+            h5_file = h5.File(data_file, 'r')
+            nb_seen += len(h5_file[names[0]])
+            h5_file.close()
+            _data_files.append(data_file)
+            if nb_seen >= nb_sample:
+                break
+        data_files = _data_files
+    else:
         nb_sample = np.inf
 
+    file_idx = 0
+    nb_seen = 0
     while True:
         if shuffle and file_idx == 0:
             np.random.shuffle(data_files)
-        data_file = h5.File(data_files[file_idx], 'r')
-        nb_sample_file = len(data_file[names[0]])
+        h5_file = h5.File(data_files[file_idx], 'r')
+        nb_sample_file = len(h5_file[names[0]])
         nb_batch = int(np.ceil(nb_sample_file / batch_size))
 
         for batch in range(nb_batch):
             batch_start = batch * batch_size
             nb_read = min(nb_sample - nb_seen, batch_size)
             batch_end = min(nb_sample_file, batch_start + nb_read)
-            nb_seen += batch_end - batch_start
+            _batch_size = batch_end - batch_start
+            if _batch_size == 0:
+                break
+            nb_seen += _batch_size
 
             data = dict()
             for name in names:
-                data[name] = data_file[name][batch_start:batch_end]
+                data[name] = h5_file[name][batch_start:batch_end]
             yield data
 
             if nb_seen >= nb_sample:
-                data_files = data_files[:file_idx + 1]
                 break
 
-        data_file.close()
+        h5_file.close()
         file_idx += 1
-        if file_idx >= len(data_files):
+        assert nb_seen <= nb_sample
+        if nb_sample == nb_seen:
+            assert file_idx == len(data_files)
+        if file_idx == len(data_files):
             if loop:
                 file_idx = 0
                 nb_seen = 0

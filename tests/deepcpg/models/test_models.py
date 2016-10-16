@@ -1,6 +1,6 @@
 import os
-import os
 
+from keras import backend as K
 import numpy as np
 
 from deepcpg.data import CPG_NAN
@@ -62,7 +62,38 @@ class TestModel(object):
                 weight = weights[output_name]
                 assert np.all((output == CPG_NAN) | (output == 0) |
                               (output == 1))
-                assert np.all(weight[output == CPG_NAN] == 0)
+                assert np.all(weight[output == CPG_NAN] <= K.epsilon())
                 for cla in [0, 1]:
                     cw = class_weights[output_name][cla]
                     assert np.all(weight[output == cla] == cw)
+
+    def _test_loop(self, nb_sample, batch_size):
+        model = mod.Model()
+        output_names = ['cpg_BS27_4_SER', 'cpg_BS28_2_SER']
+        replicate_names = ['BS27_4_SER', 'BS28_2_SER']
+        reader = model.reader(self.data_files,
+                              nb_sample=nb_sample,
+                              batch_size=batch_size,
+                              output_names=output_names,
+                              replicate_names=replicate_names,
+                              loop=True)
+        data_ref = None
+        for loop in range(3):
+            data = mod.read_from(reader, nb_sample)
+            assert len(data) == 3
+            data = dict(zip(['inputs', 'outputs', 'weights'], data))
+            assert len(list(data['inputs'].values())[0]) == nb_sample
+            if data_ref:
+                for key, value in data.items():
+                    for key2, value2 in value.items():
+                        dat = value2
+                        ref = data_ref[key][key2]
+                        assert np.all(dat == ref)
+            else:
+                data_ref = data
+
+    def test_loop(self):
+        self._test_loop(100, 10)
+        #  for nb_sample in [1000, 5000, 5001, 123456, 10**6]:
+            #  for batch_size in [33, 128, 150]:
+                #  self._test_loop(nb_sample, batch_size)
