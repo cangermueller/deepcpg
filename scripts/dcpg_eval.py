@@ -85,7 +85,7 @@ class App(object):
         model_builder = mod.get_class(model.name)
 
         if model.name.lower().startswith('dna'):
-            dna_wlen = int(model.input_shape[0][1])
+            dna_wlen = int(model.input_shape[1])
             model_builder = model_builder(dna_wlen=dna_wlen)
 
         elif model.name.lower().startswith('cpg'):
@@ -121,7 +121,6 @@ class App(object):
         log.info('Predicting ...')
         data = dict()
         progbar = ProgressBar(nb_sample, log.info)
-        nb_seen = 0
         for inputs, outputs, weights in data_reader:
             batch_size = len(list(inputs.values())[0])
             progbar.update(batch_size)
@@ -139,10 +138,6 @@ class App(object):
             for name, value in next(meta_reader).items():
                 data_batch[name] = value
             dat.add_to_dict(data_batch, data)
-
-            nb_seen += batch_size
-            if nb_seen >= nb_sample:
-                break
 
         progbar.close()
 
