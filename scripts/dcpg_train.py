@@ -121,6 +121,10 @@ class App(object):
             '--stop_file',
             help='Stop training if this file exists')
         p.add_argument(
+            '--no_class_weights',
+            help='Do not weight classes',
+            action='store_true')
+        p.add_argument(
             '--seed',
             help='Seed of rng',
             type=int,
@@ -255,7 +259,13 @@ class App(object):
         output_names = dat.h5_ls(opts.train_files[0], 'outputs',
                                  opts.output_names, opts.nb_output)
         output_stats = dat.get_output_stats(opts.train_files, output_names)
-        class_weights = get_class_weights(output_stats)
+
+        if opts.no_class_weights:
+            class_weights = OrderedDict()
+            for output_name in output_names:
+                class_weights[output_name] = {0: 0.5, 1: 0.5}
+        else:
+            class_weights = get_class_weights(output_stats)
 
         table = OrderedDict()
         for name, stat in output_stats.items():
