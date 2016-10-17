@@ -67,7 +67,7 @@ class TestModel(object):
                     cw = class_weights[output_name][cla]
                     assert np.all(weight[output == cla] == cw)
 
-    def _test_loop(self, nb_sample, batch_size):
+    def _test_loop(self, nb_sample, batch_size, nb_loop=3):
         model = mod.Model()
         output_names = ['cpg_BS27_4_SER', 'cpg_BS28_2_SER']
         replicate_names = ['BS27_4_SER', 'BS28_2_SER']
@@ -76,9 +76,10 @@ class TestModel(object):
                               batch_size=batch_size,
                               output_names=output_names,
                               replicate_names=replicate_names,
-                              loop=True)
+                              shuffle=False, loop=True)
         data_ref = None
-        for loop in range(3):
+        for loop in range(nb_loop):
+            np.random.seed(0) # Required, since missing values are sampled
             data = mod.read_from(reader, nb_sample)
             assert len(data) == 3
             data = dict(zip(['inputs', 'outputs', 'weights'], data))
@@ -92,8 +93,12 @@ class TestModel(object):
             else:
                 data_ref = data
 
+
     def test_loop(self):
-        self._test_loop(100, 10)
-        #  for nb_sample in [1000, 5000, 5001, 123456, 10**6]:
-            #  for batch_size in [33, 128, 150]:
-                #  self._test_loop(nb_sample, batch_size)
+        self._test_loop(10, 10)
+        self._test_loop(10, 3)
+        self._test_loop(100, 33)
+        self._test_loop(100, 128)
+        self._test_loop(5000, 133)
+        self._test_loop(5001, 133)
+        self._test_loop(15366, 133)
