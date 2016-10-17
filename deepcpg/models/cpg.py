@@ -53,6 +53,7 @@ class Cpg01(CpgModel):
 
 
 class Cpg02(CpgModel):
+    """FC 256 embedding layer. 814849 parameters"""
 
     def _replicate_model(self, input):
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
@@ -76,6 +77,7 @@ class Cpg02(CpgModel):
 
 
 class Cpg03(CpgModel):
+    """No FC embedding layer. 548865 parameters"""
 
     def __call__(self, inputs):
         x = kl.merge(inputs, mode='concat', concat_axis=2)
