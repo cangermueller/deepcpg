@@ -1,3 +1,4 @@
+from keras import backend as K
 from keras import layers as kl
 from keras import regularizers as kr
 from keras import models as km
@@ -83,5 +84,33 @@ class Cpg03(CpgModel):
         x = kl.merge(inputs, mode='concat', concat_axis=2)
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Bidirectional(kl.GRU(256, W_regularizer=w_reg))(x)
+
+        return x
+
+
+class Cpg04(CpgModel):
+    """Old CNN"""
+
+    def _replicate_model(self, input):
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(41, 2, init='glorot_uniform', W_regularizer=w_reg)(input)
+        x = kl.Activation('relu')(x)
+        x = kl.Dropout(self.dropout)(x)
+        x = kl.MaxPooling1D(2, 2)(x)
+        return km.Model(input=input, output=x)
+
+    def __call__(self, inputs):
+        replicate_input = kl.Input(shape=(self.cpg_wlen, 2,))
+        replicate_model = self._replicate_model(replicate_input)
+
+        x = []
+        for input in inputs:
+            x.append(K.expand_dims(input, 3))
+        x = kl.merge(x, mode='concat', concat_axis=3)
+
+        x = kl.TimeDistributed(replicate_model)(x)
+        # N x C x 24 x 41
+        shape = (len(self.replicate_names) * (self.cpg_wlen // 2 - 1) * 41,)
+        x = kl.Reshape(shape)(x)
 
         return x
