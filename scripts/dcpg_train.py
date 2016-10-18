@@ -196,7 +196,7 @@ class App(object):
             save_best_only=True, verbose=1
         ))
 
-        max_time = int(opts.max_time * 3600 * 0.8) if opts.max_time else None
+        max_time = int(opts.max_time * 3600) if opts.max_time else None
         cbacks.append(cbk.TrainingStopper(
             max_time=max_time,
             stop_file=opts.stop_file,
