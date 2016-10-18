@@ -148,9 +148,6 @@ class App(object):
             tmp = evaluate(data['outputs'][output], data['preds'][output])
             perf.append(pd.DataFrame(tmp, index=[output]))
         perf = pd.concat(perf)
-        mean = perf.mean()
-        mean.name = 'mean'
-        perf = perf.append(mean)
         perf.index.name = 'output'
         perf.reset_index(inplace=True)
 
