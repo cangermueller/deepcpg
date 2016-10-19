@@ -333,7 +333,7 @@ class App(object):
             return tensor_metrics(y, z)['tnr']
 
         self.metrics = OrderedDict()
-        self.metrics['acc'] = 'acc'
+        self.metrics['acc'] = acc
         self.metrics['f1'] = f1
         self.metrics['tpr'] = tpr
         self.metrics['tnr'] = tnr
