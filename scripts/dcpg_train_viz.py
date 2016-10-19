@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 
 import os
-import random
 import sys
 
 import argparse
 import logging
-import matplotlib.pyplot as plt
-import numpy as np
+import matplotlib as mpl
+mpl.use('agg')
 import pandas as pd
 import seaborn as sns
 
@@ -29,7 +28,7 @@ def plot_lc(lc, metrics=None):
 
     grid = sns.FacetGrid(lc, col='split', row='metric', hue='output',
                          sharey=False, size=3, aspect=1.2, legend_out=True)
-    grid.map(plt.plot, 'epoch', 'value', linewidth=2)
+    grid.map(mpl.pyplot.plot, 'epoch', 'value', linewidth=2)
     grid.set(ylabel='')
     grid.add_legend()
     return grid
