@@ -11,7 +11,7 @@ import pandas as pd
 import seaborn as sns
 
 
-def plot_lc(lc, metrics=None):
+def plot_lc(lc, metrics=None, outputs=False):
     lc = pd.melt(lc, id_vars=['split', 'epoch'], var_name='output')
     if metrics:
         if not isinstance(metrics, list):
@@ -20,11 +20,17 @@ def plot_lc(lc, metrics=None):
         lc = lc.loc[lc.output.str.contains(tmp)]
     metrics = lc.output[~lc.output.str.contains('_')].unique()
     lc['metric'] = ''
+
     for metric in metrics:
         lc.loc[lc.output.str.contains(metric), 'metric'] = metric
         lc.loc[lc.output == metric, 'output'] = 'mean'
         lc.output = lc.output.str.replace('_%s' % metric, '')
         lc.output = lc.output.str.replace('cpg_', '')
+
+    if outputs:
+        lc = lc.loc[lc.output != 'mean']
+    else:
+        lc = lc.loc[lc.output == 'mean']
 
     grid = sns.FacetGrid(lc, col='split', row='metric', hue='output',
                          sharey=False, size=3, aspect=1.2, legend_out=True)
@@ -62,6 +68,10 @@ class App(object):
             help='Output figure',
             default='lc.pdf')
         p.add_argument(
+            '--outputs',
+            help='Plot individual outputs',
+            action='store_true')
+        p.add_argument(
             '--verbose',
             help='More detailed log messages',
             action='store_true')
@@ -88,7 +98,7 @@ class App(object):
             lc.append(_lc)
         lc = pd.concat(lc)
 
-        plot = plot_lc(lc, metrics=opts.metrics)
+        plot = plot_lc(lc, metrics=opts.metrics, outputs=opts.outputs)
         plot.savefig(opts.out_fig)
 
         log.info('Done!')
