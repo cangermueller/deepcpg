@@ -96,15 +96,15 @@ class App(object):
             type=int,
             default=3)
         p.add_argument(
-            '--lr',
+            '--learning_rate',
             help='Learning rate',
             type=float,
             default=0.0001)
         p.add_argument(
-            '--lr_decay',
+            '--learning_rate_decay',
             help='Exponential learning rate decay factor',
             type=float,
-            default=0.95)
+            default=0.975)
         p.add_argument(
             '--nb_train_sample',
             help='Maximum # training samples',
@@ -164,6 +164,10 @@ class App(object):
             type=float,
             default=0.0)
         p.add_argument(
+            '--initialization',
+            help='Parameter initialization',
+            default='he_uniform')
+        p.add_argument(
             '--data_q_size',
             help='Size of data generator queue',
             type=int,
@@ -204,7 +208,7 @@ class App(object):
         ))
 
         cbacks.append(kcbk.LearningRateScheduler(
-            lambda epoch: opts.lr * opts.lr_decay**epoch))
+            lambda epoch: opts.learning_rate * opts.learning_rate_decay**epoch))
 
         def save_lc(epoch, epoch_logs, val_epoch_logs):
             logs = {'lc_train.csv': epoch_logs,
@@ -286,7 +290,8 @@ class App(object):
             model_builder = model_builder(dna_wlen=dna_wlen,
                                           dropout=opts.dropout,
                                           l1_decay=opts.l1_decay,
-                                          l2_decay=opts.l2_decay)
+                                          l2_decay=opts.l2_decay,
+                                          init=opts.initialization)
 
         elif opts.model_name.lower().startswith('cpg'):
             cpg_wlen = dat.get_cpg_wlen(opts.train_files[0], opts.cpg_wlen)
@@ -296,7 +301,8 @@ class App(object):
                                           cpg_wlen=cpg_wlen,
                                           dropout=opts.dropout,
                                           l1_decay=opts.l1_decay,
-                                          l2_decay=opts.l2_decay)
+                                          l2_decay=opts.l2_decay,
+                                          init=opts.initialization)
         else:
             dna_wlen = dat.get_dna_wlen(opts.train_files[0], opts.dna_wlen)
             cpg_wlen = dat.get_cpg_wlen(opts.train_files[0], opts.cpg_wlen)
@@ -307,7 +313,8 @@ class App(object):
                                           dna_wlen=dna_wlen,
                                           dropout=opts.dropout,
                                           l1_decay=opts.l1_decay,
-                                          l2_decay=opts.l2_decay)
+                                          l2_decay=opts.l2_decay,
+                                          init=opts.initialization)
 
         inputs = model_builder.inputs()
         stem = model_builder(inputs)
@@ -317,7 +324,6 @@ class App(object):
 
         mod.save_model(model, os.path.join(opts.out_dir, 'model.json'))
 
-        optimizer = Adam(lr=opts.lr)
         log.info('Compile model ...')
 
         def acc(y, z):
@@ -338,6 +344,7 @@ class App(object):
         self.metrics['tpr'] = tpr
         self.metrics['tnr'] = tnr
 
+        optimizer = Adam(lr=opts.learning_rate)
         model.compile(optimizer=optimizer, loss='binary_crossentropy',
                       metrics=list(self.metrics.values()))
 

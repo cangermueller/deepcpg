@@ -131,10 +131,12 @@ def read_from(reader, nb_sample=None):
 
 class Model(object):
 
-    def __init__(self, dropout=0.0, l1_decay=0.0, l2_decay=0.0):
+    def __init__(self, dropout=0.0, l1_decay=0.0, l2_decay=0.0,
+                 init='he_uniform'):
         self.dropout = dropout
         self.l1_decay = l1_decay
         self.l2_decay = l2_decay
+        self.init = init
 
     def _prepro_dna(self, dna, dna_wlen=None):
         if dna_wlen:

@@ -35,7 +35,7 @@ class Cpg01(CpgModel):
 
     def _replicate_model(self, input):
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Dense(512, init='he_uniform', W_regularizer=w_reg)(input)
+        x = kl.Dense(512, init=self.init, W_regularizer=w_reg)(input)
         x = kl.BatchNormalization(mode=2, axis=1)(x)
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
@@ -58,7 +58,7 @@ class Cpg02(CpgModel):
 
     def _replicate_model(self, input):
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Dense(256, init='he_uniform', W_regularizer=w_reg)(input)
+        x = kl.Dense(256, init=self.init, W_regularizer=w_reg)(input)
         x = kl.BatchNormalization(mode=2, axis=1)(x)
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
@@ -96,7 +96,7 @@ class Cpg04(CpgModel):
         x = kl.Conv1D(41, 2, init='glorot_uniform', W_regularizer=w_reg)(input)
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
-        x = kl.MaxPooling1D(2, 2)(x)
+        x = kl.MaxPooling1D(2)(x)
         return km.Model(input=input, output=x)
 
     def __call__(self, inputs):
