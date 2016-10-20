@@ -172,7 +172,6 @@ class Dna05(DnaModel):
 
     def __call__(self, inputs):
         bn_axis = 2
-        import ipdb; ipdb.set_trace()
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(128, 9, init=self.init, W_regularizer=w_reg)(inputs[0])

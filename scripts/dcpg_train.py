@@ -207,8 +207,12 @@ class App(object):
             verbose=1
         ))
 
-        cbacks.append(kcbk.LearningRateScheduler(
-            lambda epoch: opts.learning_rate * opts.learning_rate_decay**epoch))
+        def learning_rate_schedule(epoch):
+            lr = opts.learning_rate * opts.learning_rate_decay**epoch
+            print('Learning rate: %.3g' % lr)
+            return lr
+
+        cbacks.append(kcbk.LearningRateScheduler(learning_rate_schedule))
 
         def save_lc(epoch, epoch_logs, val_epoch_logs):
             logs = {'lc_train.csv': epoch_logs,
