@@ -10,10 +10,8 @@ Dilated convs
 Strided conv instead of max pooling
 Global average pooling
 Try batch norm inputs
-CpG as before or separate networks?
 Subsample with convolution
 Network in Network
-LSTM on top of conv
 """
 
 
@@ -165,5 +163,41 @@ class Dna04(DnaModel):
 
         x = kl.GlobalAveragePooling1D()(x)
         x = kl.Dropout(self.dropout)(x)
+
+        return x
+
+
+class Dna05(DnaModel):
+    """1089921 params"""
+
+    def __call__(self, inputs):
+        bn_axis = 2
+        import ipdb; ipdb.set_trace()
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(128, 9, init=self.init, W_regularizer=w_reg)(inputs[0])
+        x = kl.BatchNormalization(axis=bn_axis)(x)
+        x = kl.Activation('relu')(x)
+        x = kl.Dropout(self.dropout)(x)
+        x = kl.MaxPooling1D(4)(x)
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(256, 3, init=self.init, W_regularizer=w_reg)(x)
+        x = kl.BatchNormalization(axis=bn_axis)(x)
+        x = kl.Activation('relu')(x)
+        x = kl.Dropout(self.dropout)(x)
+        x = kl.MaxPooling1D(2)(x)
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(256, 3, init=self.init, W_regularizer=w_reg)(x)
+        x = kl.BatchNormalization(axis=bn_axis)(x)
+        x = kl.Activation('relu')(x)
+        x = kl.Dropout(self.dropout)(x)
+        x = kl.MaxPooling1D(2)(x)
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Bidirectional(kl.recurrent.GRU(256, init=self.init,
+                                              return_sequences=False,
+                                              W_regularizer=w_reg))(x)
 
         return x

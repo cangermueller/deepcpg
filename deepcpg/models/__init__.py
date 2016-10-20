@@ -15,6 +15,8 @@ def get_class(name):
         return dna.Dna03
     elif _name == 'dna04':
         return dna.Dna04
+    elif _name == 'dna05':
+        return dna.Dna05
 
 
     elif _name == 'cpg01':
