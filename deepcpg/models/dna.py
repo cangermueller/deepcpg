@@ -129,7 +129,7 @@ class Dna03(DnaModel):
         x = kl.Flatten()(x)
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Dense(1024, init=self.init, W_regularizer=w_reg)
+        x = kl.Dense(1024, init=self.init, W_regularizer=w_reg)(x)
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
 
@@ -137,7 +137,7 @@ class Dna03(DnaModel):
 
 
 class Dna04(DnaModel):
-    """Simple: """
+    """Simple: 126785 params"""
 
     def __call__(self, inputs):
         bn_axis = 2
@@ -149,13 +149,15 @@ class Dna04(DnaModel):
         x = kl.Dropout(self.dropout)(x)
         x = kl.MaxPooling1D(4)(x)
 
-        x = kl.Conv1D(128, 3, init=self.init, W_regularizer=w_reg)(inputs[0])
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(128, 3, init=self.init, W_regularizer=w_reg)(x)
         x = kl.BatchNormalization(axis=bn_axis)(x)
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
         x = kl.MaxPooling1D(4)(x)
 
-        x = kl.Conv1D(256, 3, init=self.init, W_regularizer=w_reg)(inputs[0])
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(256, 3, init=self.init, W_regularizer=w_reg)(x)
         x = kl.BatchNormalization(axis=bn_axis)(x)
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
