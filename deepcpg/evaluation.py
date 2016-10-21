@@ -122,12 +122,12 @@ def tensor_metrics(y, z):
     fn = count_matches(y_ones, z_zeros)
 
     metrics = OrderedDict()
-    metrics['acc'] = (tp + tn) / (tp + fp + tn + fn + K.epsilon())
-    metrics['prec'] = tp / (tp + fp + K.epsilon())
-    metrics['tpr'] = tp / (tp + fn + K.epsilon())
-    metrics['fnr'] = fn / (tp + fn + K.epsilon())
-    metrics['tnr'] = tn / (tn + fp + K.epsilon())
-    metrics['fpr'] = fp / (tn + fp + K.epsilon())
+    metrics['acc'] = (tp + tn) / (tp + fp + tn + fn)
+    metrics['prec'] = tp / (tp + fp)
+    metrics['tpr'] = tp / (tp + fn)
+    metrics['fnr'] = fn / (tp + fn)
+    metrics['tnr'] = tn / (tn + fp)
+    metrics['fpr'] = fp / (tn + fp)
     metrics['f1'] = (2 * (metrics['prec'] * metrics['tpr'])) /\
         (metrics['prec'] + metrics['tpr'] + K.epsilon())
 

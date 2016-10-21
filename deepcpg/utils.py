@@ -45,7 +45,12 @@ def format_table(table, colwidth=None, precision=2, header=True, sep=' | '):
             if value is None:
                 value = ''
             elif isinstance(value, float):
-                value = '{0:.{1}f}'.format(value, precision[col_idx])
+                # TODO: Remove
+                if np.isnan(value):
+                    value = '{0:>{1}s}'.format(str(value),
+                                               precision[col_idx] + 2)
+                else:
+                    value = '{0:.{1}f}'.format(value, precision[col_idx])
             else:
                 value = str(value)
             width = max(width, len(value))

@@ -48,6 +48,8 @@ class PerformanceLogger(Callback):
                 metrics[name].extend(output_logs)
 
         logs_dict = OrderedDict()
+        for mean_name in metrics:
+            logs_dict[mean_name] = []
         for mean_name, names in metrics.items():
             for name in names:
                 logs_dict[name] = []
@@ -56,16 +58,21 @@ class PerformanceLogger(Callback):
 
     def _update_means(self, logs, metrics):
         for mean_name, names in metrics.items():
+            # Skip, if mean already exists, e.g. loss.
             if logs[mean_name][-1] is not None:
                 continue
             mean = 0
             count = 0
             for name in names:
                 if name in logs:
-                    if logs[name][-1] is not None:
-                        mean += logs[name][-1]
+                    value = logs[name][-1]
+                    if value is not None and not np.isnan(value):
+                        mean += value
                         count += 1
-            mean /= count + EPS
+            if count:
+                mean /= count
+            else:
+                mean = np.nan
             logs[mean_name][-1] = mean
 
     def on_train_begin(self, logs={}):
@@ -117,14 +124,20 @@ class PerformanceLogger(Callback):
 
         table = OrderedDict()
         table['split'] = ['train']
-        for k, v in self.epoch_logs.items():
-            if self.verbose or k in self._epoch_metrics:
-                table[k] = [v[-1]]
+        for mean_name in self._epoch_metrics:
+            table[mean_name] = []
+        if self.verbose:
+            for mean_name, names in self._epoch_metrics.items():
+                for name in names:
+                    table[name] = []
+        for name, logs in self.epoch_logs.items():
+            if name in table:
+                table[name].append(logs[-1])
         if self.val_epoch_logs:
             table['split'].append('val')
-            for k, v in self.val_epoch_logs.items():
-                if self.verbose or k in self._val_epoch_metrics:
-                    table[k].append(v[-1])
+            for name, logs in self.val_epoch_logs.items():
+                if name in table:
+                    table[name].append(logs[-1])
         self._log('')
         self._log(format_table(table, precision=self.precision))
 
@@ -174,10 +187,16 @@ class PerformanceLogger(Callback):
             precision.append(1)
             table['time (min)'] = [(time() - self._time_start) / 60]
             precision.append(1)
-
+            for mean_name in self._batch_metrics:
+                table[mean_name] = []
+            if self.verbose:
+                for mean_name, names in self._batch_metrics.items():
+                    for name in names:
+                        table[name] = []
+                        precision.append(self.precision)
             for name, logs in self._batch_logs.items():
-                if self.verbose or name in self._batch_metrics:
-                    table[name] = [self._batch_logs[name][-1]]
+                if name in table:
+                    table[name].append(logs[-1])
                     precision.append(self.precision)
 
             self._log(format_table(table, precision=precision,
