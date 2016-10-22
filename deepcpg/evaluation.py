@@ -129,6 +129,6 @@ def tensor_metrics(y, z):
     metrics['tnr'] = tn / (tn + fp)
     metrics['fpr'] = fp / (tn + fp)
     metrics['f1'] = (2 * (metrics['prec'] * metrics['tpr'])) /\
-        (metrics['prec'] + metrics['tpr'] + K.epsilon())
+        (metrics['prec'] + metrics['tpr'])
 
     return metrics

@@ -39,18 +39,13 @@ def format_table(table, colwidth=None, precision=2, header=True, sep=' | '):
     nb_row = None
     ftable = OrderedDict()
     for col_idx, col_name in enumerate(col_names):
-        width = len(col_name)
+        width = max(len(col_name), precision[col_idx] + 2)
         values = []
         for value in table[col_name]:
             if value is None:
                 value = ''
             elif isinstance(value, float):
-                # TODO: Remove
-                if np.isnan(value):
-                    value = '{0:>{1}s}'.format(str(value),
-                                               precision[col_idx] + 2)
-                else:
-                    value = '{0:.{1}f}'.format(value, precision[col_idx])
+                value = '{0:.{1}f}'.format(value, precision[col_idx])
             else:
                 value = str(value)
             width = max(width, len(value))
