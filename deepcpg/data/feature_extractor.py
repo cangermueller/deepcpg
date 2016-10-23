@@ -176,7 +176,7 @@ class KmersFeatureExtractor(object):
         self.nb_char = nb_char
         self.nb_kmer = self.nb_char**self.kmer_len
 
-    def __call__(self, seq):
+    def __call__(self, seqs):
         """Extracts kmer frequencies from integer sequences.
 
         Parameters
@@ -187,11 +187,13 @@ class KmersFeatureExtractor(object):
         -------
         freq: numpy array of size M x C of kmer frequencies.
         """
-        kmer_freq = np.zeros((len(seq), self.nb_kmer), dtype=np.int32)
+
+        nb_seq, seq_len = seqs.shape
+        kmer_freq = np.zeros((nb_seq, self.nb_kmer), dtype=np.int32)
         vec = np.array([self.nb_char**i for i in range(self.kmer_len)],
                        dtype=np.int32)
-        for i in range(len(seq)):
-            for p in range(seq.shape[1] - self.kmer_len + 1):
-                kmer = seq[i, p:(p + self.kmer_len)]
+        for i in range(nb_seq):
+            for j in range(seq_len - self.kmer_len + 1):
+                kmer = seqs[i, j:(j + self.kmer_len)]
                 kmer_freq[i, kmer.dot(vec)] += 1
         return kmer_freq

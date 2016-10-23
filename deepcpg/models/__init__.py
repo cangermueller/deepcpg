@@ -4,30 +4,14 @@ from . import dna
 from . import cpg
 from . import joint
 
+from ..utils import get_from_module
+
 
 def get_class(name):
     _name = name.lower()
-    if _name == 'dna01':
-        return dna.Dna01
-    elif _name == 'dna02':
-        return dna.Dna02
-    elif _name == 'dna03':
-        return dna.Dna03
-    elif _name == 'dna04':
-        return dna.Dna04
-    elif _name == 'dna05':
-        return dna.Dna05
-
-
-    elif _name == 'cpg01':
-        return cpg.Cpg01
-    elif _name == 'cpg02':
-        return cpg.Cpg02
-    elif _name == 'cpg03':
-        return cpg.Cpg03
-    elif _name == 'cpg04':
-        return cpg.Cpg04
-    elif _name == 'joint01':
-        return joint.Joint01
+    if _name.startswith('dna'):
+        return get_from_module(name, vars(dna))
+    elif _name.startswith('cpg'):
+        return get_from_module(name, vars(cpg))
     else:
-        raise ValueError('Invalid model "%s"!' % name)
+        return get_from_module(name, vars(joint))

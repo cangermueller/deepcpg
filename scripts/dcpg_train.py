@@ -407,7 +407,7 @@ class App(object):
         if os.path.isfile(filename):
             model.load_weights(filename)
 
-        # TODO: Delete metrics since they cause problems when loading the model
+        # Delete metrics since they cause problems when loading the model
         # from HDF5 file
         model.metrics = None
         model.metrics_names = None

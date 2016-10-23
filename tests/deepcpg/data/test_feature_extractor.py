@@ -2,6 +2,7 @@ import numpy as np
 import numpy.testing as npt
 
 from deepcpg.data import feature_extractor as fe
+from deepcpg.data import dna
 
 
 class TestKnnCpgFeatureExtractor(object):
@@ -136,3 +137,75 @@ class TestIntervalFeatureExtractor(object):
         expect = [False, True, True, False, True, True, True, False]
         result = e.extract(x, ys, ye)
         npt.assert_array_equal(result, expect)
+
+
+class TestKmersFeatureExtractor(object):
+
+    def _translate_seqs(self, seqs):
+        if not isinstance(seqs, list):
+            seqs = [seqs]
+        _seqs = np.array([dna.char2int(seq) for seq in seqs], dtype=np.int32)
+        return _seqs
+
+    def _kmer_idx(self, kmer):
+        idx = 0
+        for i, c in enumerate(kmer):
+            idx += dna.CHAR_TO_INT[c] * 4**i
+        return idx
+
+    def _freq(self, kmer_freq):
+        kmer_len = 4**len(list(kmer_freq.keys())[0])
+        _freq = np.zeros(kmer_len)
+        for kmer, freq in kmer_freq.items():
+            _freq[self._kmer_idx(kmer)] = freq
+        return _freq
+
+    def test_k1(self):
+        ext = fe.KmersFeatureExtractor(1)
+
+        seqs = self._translate_seqs('AGGTTCCC')
+        expect = self._freq({'A': 1, 'G': 2, 'T': 2, 'C': 3})
+        expect = np.array([expect])
+        actual = ext(seqs)
+        npt.assert_array_equal(actual, expect)
+
+        seqs = self._translate_seqs('AGTGGGTTCCC')
+        expect = self._freq({'A': 1, 'G': 4, 'T': 3, 'C': 3})
+        expect = np.array([expect])
+        actual = ext(seqs)
+        npt.assert_array_equal(actual, expect)
+
+        seqs = self._translate_seqs(['AGTGGGTTCCC',
+                                     'GGGGGGGGGGG'])
+        expect = []
+        expect.append(self._freq({'A': 1, 'G': 4, 'T': 3, 'C': 3}))
+        expect.append(self._freq({'G': 11}))
+        expect = np.array(expect)
+        actual = ext(seqs)
+        npt.assert_array_equal(actual, expect)
+
+    def test_k4(self):
+        ext = fe.KmersFeatureExtractor(4)
+
+        seqs = self._translate_seqs('AAAA')
+        expect = self._freq({'AAAA': 1})
+        expect = np.array([expect])
+        actual = ext(seqs)
+        npt.assert_array_equal(actual, expect)
+
+        seqs = self._translate_seqs('AAAAAAAA')
+        expect = self._freq({'AAAA': 5})
+        expect = np.array([expect])
+        actual = ext(seqs)
+        npt.assert_array_equal(actual, expect)
+
+        seqs = self._translate_seqs(['AAAAAA',
+                                     'CGCGCG'])
+        expect = []
+        expect.append(self._freq({'AAAA': 3}))
+        expect.append(self._freq({'CGCG': 2,
+                                  'GCGC': 1}))
+        expect = np.array(expect)
+        actual = ext(seqs)
+        assert actual.shape == (2, 4**4)
+        npt.assert_array_equal(actual, expect)
