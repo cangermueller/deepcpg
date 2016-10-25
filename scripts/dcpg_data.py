@@ -10,10 +10,11 @@ import h5py as h5
 import numpy as np
 import pandas as pd
 
-from deepcpg import data
+from deepcpg import data as dat
 from deepcpg.data import dna
 from deepcpg.data import fasta
 from deepcpg.data import feature_extractor as fext
+from deepcpg.utils import EPS
 
 
 # TODO:
@@ -63,7 +64,7 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
     return seq_wins
 
 
-def map_values(values, pos, target_pos, dtype=None, nan=data.CPG_NAN):
+def map_values(values, pos, target_pos, dtype=None, nan=dat.CPG_NAN):
     assert len(values) == len(pos)
     assert np.all(pos == np.sort(pos))
     assert np.all(target_pos == np.sort(target_pos))
@@ -87,6 +88,49 @@ def map_values(values, pos, target_pos, dtype=None, nan=data.CPG_NAN):
 
 def format_out_of(out, of):
     return '%d / %d (%.1f%%)' % (out, of, out / of * 100)
+
+
+def mean(x, axis=1):
+    return np.mean(x, axis)
+
+
+def var(x, axis=1):
+    return x.var(axis=1)
+
+
+def entropy(x, axis=1):
+    p1 = x.mean(axis=axis)
+    p1 = np.minimum(1 - EPS, np.maximum(EPS, p1))
+    p0 = 1 - p1
+    return -(p1 * np.log(p1) + p0 * np.log(p0))
+
+
+def diff(x, axis=1):
+    return np.array(x.min(axis=axis) != x.max(axis=axis), dtype=np.int8)
+
+
+def disp(x, axis=1):
+    mean = x.mean(axis=1)
+    return x.var(axis=1) - mean * (1 - mean)
+
+
+def output_stats_by_name(names):
+    funs = dict()
+    for name in names:
+        if name == 'mean':
+            fun = (mean, np.float32)
+        elif name == 'var':
+            fun = (var, np.float32)
+        elif name == 'entropy':
+            fun = (entropy, np.float32)
+        elif name == 'diff':
+            fun = (mean, np.int8)
+        elif name == 'disp':
+            fun = (disp, np.float32)
+        else:
+            raise ValueError('Invalid statistic "%s"!' % name)
+        funs[name] = fun
+    return funs
 
 
 class App(object):
@@ -124,7 +168,12 @@ class App(object):
             '--min_cpg_cov',
             type=float,
             help='Filter sites by CpG coverage. Number of observations per '
-                'site, or percentage if smaller than 1.')
+                 'site, or percentage if smaller than 1.')
+        p.add_argument(
+            '--output_stats',
+            help='Per CpG statistics to be computed as additional outputs',
+            nargs='+',
+            default=['cov', 'var', 'entropy', 'diff', 'disp'])
         p.add_argument(
             '--chromos',
             nargs='+',
@@ -166,6 +215,8 @@ class App(object):
         if opts.cpg_wlen and opts.cpg_wlen % 2 != 0:
             raise '--cpg_wlen must be even!'
 
+        output_stats = output_stats_by_name(opts.output_stats)
+
         pos_table = None
         if opts.pos_file:
             log.info('Reading position table ...')
@@ -182,10 +233,10 @@ class App(object):
         if opts.cpg_files:
             log.info('Reading CpG files ...')
             for cpg_file in opts.cpg_files:
-                _cpg_file = data.GzipFile(cpg_file, 'r')
-                tmp = data.read_cpg_table(_cpg_file,
-                                          chromos=opts.chromos,
-                                          nrows=opts.nb_sample)
+                _cpg_file = dat.GzipFile(cpg_file, 'r')
+                tmp = dat.read_cpg_table(_cpg_file,
+                                         chromos=opts.chromos,
+                                         nrows=opts.nb_sample)
                 cpg_tables.append(tmp)
                 _cpg_file.close()
                 output_names.append(output_name_from_filename(cpg_file))
@@ -205,26 +256,32 @@ class App(object):
             log.info('-' * 80)
             log.info('Chromosome %s ...' % (chromo))
             chromo_pos = pos_table.loc[pos_table.chromo == chromo].pos.values
-            chromo_cpgs = []
-            for cpg_table in cpg_tables:
-                cpg_table = cpg_table.loc[cpg_table.chromo == chromo]
-                chromo_cpgs.append(map_values(cpg_table.value.values,
-                                              cpg_table.pos.values,
-                                              chromo_pos,
-                                              dtype=np.int8))
 
-            if opts.min_cpg_cov:
-                min_cpg_cov = opts.min_cpg_cov
-                if min_cpg_cov < 1:
-                    min_cpg_cov = max(1, int(len(chromo_cpgs) * min_cpg_cov))
-                idx = np.hstack([x.reshape(-1, 1) for x in chromo_cpgs])
-                idx = np.sum(idx != data.CPG_NAN, axis=1) >= min_cpg_cov
-                tmp = '%s sites matched minimum coverage filter'
-                tmp %= format_out_of(idx.sum(), len(idx))
-                log.info(tmp)
-                chromo_pos = chromo_pos[idx]
-                for i in range(len(chromo_cpgs)):
-                    chromo_cpgs[i] = chromo_cpgs[i][idx]
+            if cpg_tables:
+                chromo_cpgs = []
+                for cpg_table in cpg_tables:
+                    cpg_table = cpg_table.loc[cpg_table.chromo == chromo]
+                    chromo_cpgs.append(map_values(cpg_table.value.values,
+                                                  cpg_table.pos.values,
+                                                  chromo_pos,
+                                                  dtype=np.int8))
+                chromo_cpgs = np.vstack(chromo_cpgs).T
+
+                if opts.min_cpg_cov:
+                    min_cpg_cov = opts.min_cpg_cov
+                    if min_cpg_cov < 1:
+                        # Convert percentage to absolute number
+                        min_cpg_cov = int(len(chromo_cpgs) * min_cpg_cov)
+                        min_cpg_cov = max(min_cpg_cov, 1)
+                    idx = np.sum(chromo_cpgs != dat.CPG_NAN, axis=1)
+                    idx = idx >= min_cpg_cov
+                    tmp = '%s sites matched minimum coverage filter'
+                    tmp %= format_out_of(idx.sum(), len(idx))
+                    log.info(tmp)
+                    chromo_pos = chromo_pos[idx]
+                    chromo_cpgs = chromo_cpgs[idx]
+            else:
+                chromo_cpgs = None
 
             nb_chunk = int(np.ceil(len(chromo_pos) / opts.chunk_size))
 
@@ -246,15 +303,24 @@ class App(object):
                 chunk_file['chromo'][:] = chromo.encode()
                 chunk_file.create_dataset('pos', data=chunk_pos, dtype=np.int32)
 
-                if chromo_cpgs:
+                if chromo_cpgs is not None:
                     out_group = chunk_file.create_group('outputs')
-                    for i, chromo_cpg in enumerate(chromo_cpgs):
-                        name = 'cpg_%s' % output_names[i]
-                        chunk_cpg = chromo_cpg[chunk_start:chunk_end]
+                    for i, output_name in enumerate(output_names):
+                        name = 'cpg/%s' % output_name
+                        chunk_cpg = chromo_cpgs[chunk_start:chunk_end, i]
                         out_group.create_dataset(name,
                                                  data=chunk_cpg,
                                                  dtype=np.int8,
                                                  compression='gzip')
+                    if output_stats:
+                        chromo_cpgs = np.ma.masked_values(chromo_cpgs,
+                                                          dat.CPG_NAN)
+                        for name, fun in output_stats.items():
+                            stat = fun[0](chromo_cpgs)
+                            out_group.create_dataset('stats/%s' % name,
+                                                     data=stat,
+                                                     dtype=fun[1],
+                                                     compression='gzip')
 
                 in_group = chunk_file.create_group('inputs')
 
@@ -277,9 +343,9 @@ class App(object):
                         knn_state, knn_dist = tmp
                         nan = np.isnan(knn_state)
                         knn_state = knn_state.astype(np.int8, copy=False)
-                        knn_state[nan] = data.CPG_NAN
+                        knn_state[nan] = dat.CPG_NAN
                         knn_dist = knn_dist.astype(np.float32, copy=False)
-                        knn_dist[nan] = data.CPG_NAN
+                        knn_dist[nan] = dat.CPG_NAN
 
                         group = context_group.create_group(output_name)
                         group.create_dataset('state', data=knn_state,

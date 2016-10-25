@@ -3,6 +3,7 @@
 from collections import OrderedDict
 import os
 import random
+import re
 import sys
 
 import argparse
@@ -11,32 +12,77 @@ import numpy as np
 import pandas as pd
 
 from keras import backend as K
+from keras import callbacks as kcbk
 from keras.models import Model
 from keras.optimizers import Adam
 
-from keras import callbacks as kcbk
-
 from deepcpg import callbacks as cbk
 from deepcpg import data as dat
+from deepcpg import metrics as met
 from deepcpg import models as mod
-from deepcpg.evaluation import tensor_metrics
 from deepcpg.utils import format_table, EPS
 
 
 LOG_PRECISION = 4
 
 
-def get_class_weights(stats):
-    weights = OrderedDict()
-    for output, stat in stats.items():
-        frac_one = max(stat['frac_one'], EPS)
-        weights[output] = {0: frac_one, 1: 1 - frac_one}
-    return weights
+def get_output_weights(output_names, weight_patterns):
+    regex_weights = dict()
+    for weight_pattern in weight_patterns:
+        tmp = [tmp.strip() for tmp in weight_pattern.split('=')]
+        if len(tmp) != 2:
+            raise ValueError('Invalid weight pattern "%s"!' % (weight_pattern))
+        regex_weights[tmp[0]] = float(tmp[1])
+
+    output_weights = dict()
+    for output_name in output_names:
+        for regex, weight in regex_weights.items():
+            if re.match(regex, output_name):
+                output_weights[output_name] = weight
+        if output_name not in output_weights:
+            output_weights[output_name] = 1.0
+    return output_weights
+
+
+def get_class_weight(output_name, output_stats):
+    if output_name.startswith('cpg'):
+        frac_one = max(output_stats['mean'], EPS)
+        weight = OrderedDict()
+        weight[0] = frac_one
+        weight[1] = 1 - frac_one
+    else:
+        weight = None
+    return weight
 
 
 def perf_logs_str(logs):
     t = logs.to_csv(None, sep='\t', float_format='%.4f', index=False)
     return t
+
+
+def get_objectives(output_names):
+    objectives = dict()
+    for output_name in output_names:
+        if output_name.startswith('cpg'):
+            objective = 'binary_crossentropy'
+        elif output_name == 'stats/diff':
+            objective = 'binary_crossentropy'
+        elif output_name in ['stats/mean', 'stats/var']:
+            objective = 'mean_squared_error'
+        else:
+            raise ValueError('Invalid output name "%s"!')
+        objectives[output_name] = objective
+    return objectives
+
+
+def get_metrics(output_name):
+    if output_name.startswith('cpg') or output_name == 'stats/diff':
+        metrics = [met.acc, met.tpr, met.tnr, met.f1, met.mcc]
+    elif output_name in ['stats/mean', 'stats/var']:
+        metrics = [met.mse, met.mae]
+    else:
+        raise ValueError('Invalid output name "%s"!' % output_name)
+    return metrics
 
 
 class App(object):
@@ -67,6 +113,11 @@ class App(object):
         p.add_argument(
             '--output_names',
             help='List of regex to filter outputs',
+            nargs='+',
+            default=['cpg/.*'])
+        p.add_argument(
+            '--output_weights',
+            help='List of regex=weight patterns',
             nargs='+')
         p.add_argument(
             '--nb_output',
@@ -76,6 +127,10 @@ class App(object):
             '--replicate_names',
             help='List of regex to filter CpG context units',
             nargs='+')
+        p.add_argument(
+            '--nb_replicate',
+            type=int,
+            help='Maximum number of replicates')
         p.add_argument(
             '--model_name',
             help='Model name',
@@ -224,7 +279,12 @@ class App(object):
                 with open(os.path.join(opts.out_dir, name), 'w') as f:
                     f.write(perf_logs_str(logs))
 
-        metrics = ['loss'] + list(self.metrics.keys())
+        metrics = OrderedDict()
+        for metric_funs in self.metrics.values():
+            for metric_fun in metric_funs:
+                metrics[metric_fun.__name__] = True
+        metrics = ['loss'] + list(metrics.keys())
+
         self.perf_logger = cbk.PerformanceLogger(
             callbacks=[save_lc],
             metrics=metrics,
@@ -264,43 +324,86 @@ class App(object):
             os.makedirs(opts.out_dir, exist_ok=True)
 
         log.info('Computing output statistics ...')
-        output_names = dat.h5_ls(opts.train_files[0], 'outputs',
-                                 opts.output_names, opts.nb_output)
+        output_names = dat.get_output_names(opts.train_files[0],
+                                            regex=opts.output_names,
+                                            nb_keys=opts.nb_output)
+        if not output_names:
+            raise ValueError('No outputs found!')
+        print(output_names)
         output_stats = dat.get_output_stats(opts.train_files, output_names)
-
-        if opts.no_class_weights:
-            class_weights = OrderedDict()
-            for output_name in output_names:
-                class_weights[output_name] = {0: 0.5, 1: 0.5}
-        else:
-            class_weights = get_class_weights(output_stats)
 
         table = OrderedDict()
         for name, stat in output_stats.items():
             table.setdefault('name', []).append(name)
-            for key in ['nb_tot', 'frac_obs', 'frac_one', 'frac_zero']:
+            for key in ['nb_tot', 'frac_obs', 'mean', 'var']:
                 table.setdefault(key, []).append(stat[key])
-            table.setdefault('weight_one', []).append(class_weights[name][1])
-            table.setdefault('weight_zero', []).append(class_weights[name][0])
         print('Output statistics:')
         print(format_table(table))
         print()
 
+        class_weights = None
+        if not opts.no_class_weights:
+            log.info('Initializing class weights ...')
+            class_weights = OrderedDict()
+            for output_name in output_names:
+                class_weights[output_name] = get_class_weight(
+                    output_name, output_stats[output_name])
+
+            table = OrderedDict()
+            for output_name in output_names:
+                class_weight = class_weights[output_name]
+                if not class_weight:
+                    continue
+                column = []
+                for cla, weight in class_weight.items():
+                    column.append('%s=%.2f' % (cla, weight))
+                table[output_name] = column
+
+            if table:
+                print('Class weights:')
+                print(format_table(table))
+                print()
+
+        output_weights = None
+        if opts.output_weights:
+            log.info('Initializing output weights ...')
+            output_weights = get_output_weights(output_names,
+                                                opts.output_weights)
+            print('Output weights:')
+            for output_name in output_names:
+                if output_name in output_weights:
+                    print('%s: %.2f' % (output_name,
+                                        output_weights[output_name]))
+            print()
+
         log.info('Building model ...')
         model_builder = mod.get_class(opts.model_name)
 
-        if opts.model_name.lower().startswith('dna'):
+        _model_name = opts.model_name.lower()
+
+        if _model_name.startswith('dna') or _model_name.startswith('joint'):
             dna_wlen = dat.get_dna_wlen(opts.train_files[0], opts.dna_wlen)
+
+        if _model_name.startswith('cpg') or _model_name.startswith('joint'):
+            cpg_wlen = dat.get_cpg_wlen(opts.train_files[0], opts.cpg_wlen)
+            replicate_names = dat.get_replicate_names(
+                opts.train_files[0],
+                regex=opts.replicate_names,
+                nb_keys=opts.nb_replicate)
+            if not replicate_names:
+                raise ValueError('Not replicates found!')
+            print('Replicate names:')
+            for replicate_name in replicate_names:
+                print(replicate_name)
+            print()
+
+        if _model_name.startswith('dna'):
             model_builder = model_builder(dna_wlen=dna_wlen,
                                           dropout=opts.dropout,
                                           l1_decay=opts.l1_decay,
                                           l2_decay=opts.l2_decay,
                                           init=opts.initialization)
-
-        elif opts.model_name.lower().startswith('cpg'):
-            cpg_wlen = dat.get_cpg_wlen(opts.train_files[0], opts.cpg_wlen)
-            replicate_names = dat.h5_ls(opts.train_files[0], 'inputs/cpg',
-                                        opts.replicate_names)
+        elif _model_name.startswith('cpg'):
             model_builder = model_builder(replicate_names,
                                           cpg_wlen=cpg_wlen,
                                           dropout=opts.dropout,
@@ -308,10 +411,6 @@ class App(object):
                                           l2_decay=opts.l2_decay,
                                           init=opts.initialization)
         else:
-            dna_wlen = dat.get_dna_wlen(opts.train_files[0], opts.dna_wlen)
-            cpg_wlen = dat.get_cpg_wlen(opts.train_files[0], opts.cpg_wlen)
-            replicate_names = dat.h5_ls(opts.train_files[0], 'inputs/cpg',
-                                        opts.replicate_names)
             model_builder = model_builder(replicate_names=replicate_names,
                                           cpg_wlen=cpg_wlen,
                                           dna_wlen=dna_wlen,
@@ -322,7 +421,7 @@ class App(object):
 
         inputs = model_builder.inputs()
         stem = model_builder(inputs)
-        outputs = mod.add_outputs(stem, output_names)
+        outputs = mod.add_output_layers(stem, output_names)
         model = Model(input=inputs, output=outputs, name=opts.model_name)
         model.summary()
 
@@ -330,27 +429,15 @@ class App(object):
 
         log.info('Compile model ...')
 
-        def acc(y, z):
-            return tensor_metrics(y, z)['acc']
-
-        def f1(y, z):
-            return tensor_metrics(y, z)['f1']
-
-        def tpr(y, z):
-            return tensor_metrics(y, z)['tnr']
-
-        def tnr(y, z):
-            return tensor_metrics(y, z)['tnr']
-
-        self.metrics = OrderedDict()
-        self.metrics['acc'] = acc
-        self.metrics['f1'] = f1
-        self.metrics['tpr'] = tpr
-        self.metrics['tnr'] = tnr
+        self.metrics = dict()
+        for output_name in output_names:
+            self.metrics[output_name] = get_metrics(output_name)
 
         optimizer = Adam(lr=opts.learning_rate)
-        model.compile(optimizer=optimizer, loss='binary_crossentropy',
-                      metrics=list(self.metrics.values()))
+        model.compile(optimizer=optimizer,
+                      loss=get_objectives(output_names),
+                      loss_weights=output_weights,
+                      metrics=self.metrics)
 
         log.info('Initializing callbacks ...')
         cbacks = self.callbacks()

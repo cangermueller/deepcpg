@@ -9,7 +9,7 @@ import pandas as pd
 import logging
 
 from deepcpg import data as dat
-from deepcpg.evaluation import evaluate
+from deepcpg import evaluation as ev
 from deepcpg import models as mod
 from deepcpg.utils import ProgressBar
 
@@ -45,6 +45,10 @@ class App(object):
             '--replicate_names',
             help='List of regex to filter CpG context units',
             nargs='+')
+        p.add_argument(
+            '--nb_replicate',
+            type=int,
+            help='Maximum number of replicates')
         p.add_argument(
             '--batch_size',
             help='Batch size',
@@ -84,22 +88,29 @@ class App(object):
         model = mod.load_model(opts.model_files)
         model_builder = mod.get_class(model.name)
 
-        if model.name.lower().startswith('dna'):
+        _model_name = model.name.lower()
+
+        if _model_name.startswith('dna') or _model_name.startswith('joint'):
             dna_wlen = int(model.input_shape[1])
+
+        if _model_name.startswith('cpg') or _model_name.startswith('joint'):
+            cpg_wlen = int(model.input_shape[1][2])
+            replicate_names = dat.get_replicate_names(
+                opts.data_files[0],
+                regex=opts.replicate_names,
+                nb_keys=opts.nb_replicate)
+            if not replicate_names:
+                raise ValueError('Not replicates found!')
+            print()
+
+        if _model_name.startswith('dna'):
             model_builder = model_builder(dna_wlen=dna_wlen)
 
-        elif model.name.lower().startswith('cpg'):
-            cpg_wlen = int(model.input_shape[1][2])
-            replicate_names = dat.h5_ls(opts.data_files[0], 'inputs/cpg',
-                                        opts.replicate_names)
+        elif _model_name.startswith('cpg'):
             model_builder = model_builder(replicate_names,
                                           cpg_wlen=cpg_wlen)
 
         else:
-            dna_wlen = int(model.input_shape[0][1])
-            cpg_wlen = int(model.input_shape[1][2])
-            replicate_names = dat.h5_ls(opts.data_files[0], 'inputs/cpg',
-                                        opts.replicate_names)
             model_builder = model_builder(replicate_names,
                                           cpg_wlen=cpg_wlen,
                                           dna_wlen=dna_wlen)
@@ -145,11 +156,16 @@ class App(object):
 
         perf = []
         for output in model.output_names:
-            tmp = evaluate(data['outputs'][output], data['preds'][output])
-            perf.append(pd.DataFrame(tmp, index=[output]))
+            metrics = mod.get_eval_metrics(output)
+            tmp = ev.evaluate(data['outputs'][output], data['preds'][output],
+                              metrics=metrics)
+            tmp = pd.DataFrame({'output': output,
+                                'metric': list(tmp.keys()),
+                                'value': list(tmp.values())})
+            perf.append(tmp)
         perf = pd.concat(perf)
-        perf.index.name = 'output'
-        perf.reset_index(inplace=True)
+        perf = perf[['metric', 'output', 'value']]
+        perf.sort_values(['metric', 'value'], inplace=True)
 
         print(perf.to_string())
         if opts.out_summary:

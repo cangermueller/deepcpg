@@ -13,11 +13,19 @@ def move_columns_front(frame, columns):
     return frame[columns + list(frame.columns[~frame.columns.isin(columns)])]
 
 
-def get_from_module(identifier, module_params):
-    res = module_params.get(identifier)
-    if not res:
+def get_from_module(identifier, module_params, ignore_case=True):
+    if ignore_case:
+        _module_params = dict()
+        for key, value in module_params.items():
+            _module_params[key.lower()] = value
+        _identifier = identifier.lower()
+    else:
+        _module_params = module_params
+        _identifier = identifier
+    item = _module_params.get(_identifier)
+    if not item:
         raise ValueError('Invalid identifier "%s"!' % identifier)
-    return res
+    return item
 
 
 def format_row(values, widths=None, sep=' | '):

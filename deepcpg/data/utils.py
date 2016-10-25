@@ -4,6 +4,7 @@ import gzip
 import h5py as h5
 import numpy as np
 import pandas as pd
+import re
 
 from ..utils import EPS, filter_regex
 
@@ -13,20 +14,25 @@ CPG_NAN = -1
 def get_output_stats(data_files, output_names, nb_sample=None):
     names = {'outputs': output_names}
     stats = OrderedDict()
+    # batch_size large to reliably estimate statistics from batches
     reader = h5_reader(data_files, names, loop=False, shuffle=False,
+                       batch_size=100000,
                        nb_sample=nb_sample)
+    nb_batch = 0
     for batch in reader:
         for name in output_names:
             output = batch['outputs/%s' % name]
             stat = stats.setdefault(name, Counter())
             stat['nb_tot'] += len(output)
             stat['frac_obs'] += np.sum(output != CPG_NAN)
-            stat['frac_one'] += np.sum(output == 1)
-            stat['frac_zero'] += np.sum(output == 0)
+            output = np.ma.masked_values(output, CPG_NAN)
+            stat['mean'] += output.mean()
+            stat['var'] += output.var()
+        nb_batch += 1
 
     for stat in stats.values():
-        for key in ['frac_one', 'frac_zero']:
-            stat[key] /= (stat['frac_obs'] + EPS)
+        for key in ['mean', 'var']:
+            stat[key] /= (nb_batch + EPS)
         stat['frac_obs'] /= (stat['nb_tot'] + EPS)
     return stats
 
@@ -103,15 +109,47 @@ def stack_dict(data):
     return sdata
 
 
-def h5_ls(data_file, group='/', keys_filter=None, nb_keys=None):
-    data_file = h5.File(data_file, 'r')
-    keys = list(data_file[group].keys())
-    data_file.close()
-    if keys_filter is not None:
-        keys = filter_regex(keys, keys_filter)
+def _h5_ls(item, recursive=False, groups=False, level=0):
+    keys = []
+    if isinstance(item, h5.Group):
+        if groups and level > 0:
+            keys.append(item.name)
+        if level == 0 or recursive:
+            for key in list(item.keys()):
+                keys.extend(_h5_ls(item[key], recursive, groups, level + 1))
+    elif not groups:
+        keys.append(item.name)
+    return keys
+
+
+def h5_ls(filename, group='/', recursive=False, groups=False,
+          regex=None, nb_keys=None):
+    if not group.startswith('/'):
+        group = '/%s' % group
+    h5_file = h5.File(filename, 'r')
+    keys = _h5_ls(h5_file[group], recursive, groups)
+    for i, key in enumerate(keys):
+        keys[i] = re.sub('^%s/' % group, '', key)
+    h5_file.close()
+    if regex:
+        keys = filter_regex(keys, regex)
     if nb_keys:
         keys = keys[:nb_keys]
     return keys
+
+
+def get_output_names(data_file, *args, **kwargs):
+    return h5_ls(data_file, 'outputs',
+                 recursive=True,
+                 groups=False,
+                 *args, **kwargs)
+
+
+def get_replicate_names(data_file, *args, **kwargs):
+    return h5_ls(data_file, 'inputs/cpg',
+                 recursive=False,
+                 groups=True,
+                 *args, **kwargs)
 
 
 def h5_write_data(data, filename):

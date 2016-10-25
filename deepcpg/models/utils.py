@@ -7,8 +7,8 @@ import numpy as np
 import pandas as pd
 
 from .. import data as dat
+from .. import evaluation as ev
 from ..data.dna import int2onehot
-from ..evaluation import evaluate
 
 
 def get_sample_weights(y, class_weights):
@@ -46,13 +46,26 @@ def load_model(model_files):
     return model
 
 
-def add_outputs(x, output_names):
+def get_output_layer(output_name):
+    layer = kl.Dense(1, init='he_uniform', activation='sigmoid',
+                     name=output_name)
+    return layer
+
+
+def add_output_layers(x, output_names):
     outputs = []
-    for name in output_names:
-        output = kl.Dense(1, init='he_uniform', activation='sigmoid',
-                          name='%s' % name)(x)
+    for output_name in output_names:
+        output = get_output_layer(output_name)(x)
         outputs.append(output)
     return outputs
+
+
+def get_eval_metrics(output_name):
+    if output_name in ['stats/mean', 'stats/var']:
+        metrics = ev.REG_METRICS
+    else:
+        metrics = ev.CLA_METRICS
+    return metrics
 
 
 def predict_generator(model, generator, nb_sample=None):
@@ -96,7 +109,7 @@ def evaluate_generator(model, generator, nb_sample, return_data=False):
     data = predict_generator(model, generator, nb_sample)
     perf = []
     for output in model.output_names:
-        tmp = evaluate(data[1][output], data[0][output])
+        tmp = ev.evaluate(data[1][output], data[0][output])
         perf.append(pd.DataFrame(tmp, index=[output]))
     perf = pd.concat(perf)
     if return_data:

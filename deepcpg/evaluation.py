@@ -72,21 +72,21 @@ def nll(y, z):
     t = t.sum() / len(t)
     return -t
 
-CLASS_METRICS = OrderedDict([('auc', auc),
-                             ('acc', acc),
-                             ('tpr', tpr),
-                             ('tnr', tnr),
-                             ('f1', f1),
-                             ('mcc', mcc),
-                             ('cor', cor)])
+CLA_METRICS = OrderedDict([('auc', auc),
+                           ('acc', acc),
+                           ('tpr', tpr),
+                           ('tnr', tnr),
+                           ('f1', f1),
+                           ('mcc', mcc),
+                           ('cor', cor)])
 
-REGR_METRICS = OrderedDict([('rmse', rmse),
-                            ('mse', mse),
-                            ('mad', mad),
-                            ('cor', cor)])
+REG_METRICS = OrderedDict([('mse', mse),
+                           ('rmse', rmse),
+                           ('mad', mad),
+                           ('cor', cor)])
 
 
-def evaluate(y, z, mask=CPG_NAN, metrics=CLASS_METRICS):
+def evaluate(y, z, mask=CPG_NAN, metrics=CLA_METRICS):
     y = y.ravel()
     z = z.ravel()
     if mask is not None:
@@ -98,37 +98,3 @@ def evaluate(y, z, mask=CPG_NAN, metrics=CLASS_METRICS):
         p[metric] = fun(y, z)
     p['n'] = len(y)
     return p
-
-
-def tensor_metrics(y, z):
-    from keras import backend as K
-
-    z = K.round(z)
-
-    def count_matches(a, b):
-        tmp = K.concatenate([a, b])
-        return K.sum(K.cast(K.all(tmp, -1), K.floatx()))
-
-    ones = K.ones_like(y)
-    zeros = K.zeros_like(y)
-    y_ones = K.equal(y, ones)
-    y_zeros = K.equal(y, zeros)
-    z_ones = K.equal(z, ones)
-    z_zeros = K.equal(z, zeros)
-
-    tp = count_matches(y_ones, z_ones)
-    tn = count_matches(y_zeros, z_zeros)
-    fp = count_matches(y_zeros, z_ones)
-    fn = count_matches(y_ones, z_zeros)
-
-    metrics = OrderedDict()
-    metrics['acc'] = (tp + tn) / (tp + fp + tn + fn)
-    metrics['prec'] = tp / (tp + fp)
-    metrics['tpr'] = tp / (tp + fn)
-    metrics['fnr'] = fn / (tp + fn)
-    metrics['tnr'] = tn / (tn + fp)
-    metrics['fpr'] = fp / (tn + fp)
-    metrics['f1'] = (2 * (metrics['prec'] * metrics['tpr'])) /\
-        (metrics['prec'] + metrics['tpr'])
-
-    return metrics
