@@ -11,6 +11,25 @@ from .. import evaluation as ev
 from ..data.dna import int2onehot
 
 
+class ScaledSigmoid(kl.Layer):
+
+    def __init__(self, scaling, **kwargs):
+        self.supports_masking = True
+        self.scaling = scaling
+        super(ScaledSigmoid, self).__init__(**kwargs)
+
+    def call(self, x, mask=None):
+        return K.sigmoid(x) * self.scaling
+
+    def get_config(self):
+        config = {'scaling': self.scaling}
+        base_config = super(ScaledSigmoid, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+
+CUSTOM_OBJECTS = {'ScaledSigmoid': ScaledSigmoid}
+
+
 def get_sample_weights(y, class_weights):
     y = y[:]
     if not class_weights:
@@ -32,31 +51,31 @@ def save_model(model, model_file, weights_file=None):
         model.save_weights(weights_file, overwrite=True)
 
 
-def load_model(model_files):
+def load_model(model_files, custom_objects=CUSTOM_OBJECTS):
     if not isinstance(model_files, list):
         model_files = [model_files]
     if os.path.splitext(model_files[0])[1] == '.h5':
-        model = km.load_model(model_files[0])
+        model = km.load_model(model_files[0], custom_objects=custom_objects)
     else:
         with open(model_files[0], 'r') as f:
             model = f.read()
-        model = km.model_from_json(model)
+        model = km.model_from_json(model, custom_objects=custom_objects)
     if len(model_files) > 1:
         model.load_weights(model_files[1])
     return model
 
 
-def get_output_layer(output_name):
-    layer = kl.Dense(1, init='he_uniform', activation='sigmoid',
-                     name=output_name)
-    return layer
-
-
 def add_output_layers(x, output_names):
     outputs = []
     for output_name in output_names:
-        output = get_output_layer(output_name)(x)
-        outputs.append(output)
+        if output_name == 'stats/var':
+            x = kl.Dense(1, init='he_uniform')(x)
+            x = ScaledSigmoid(0.25, name=output_name)(x)
+        else:
+            x = kl.Dense(1, init='he_uniform',
+                         activation='sigmoid',
+                         name=output_name)(x)
+        outputs.append(x)
     return outputs
 
 
