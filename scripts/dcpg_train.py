@@ -329,7 +329,6 @@ class App(object):
                                             nb_keys=opts.nb_output)
         if not output_names:
             raise ValueError('No outputs found!')
-        print(output_names)
         output_stats = dat.get_output_stats(opts.train_files, output_names)
 
         table = OrderedDict()

@@ -304,19 +304,20 @@ class App(object):
                 chunk_file.create_dataset('pos', data=chunk_pos, dtype=np.int32)
 
                 if chromo_cpgs is not None:
+                    chunk_cpgs = chromo_cpgs[chunk_start:chunk_end]
+
                     out_group = chunk_file.create_group('outputs')
                     for i, output_name in enumerate(output_names):
                         name = 'cpg/%s' % output_name
-                        chunk_cpg = chromo_cpgs[chunk_start:chunk_end, i]
                         out_group.create_dataset(name,
-                                                 data=chunk_cpg,
+                                                 data=chunk_cpgs[:, i],
                                                  dtype=np.int8,
                                                  compression='gzip')
                     if output_stats:
                         chromo_cpgs = np.ma.masked_values(chromo_cpgs,
                                                           dat.CPG_NAN)
                         for name, fun in output_stats.items():
-                            stat = fun[0](chromo_cpgs)
+                            stat = fun[0](chunk_cpgs)
                             out_group.create_dataset('stats/%s' % name,
                                                      data=stat,
                                                      dtype=fun[1],
