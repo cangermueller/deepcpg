@@ -26,8 +26,8 @@ def get_output_stats(data_files, output_names, nb_sample=None):
             stat['nb_tot'] += len(output)
             stat['frac_obs'] += np.sum(output != CPG_NAN)
             output = np.ma.masked_values(output, CPG_NAN)
-            stat['mean'] += output.mean()
-            stat['var'] += output.var()
+            stat['mean'] += float(output.mean())
+            stat['var'] += float(output.var())
         nb_batch += 1
 
     for stat in stats.values():
