@@ -17,11 +17,8 @@ from deepcpg.data import feature_extractor as fext
 from deepcpg.utils import EPS
 
 
-# TODO:
-# * Check asserts
-# * check with missing args
-
 def prepro_pos_table(pos_table):
+    """Extracts unique positions and sorts them."""
     table = pos_table.groupby('chromo')
     table = table.apply(lambda df: pd.DataFrame({'pos': np.unique(df['pos'])}))
     table.reset_index(inplace=True)
@@ -31,6 +28,7 @@ def prepro_pos_table(pos_table):
 
 
 def output_name_from_filename(filename):
+    """Parses output name from file name."""
     name = os.path.splitext(os.path.basename(filename))[0]
     match = re.match(r'([^.]+)\.?', name)
     assert match
@@ -39,6 +37,18 @@ def output_name_from_filename(filename):
 
 
 def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
+    """Extracts DNA sequence windows at positions.
+
+    Parameters
+    ----------
+    seq: DNA sequence string
+    pos: Array with positions at which windows are extracted
+    wlen: Window length
+    seq_index: Minimum positions. Set to 0 if positions in `pos` start at 0
+        instead of 1
+    cpg_sites: Check if positions in `pos` point to CpG sites
+    """
+
     delta = wlen // 2
     nb_win = len(pos)
     seq = seq.upper()
@@ -65,6 +75,7 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
 
 
 def map_values(values, pos, target_pos, dtype=None, nan=dat.CPG_NAN):
+    """Maps `values` array at positions `pos` to `target_pos`."""
     assert len(values) == len(pos)
     assert np.all(pos == np.sort(pos))
     assert np.all(target_pos == np.sort(target_pos))
@@ -145,7 +156,7 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Preprocesses data for training and testing.')
+            description='Prepares data for training and testing.')
         p.add_argument(
             '--dna_db',
             help='DNA database file')
@@ -168,16 +179,16 @@ class App(object):
             '--min_cpg_cov',
             type=float,
             help='Filter sites by CpG coverage. Number of observations per '
-                 'site, or percentage if smaller than 1.')
+                 'site, or percentage if smaller than one.')
         p.add_argument(
             '--output_stats',
             help='Per CpG statistics to be computed as additional outputs',
             nargs='+',
-            default=['cov', 'var', 'entropy', 'diff', 'disp'])
+            choices=['cov', 'var', 'entropy', 'diff', 'disp'])
         p.add_argument(
             '--chromos',
             nargs='+',
-            help='Filter data by chromosomes')
+            help='Select chromosomes')
         p.add_argument(
             '--nb_sample',
             type=int,
@@ -185,8 +196,8 @@ class App(object):
         p.add_argument(
             '--chunk_size',
             type=int,
-            default=100000,
-            help='Chunk size')
+            default=10240,
+            help='Chunk size. Should be divisible by batch size')
         p.add_argument(
             '-o', '--out_dir',
             help='Output directory',
@@ -215,8 +226,10 @@ class App(object):
         if opts.cpg_wlen and opts.cpg_wlen % 2 != 0:
             raise '--cpg_wlen must be even!'
 
+        # Parse functions for computing output statistics
         output_stats = output_stats_by_name(opts.output_stats)
 
+        # Read position file if provided
         pos_table = None
         if opts.pos_file:
             log.info('Reading position table ...')
@@ -228,6 +241,7 @@ class App(object):
                 pos_table = pos_table.loc[pos_table.chromo.isin(opts.chromos)]
             pos_table = prepro_pos_table(pos_table)
 
+        # Read CpG files if provided
         cpg_tables = []
         output_names = []
         if opts.cpg_files:
@@ -240,6 +254,7 @@ class App(object):
                 cpg_tables.append(tmp)
                 _cpg_file.close()
                 output_names.append(output_name_from_filename(cpg_file))
+            # Extract positions from CpG tables if no position file was provided
             if pos_table is None:
                 pos_table = []
                 for cpg_table in cpg_tables:
@@ -247,17 +262,20 @@ class App(object):
                 pos_table = pd.concat(pos_table)
                 pos_table = prepro_pos_table(pos_table)
 
+        # Select chromosomes and maximum number of samples
         if opts.chromos:
             pos_table = pos_table.loc[pos_table.chromo.isin(opts.chromos)]
         if opts.nb_sample:
             pos_table = pos_table.iloc[:opts.nb_sample]
 
+        # Iterate over chromosomes
         for chromo in pos_table.chromo.unique():
             log.info('-' * 80)
             log.info('Chromosome %s ...' % (chromo))
             chromo_pos = pos_table.loc[pos_table.chromo == chromo].pos.values
 
             if cpg_tables:
+                # Concatenate CpG tables into single nb_site x nb_output matrix
                 chromo_cpgs = []
                 for cpg_table in cpg_tables:
                     cpg_table = cpg_table.loc[cpg_table.chromo == chromo]
@@ -267,6 +285,7 @@ class App(object):
                                                   dtype=np.int8))
                 chromo_cpgs = np.vstack(chromo_cpgs).T
 
+                # Filter sites by CpG coverage
                 if opts.min_cpg_cov:
                     min_cpg_cov = opts.min_cpg_cov
                     if min_cpg_cov < 1:
@@ -283,12 +302,13 @@ class App(object):
             else:
                 chromo_cpgs = None
 
-            nb_chunk = int(np.ceil(len(chromo_pos) / opts.chunk_size))
-
+            # Read DNA of chromosome
             chromo_dna = None
             if opts.dna_wlen:
                 chromo_dna = fasta.read_chromo(opts.dna_db, chromo)
 
+            # Write output chunk files
+            nb_chunk = int(np.ceil(len(chromo_pos) / opts.chunk_size))
             for chunk in range(nb_chunk):
                 log.info('Chunk \t%d / %d' % (chunk + 1, nb_chunk))
                 chunk_start = chunk * opts.chunk_size
@@ -298,13 +318,16 @@ class App(object):
                 filename = os.path.join(opts.out_dir, filename)
                 chunk_file = h5.File(filename, 'w')
 
+                # Write positions
                 chunk_file.create_dataset('chromo', shape=(len(chunk_pos),),
                                           dtype='S2')
                 chunk_file['chromo'][:] = chromo.encode()
                 chunk_file.create_dataset('pos', data=chunk_pos, dtype=np.int32)
 
+                # Write CpG outputs
                 if chromo_cpgs is not None:
                     out_group = chunk_file.create_group('outputs')
+                    # CpG states
                     for i, output_name in enumerate(output_names):
                         name = 'cpg/%s' % output_name
                         chunk_cpg = chromo_cpgs[chunk_start:chunk_end, i]
@@ -312,6 +335,7 @@ class App(object):
                                                  data=chunk_cpg,
                                                  dtype=np.int8,
                                                  compression='gzip')
+                    # CpG statistics
                     if output_stats:
                         chromo_cpgs = np.ma.masked_values(chromo_cpgs,
                                                           dat.CPG_NAN)
@@ -322,8 +346,10 @@ class App(object):
                                                      dtype=fun[1],
                                                      compression='gzip')
 
+                # Write input features
                 in_group = chunk_file.create_group('inputs')
 
+                # DNA windows
                 if chromo_dna:
                     log.info('Extract DNA sequence windows ...')
                     dna_wins = extract_seq_windows(chromo_dna, pos=chunk_pos,
@@ -331,6 +357,7 @@ class App(object):
                     in_group.create_dataset('dna', data=dna_wins, dtype=np.int8,
                                             compression='gzip')
 
+                # CpG neighbors
                 if opts.cpg_wlen:
                     log.info('Extract CpG neighbors ...')
                     cpg_ext = fext.KnnCpgFeatureExtractor(opts.cpg_wlen // 2)
