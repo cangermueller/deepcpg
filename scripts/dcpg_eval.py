@@ -167,7 +167,13 @@ class App(object):
         perf = perf[['metric', 'output', 'value']]
         perf.sort_values(['metric', 'value'], inplace=True)
 
-        print(perf.to_string())
+        _perf = pd.pivot_table(perf, index='output', columns='metric',
+                               values='value')
+        if 'auc' in _perf.columns:
+            _perf.sort_values('auc', inplace=True, ascending=False)
+        else:
+            _perf.sort_values('mse', inplace=True, ascending=True)
+        print(_perf.to_string())
         if opts.out_summary:
             perf.to_csv(opts.out_summary, sep='\t', index=False)
 

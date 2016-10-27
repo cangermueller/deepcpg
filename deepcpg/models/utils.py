@@ -80,7 +80,8 @@ def add_output_layers(x, output_names):
 
 
 def get_eval_metrics(output_name):
-    if output_name in ['stats/mean', 'stats/var']:
+    if output_name.startswith('bulk') or \
+            output_name in ['stats/mean', 'stats/var']:
         metrics = ev.REG_METRICS
     else:
         metrics = ev.CLA_METRICS

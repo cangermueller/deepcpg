@@ -65,6 +65,8 @@ def get_objectives(output_names):
     for output_name in output_names:
         if output_name.startswith('cpg'):
             objective = 'binary_crossentropy'
+        elif output_name.startswith('bulk'):
+            objective = 'mean_squared_error'
         elif output_name == 'stats/diff':
             objective = 'binary_crossentropy'
         elif output_name in ['stats/mean', 'stats/var']:
@@ -78,6 +80,8 @@ def get_objectives(output_names):
 def get_metrics(output_name):
     if output_name.startswith('cpg') or output_name == 'stats/diff':
         metrics = [met.acc, met.tpr, met.tnr, met.f1, met.mcc]
+    elif output_name.startswith('bulk'):
+        metrics = [met.mse, met.mae]
     elif output_name in ['stats/mean', 'stats/var']:
         metrics = [met.mse, met.mae]
     else:
