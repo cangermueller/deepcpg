@@ -118,9 +118,6 @@ def predict_generator(model, generator, nb_sample=None):
 
     for i in range(len(data)):
         data[i] = dat.stack_dict(data[i])
-        if nb_sample:
-            # TODO: Remove
-            assert len(list(data[i].values())[0]) == nb_sample
     return data
 
 

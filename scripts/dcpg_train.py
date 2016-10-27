@@ -450,8 +450,9 @@ class App(object):
                                           output_names=output_names,
                                           batch_size=opts.batch_size,
                                           nb_sample=nb_train_sample,
-                                          loop=True, shuffle=True,
-                                          class_weights=class_weights)
+                                          class_weights=class_weights,
+                                          shuffle=True,
+                                          loop=True)
         if opts.val_files:
             nb_val_sample = dat.get_nb_sample(opts.val_files,
                                               opts.nb_val_sample)
@@ -461,8 +462,9 @@ class App(object):
                                             output_names=output_names,
                                             batch_size=opts.batch_size,
                                             nb_sample=nb_val_sample,
-                                            loop=True, shuffle=False,
-                                            class_weights=class_weights)
+                                            class_weights=class_weights,
+                                            shuffle=False,
+                                            loop=True)
         else:
             val_data = None
             nb_val_sample = None
