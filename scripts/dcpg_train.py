@@ -25,6 +25,10 @@ from deepcpg.utils import format_table, EPS
 
 LOG_PRECISION = 4
 
+CLA_METRICS = [met.acc, met.f1, met.mcc, met.tpr, met.tnr]
+
+REG_METRICS = [met.mse, met.mad]
+
 
 def get_output_weights(output_names, weight_patterns):
     regex_weights = dict()
@@ -67,7 +71,7 @@ def get_objectives(output_names):
             objective = 'binary_crossentropy'
         elif output_name.startswith('bulk'):
             objective = 'mean_squared_error'
-        elif output_name == 'stats/diff':
+        elif output_name in ['stats/diff', 'stats/mode']:
             objective = 'binary_crossentropy'
         elif output_name in ['stats/mean', 'stats/var']:
             objective = 'mean_squared_error'
@@ -78,12 +82,14 @@ def get_objectives(output_names):
 
 
 def get_metrics(output_name):
-    if output_name.startswith('cpg') or output_name == 'stats/diff':
-        metrics = [met.acc, met.tpr, met.tnr, met.f1, met.mcc]
+    if output_name.startswith('cpg'):
+        metrics = CLA_METRICS
     elif output_name.startswith('bulk'):
-        metrics = [met.mse, met.mae]
+        metrics = REG_METRICS
+    elif output_name in ['stats/diff', 'stats/mode']:
+        metrics = CLA_METRICS
     elif output_name in ['stats/mean', 'stats/var']:
-        metrics = [met.mse, met.mae]
+        metrics = REG_METRICS
     else:
         raise ValueError('Invalid output name "%s"!' % output_name)
     return metrics
@@ -422,10 +428,9 @@ class App(object):
                                           l2_decay=opts.l2_decay,
                                           init=opts.initialization)
 
-        inputs = model_builder.inputs()
-        stem = model_builder(inputs)
-        outputs = mod.add_output_layers(stem, output_names)
-        model = Model(input=inputs, output=outputs, name=opts.model_name)
+        stem = model_builder()
+        outputs = mod.add_output_layers(stem.outputs, output_names)
+        model = Model(input=stem.inputs, output=outputs, name=_model_name)
         model.summary()
 
         mod.save_model(model, os.path.join(opts.out_dir, 'model.json'))

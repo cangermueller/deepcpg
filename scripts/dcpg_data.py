@@ -154,12 +154,19 @@ def entropy(x, axis=1):
 
 
 def diff(x, axis=1):
-    return np.array(x.min(axis=axis) != x.max(axis=axis), dtype=np.int8)
+    diff = x.min(axis=axis) != x.max(axis=axis)
+    return diff
 
 
 def disp(x, axis=1):
     mean = x.mean(axis=1)
     return x.var(axis=1) - mean * (1 - mean)
+
+
+def mode(x, axis=1):
+    mode = x.mean(axis=axis).astype(np.int8)
+    assert np.all((mode == 0) | (mode == 1))
+    return mode
 
 
 def output_stats_meta_by_name(names):
@@ -172,9 +179,11 @@ def output_stats_meta_by_name(names):
         elif name == 'entropy':
             fun = (entropy, np.float32)
         elif name == 'diff':
-            fun = (mean, np.int8)
+            fun = (diff, np.int8)
         elif name == 'disp':
             fun = (disp, np.float32)
+        elif name == 'mode':
+            fun = (mode, np.int8)
         else:
             raise ValueError('Invalid statistic "%s"!' % name)
         funs[name] = fun
@@ -213,7 +222,7 @@ class App(object):
             default=501,
             help='DNA window length')
         p.add_argument(
-            '--sc_profiles',
+            '--cpg_profiles',
             nargs='+',
             help='BED files with single-cell methylation profiles')
         p.add_argument(
@@ -233,10 +242,10 @@ class App(object):
             help='Filter sites by CpG coverage. Number of observations per '
                  'site, or percentage if smaller than one.')
         p.add_argument(
-            '--sc_stats',
+            '--cpg_stats',
             help='Output statistics derived from single-cell profiles',
             nargs='+',
-            choices=['mean', 'var', 'entropy', 'diff', 'disp'])
+            choices=['mean', 'var', 'entropy', 'diff', 'disp', 'mode'])
         p.add_argument(
             '--chromos',
             nargs='+',
@@ -274,7 +283,7 @@ class App(object):
         log.debug(opts)
 
         # Check input arguments
-        if not (opts.sc_profiles or opts.bulk_profiles):
+        if not (opts.cpg_profiles or opts.bulk_profiles):
             if not (opts.pos_file or opts.dna_db):
                 raise ValueError('Position table and DNA database expected!')
 
@@ -284,14 +293,14 @@ class App(object):
             raise '--cpg_wlen must be even!'
 
         # Parse functions for computing output statistics
-        cpg_stats_meta = output_stats_meta_by_name(opts.sc_stats)
+        cpg_stats_meta = output_stats_meta_by_name(opts.cpg_stats)
 
         outputs = OrderedDict()
 
-        # Read single-cell profiles if provied
-        if opts.sc_profiles:
+        # Read single-cell profiles if provided
+        if opts.cpg_profiles:
             log.info('Reading single-cell profiles ...')
-            outputs['cpg'] = read_cpg_profiles(opts.sc_profiles,
+            outputs['cpg'] = read_cpg_profiles(opts.cpg_profiles,
                                                chromos=opts.chromos,
                                                nrows=opts.nb_sample)
 
@@ -299,7 +308,8 @@ class App(object):
             log.info('Reading bulk profiles ...')
             outputs['bulk'] = read_cpg_profiles(opts.bulk_profiles,
                                                 chromos=opts.chromos,
-                                                nrows=opts.nb_sample)
+                                                nrows=opts.nb_sample,
+                                                round=False)
 
         # Create table with unique positions
         if opts.pos_file:
@@ -390,7 +400,7 @@ class App(object):
                 if len(chunk_outputs):
                     out_group = chunk_file.create_group('outputs')
 
-                # Write sc profiles
+                # Write cpg profiles
                 if 'cpg' in chunk_outputs:
                     for name, value in chunk_outputs['cpg'].items():
                         assert len(value) == len(chunk_pos)
@@ -403,7 +413,7 @@ class App(object):
                         cpg_mat = np.ma.masked_values(chunk_outputs['cpg_mat'],
                                                       dat.CPG_NAN)
                         for name, fun in cpg_stats_meta.items():
-                            stat = fun[0](cpg_mat)
+                            stat = fun[0](cpg_mat).data.astype(fun[1])
                             assert len(stat) == len(chunk_pos)
                             out_group.create_dataset('stats/%s' % name,
                                                      data=stat,

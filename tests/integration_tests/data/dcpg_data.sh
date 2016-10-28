@@ -2,9 +2,6 @@
 
 
 out_dir="./data"
-cpg_files=$(ls ./cpg_files/*bed)
-
-check=1
 function run {
   cmd=$@
   echo
@@ -12,7 +9,7 @@ function run {
   echo $cmd
   echo "#################################"
   eval $cmd
-  if [ $check -ne 0 -a $? -ne 0 ]; then
+  if [[ $check -ne 0 && $? -ne 0 ]]; then
     1>&2 echo "Command failed!"
     exit 1
   fi
@@ -21,9 +18,12 @@ function run {
 cmd="rm -rf $out_dir && mkdir -p $out_dir"
 cmd="$cmd && dcpg_data.py
   --dna_db ./dna_db
-  --cpg_files $(ls ./cpg_files/BS27_4_SER.bed ./cpg_files/BS28_2_SER.bed)
+  --cpg_profiles $(ls ./cpg_files/BS27_4_SER.bed ./cpg_files/BS28_2_SER.bed)
+  --bulk_profiles $(ls ./cpg_files/BS9N_2I.bed ./cpg_files/BS9N_SER.bed)
+  --cpg_stats mean var diff mode
   --dna_wlen 501
   --cpg_wlen 50
   --chunk_size 5000
+  --chromos 18 19
   --out_dir $out_dir"
 run $cmd

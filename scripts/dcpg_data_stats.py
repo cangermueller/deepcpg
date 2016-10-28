@@ -70,8 +70,8 @@ class App(object):
             log.setLevel(logging.INFO)
         log.debug(opts)
 
-        output_names = dat.h5_ls(opts.data_files[0], 'outputs',
-                                 opts.output_names)
+        output_names = dat.get_output_names(opts.data_files[0],
+                                            regex=opts.output_names)
         stats = dat.get_output_stats(opts.data_files, output_names)
         tmp = []
         for key, value in stats.items():

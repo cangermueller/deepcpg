@@ -1,6 +1,7 @@
 import os
 
 import numpy as np
+from numpy import testing as npt
 
 from deepcpg.data import h5_read, CPG_NAN
 from deepcpg.data.fasta import read_chromo
@@ -26,8 +27,14 @@ class TestMake(object):
                  '/inputs/cpg/BS27_4_SER/state',
                  '/inputs/cpg/BS28_2_SER/dist',
                  '/inputs/cpg/BS28_2_SER/state',
-                 '/outputs/cpg_BS27_4_SER',
-                 '/outputs/cpg_BS28_2_SER'
+                 '/outputs/cpg/BS27_4_SER',
+                 '/outputs/cpg/BS28_2_SER',
+                 '/outputs/stats/mean',
+                 '/outputs/stats/var',
+                 '/outputs/stats/diff',
+                 '/outputs/stats/mode',
+                 '/outputs/bulk/BS9N_2I',
+                 '/outputs/bulk/BS9N_SER'
                  ]
         self.data = h5_read(self.data_files, names)
         self.chromo = self.data['chromo']
@@ -49,7 +56,7 @@ class TestMake(object):
                     ('19', 4442494, 0.0),
                     ('19', 4447847, 1.0)
                     ]
-        self._test_outputs('cpg_BS27_4_SER', expected)
+        self._test_outputs('cpg/BS27_4_SER', expected)
 
         expected = [('18', 3000092, 1.0),
                     ('18', 3010064, 0.0),
@@ -60,7 +67,7 @@ class TestMake(object):
                     ('19', 4192788, 0.0),
                     ('19', 4202077, 0.0)
                     ]
-        self._test_outputs('cpg_BS28_2_SER', expected)
+        self._test_outputs('cpg/BS28_2_SER', expected)
 
     def _test_dna(self, chromo):
         pos = self.pos[self.chromo == chromo.encode()]
@@ -170,3 +177,55 @@ class TestMake(object):
              )
         ]
         self._test_cpg_neighbors(name, expected)
+
+    def _test_stats(self, chromo, pos, stat, value):
+        idx = (self.chromo == chromo.encode()) & (self.pos == pos)
+        stat = self.data['/outputs/stats/%s' % stat][idx]
+        assert stat == value
+
+    def test_stats(self):
+        self._test_stats('18', 3010417, 'mean', 1.0)
+        self._test_stats('18', 3010417, 'var', 0.0)
+        self._test_stats('18', 3010417, 'diff', 0)
+        self._test_stats('18', 3010417, 'mode', 1)
+        self._test_stats('18', 3012173, 'mean', 0.0)
+        self._test_stats('18', 3012173, 'var', 0.0)
+        self._test_stats('18', 3012173, 'diff', 0)
+        self._test_stats('18', 3012173, 'mode', 0)
+        self._test_stats('18', 3052129, 'mean', 1.0)
+        self._test_stats('18', 3052129, 'var', 0.0)
+        self._test_stats('18', 3052129, 'diff', 0)
+        self._test_stats('18', 3052129, 'mode', 1)
+        self._test_stats('18', 3071630, 'mean', 0.5)
+        self._test_stats('18', 3071630, 'var', 0.25)
+        self._test_stats('18', 3071630, 'diff', 1)
+        self._test_stats('18', 3071630, 'mode', 0)
+        self._test_stats('19', 4201704, 'mean', 0.0)
+        self._test_stats('19', 4201704, 'var', 0.0)
+        self._test_stats('19', 4201704, 'diff', 0)
+        self._test_stats('19', 4201704, 'mode', 0)
+        self._test_stats('19', 4190571, 'mean', 0.5)
+        self._test_stats('19', 4190571, 'var', 0.25)
+        self._test_stats('19', 4190571, 'diff', 1)
+        self._test_stats('19', 4190571, 'mode', 0)
+        self._test_stats('19', 4190700, 'mean', 0.0)
+        self._test_stats('19', 4190700, 'var', 0.0)
+        self._test_stats('19', 4190700, 'diff', 0)
+        self._test_stats('19', 4190700, 'mode', 0)
+
+    def _test_bulk(self, chromo, pos, name, expected):
+        idx = (self.chromo == chromo.encode()) & (self.pos == pos)
+        actual = float(self.data['/outputs/bulk/%s' % name][idx])
+        npt.assert_almost_equal(actual, expected, 2)
+
+    def test_bulk(self):
+        self._test_bulk('18', 3000023, 'BS9N_2I', 0.0)
+        self._test_bulk('18', 3000023, 'BS9N_SER', 0.75)
+        self._test_bulk('18', 3000086, 'BS9N_2I', 0.0)
+        self._test_bulk('18', 3000086, 'BS9N_SER', 0.666)
+        self._test_bulk('18', 3004868, 'BS9N_2I', 0.042)
+        self._test_bulk('18', 3004868, 'BS9N_SER', 0.1636)
+        self._test_bulk('18', 3013979, 'BS9N_2I', -1)
+        self._test_bulk('18', 3013979, 'BS9N_SER', 1.0)
+        self._test_bulk('19', 4438754, 'BS9N_2I', -1)
+        self._test_bulk('19', 4438754, 'BS9N_SER', 0.333)
