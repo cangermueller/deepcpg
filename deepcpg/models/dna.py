@@ -1,7 +1,9 @@
 from keras import layers as kl
 from keras import regularizers as kr
+from keras import models as km
 
 from .utils import Model
+from ..utils import get_from_module
 
 
 """TODO
@@ -18,22 +20,8 @@ Network in Network
 
 class DnaModel(Model):
 
-    def __init__(self, dna_wlen=None,
-                 *args, **kwargs):
-        super(DnaModel, self).__init__(*args, **kwargs)
-        self.dna_wlen = dna_wlen
-
-    def reader(self, data_files, *args, **kwargs):
-        super_reader = super(DnaModel, self).reader
-        for data in super_reader(data_files,
-                                 use_dna=True,
-                                 dna_wlen=self.dna_wlen,
-                                 replicate_names=None,
-                                 *args, **kwargs):
-            yield data
-
-    def inputs(self):
-        return [kl.Input(shape=(self.dna_wlen, 4), name='dna')]
+    def inputs(self, dna_wlen):
+        return [kl.Input(shape=(dna_wlen, 4), name='dna')]
 
 
 class Dna01(DnaModel):
@@ -70,7 +58,7 @@ class Dna01(DnaModel):
 
         x = kl.GlobalAveragePooling1D()(x)
 
-        return x
+        return km.Model(input=inputs, output=x, name=self.name)
 
 
 class Dna02(DnaModel):
@@ -107,7 +95,7 @@ class Dna02(DnaModel):
 
         x = kl.GlobalAveragePooling1D()(x)
 
-        return x
+        return km.Model(input=inputs, output=x, name=self.name)
 
 
 class Dna03(DnaModel):
@@ -128,7 +116,7 @@ class Dna03(DnaModel):
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return x
+        return km.Model(input=inputs, output=x, name=self.name)
 
 
 class Dna04(DnaModel):
@@ -159,7 +147,7 @@ class Dna04(DnaModel):
         x = kl.GlobalAveragePooling1D()(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return x
+        return km.Model(input=inputs, output=x, name=self.name)
 
 
 class Dna05(DnaModel):
@@ -192,7 +180,7 @@ class Dna05(DnaModel):
                                               return_sequences=False,
                                               W_regularizer=w_reg))(x)
 
-        return x
+        return km.Model(input=inputs, output=x, name=self.name)
 
 
 class DnaResNet01(DnaModel):
@@ -246,7 +234,7 @@ class DnaResNet01(DnaModel):
 
         x = kl.merge([identity, x], name=name + 'merge', mode='sum')
 
-        return x
+        return km.Model(input=inputs, output=x, name=self.name)
 
     def __call__(self, inputs):
         x = inputs[0]
@@ -278,4 +266,8 @@ class DnaResNet01(DnaModel):
 
         x = kl.GlobalAveragePooling1D()(x)
 
-        return x
+        return km.Model(input=inputs, output=x, name=self.name)
+
+
+def get(name):
+    return get_from_module(name, globals())

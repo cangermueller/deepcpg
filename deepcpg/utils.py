@@ -6,6 +6,11 @@ import numpy as np
 EPS = 10e-8
 
 
+def as_list(value):
+    if not isinstance(value, list):
+        value = [value]
+    return value
+
 def move_columns_front(frame, columns):
     if not isinstance(columns, list):
         columns = [columns]

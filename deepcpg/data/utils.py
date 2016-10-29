@@ -51,12 +51,26 @@ def get_nb_sample(data_files, nb_max=None, batch_size=None):
     return nb_sample
 
 
+def get_output_names(data_file, *args, **kwargs):
+    return h5_ls(data_file, 'outputs',
+                 recursive=True,
+                 groups=False,
+                 *args, **kwargs)
+
+
 def get_dna_wlen(data_file, max_len=None):
     data_file = h5.File(data_file, 'r')
     wlen = data_file['/inputs/dna'].shape[1]
     if max_len:
         wlen = min(max_len, wlen)
     return wlen
+
+
+def get_replicate_names(data_file, *args, **kwargs):
+    return h5_ls(data_file, 'inputs/cpg',
+                 recursive=False,
+                 groups=True,
+                 *args, **kwargs)
 
 
 def get_cpg_wlen(data_file, max_len=None):
@@ -136,20 +150,6 @@ def h5_ls(filename, group='/', recursive=False, groups=False,
     if nb_keys:
         keys = keys[:nb_keys]
     return keys
-
-
-def get_output_names(data_file, *args, **kwargs):
-    return h5_ls(data_file, 'outputs',
-                 recursive=True,
-                 groups=False,
-                 *args, **kwargs)
-
-
-def get_replicate_names(data_file, *args, **kwargs):
-    return h5_ls(data_file, 'inputs/cpg',
-                 recursive=False,
-                 groups=True,
-                 *args, **kwargs)
 
 
 def h5_write_data(data, filename):

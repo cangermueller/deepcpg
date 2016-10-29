@@ -9,6 +9,7 @@ import pandas as pd
 from .. import data as dat
 from .. import evaluation as ev
 from ..data.dna import int2onehot
+from ..utils import as_list
 
 
 class ScaledSigmoid(kl.Layer):
@@ -159,6 +160,93 @@ def read_from(reader, nb_sample=None):
     return data
 
 
+class DataReader(object):
+
+    def __init__(self, output_names=None,
+                 use_dna=True, dna_wlen=None,
+                 replicate_names=None, cpg_wlen=None, cpg_max_dist=25000):
+        self.output_names = output_names
+        self.use_dna = use_dna
+        self.dna_wlen = dna_wlen
+        self.replicate_names = replicate_names
+        self.cpg_wlen = cpg_wlen
+        self.cpg_max_dist = cpg_max_dist
+
+    def _prepro_dna(self, dna):
+        if self.dna_wlen:
+            cur_wlen = dna.shape[1]
+            center = cur_wlen // 2
+            delta = self.dna_wlen // 2
+            dna = dna[:, (center - delta):(center + delta + 1)]
+        return int2onehot(dna)
+
+    def _prepro_cpg(self, states, dists):
+        prepro_states = []
+        prepro_dists = []
+        for state, dist in zip(states, dists):
+            nan = state == dat.CPG_NAN
+            if np.any(nan):
+                tmp = np.sum(state == 1) / state.size
+                state[nan] = np.random.binomial(1, tmp, nan.sum())
+                dist[nan] = self.cpg_max_dist
+            dist = np.minimum(dist, self.cpg_max_dist) / self.cpg_max_dist
+            prepro_states.append(np.expand_dims(state, 1))
+            prepro_dists.append(np.expand_dims(dist, 1))
+        prepro_states = np.concatenate(prepro_states, axis=1)
+        prepro_dists = np.concatenate(prepro_dists, axis=1)
+        if self.cpg_wlen:
+            center = prepro_states.shape[2] // 2
+            delta = self.cpg_wlen // 2
+            tmp = slice(center - delta, center + delta)
+            prepro_states = prepro_states[:, :, tmp]
+            prepro_dists = prepro_dists[:, :, tmp]
+        return (prepro_states, prepro_dists)
+
+    def __call__(self, data_files, class_weights=None, *args, **kwargs):
+        names = []
+        if self.use_dna:
+            names.append('inputs/dna')
+
+        if self.replicate_names:
+            for name in self.replicate_names:
+                names.append('inputs/cpg/%s/state' % name)
+                names.append('inputs/cpg/%s/dist' % name)
+
+        if self.output_names:
+            names.extend(['outputs/%s' % name for name in self.output_names])
+
+        for data_raw in dat.h5_reader(data_files, names, *args, **kwargs):
+            inputs = dict()
+
+            if self.use_dna:
+                inputs['dna'] = self._prepro_dna(data_raw['inputs/dna'])
+
+            if self.replicate_names:
+                states = []
+                dists = []
+                for name in self.replicate_names:
+                    tmp = 'inputs/cpg/%s/' % name
+                    states.append(data_raw[tmp + 'state'])
+                    dists.append(data_raw[tmp + 'dist'])
+                states, dists = self._prepro_cpg(states, dists)
+                replicates_id = '--'.join(self.replicate_names)
+                inputs['cpg/state/%s' % replicates_id] = states
+                inputs['cpg/dist/%s' % replicates_id] = dists
+
+            if not self.output_names:
+                yield inputs
+            else:
+                outputs = dict()
+                weights = dict()
+
+                for name in self.output_names:
+                    outputs[name] = data_raw['outputs/%s' % name]
+                    cweights = class_weights[name] if class_weights else None
+                    weights[name] = get_sample_weights(outputs[name], cweights)
+
+                yield (inputs, outputs, weights)
+
+
 class Model(object):
 
     def __init__(self, dropout=0.0, l1_decay=0.0, l2_decay=0.0,
@@ -167,88 +255,33 @@ class Model(object):
         self.l1_decay = l1_decay
         self.l2_decay = l2_decay
         self.init = init
-
-    def _prepro_dna(self, dna, dna_wlen=None):
-        if dna_wlen:
-            cur_wlen = dna.shape[1]
-            center = cur_wlen // 2
-            delta = dna_wlen // 2
-            dna = dna[:, (center - delta):(center + delta + 1)]
-        return int2onehot(dna)
-
-    def _prepro_cpg(self, states, dists, cpg_wlen=None, cpg_max_dist=25000):
-        prepro_states = []
-        prepro_dists = []
-        for state, dist in zip(states, dists):
-            nan = state == dat.CPG_NAN
-            if np.any(nan):
-                tmp = np.sum(state == 1) / state.size
-                state[nan] = np.random.binomial(1, tmp, nan.sum())
-                dist[nan] = cpg_max_dist
-            dist = np.minimum(dist, cpg_max_dist) / cpg_max_dist
-            prepro_states.append(np.expand_dims(state, 1))
-            prepro_dists.append(np.expand_dims(dist, 1))
-        prepro_states = np.concatenate(prepro_states, axis=1)
-        prepro_dists = np.concatenate(prepro_dists, axis=1)
-        if cpg_wlen:
-            center = prepro_states.shape[2] // 2
-            delta = cpg_wlen // 2
-            tmp = slice(center - delta, center + delta)
-            prepro_states = prepro_states[:, :, tmp]
-            prepro_dists = prepro_dists[:, :, tmp]
-        return (prepro_states, prepro_dists)
-
-    def reader(self, data_files, output_names=None,
-               use_dna=True, dna_wlen=None,
-               replicate_names=None, cpg_wlen=None, cpg_max_dist=25000,
-               class_weights=None, *args, **kwargs):
-
-        names = []
-        if use_dna:
-            names.append('inputs/dna')
-
-        if replicate_names:
-            for name in replicate_names:
-                names.append('inputs/cpg/%s/state' % name)
-                names.append('inputs/cpg/%s/dist' % name)
-
-        if output_names:
-            names.extend(['outputs/%s' % name for name in output_names])
-
-        for data_raw in dat.h5_reader(data_files, names, *args, **kwargs):
-            inputs = dict()
-
-            if use_dna:
-                inputs['dna'] = self._prepro_dna(data_raw['inputs/dna'],
-                                                 dna_wlen)
-
-            if replicate_names:
-                states = []
-                dists = []
-                for name in replicate_names:
-                    tmp = 'inputs/cpg/%s/' % name
-                    states.append(data_raw[tmp + 'state'])
-                    dists.append(data_raw[tmp + 'dist'])
-                states, dists = self._prepro_cpg(states, dists, cpg_wlen,
-                                                 cpg_max_dist)
-                inputs['cpg/state'] = states
-                inputs['cpg/dist'] = dists
-
-            if not output_names:
-                yield inputs
-            else:
-                outputs = dict()
-                weights = dict()
-
-                for name in output_names:
-                    outputs[name] = data_raw['outputs/%s' % name]
-                    cweights = class_weights[name] if class_weights else None
-                    weights[name] = get_sample_weights(outputs[name], cweights)
-
-                yield (inputs, outputs, weights)
+        self.name = self.__class__.__name__
 
     def inputs(self, *args, **kwargs):
         pass
 
-    def __call__(self, inputs):
+    def __call__(self, inputs=None):
         pass
+
+
+def data_reader_from_model(model):
+    use_dna = False
+    dna_wlen = None
+    cpg_wlen = None
+    replicate_names = None
+
+    input_shapes = as_list(model.input_shape)
+    for input_name, input_shape in zip(model.input_names, input_shapes):
+        if input_name == 'dna':
+            use_dna = True
+            dna_wlen = input_shape[0]
+        elif input_name.startswith('cpg/state/'):
+            replicate_names = input_name.replace('cpg/state/', '').split('--')
+            assert len(replicate_names) == input_shape[1]
+            cpg_wlen = input_shape[2]
+
+    return DataReader(output_names=model.output_names,
+                      use_dna=use_dna,
+                      dna_wlen=dna_wlen,
+                      cpg_wlen=cpg_wlen,
+                      replicate_names=replicate_names)

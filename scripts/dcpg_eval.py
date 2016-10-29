@@ -86,34 +86,6 @@ class App(object):
 
         log.info('Loading model ...')
         model = mod.load_model(opts.model_files)
-        model_builder = mod.get_class(model.name)
-
-        _model_name = model.name.lower()
-
-        if _model_name.startswith('dna') or _model_name.startswith('joint'):
-            dna_wlen = int(model.input_shape[1])
-
-        if _model_name.startswith('cpg') or _model_name.startswith('joint'):
-            cpg_wlen = int(model.input_shape[1][2])
-            replicate_names = dat.get_replicate_names(
-                opts.data_files[0],
-                regex=opts.replicate_names,
-                nb_keys=opts.nb_replicate)
-            if not replicate_names:
-                raise ValueError('Not replicates found!')
-            print()
-
-        if _model_name.startswith('dna'):
-            model_builder = model_builder(dna_wlen=dna_wlen)
-
-        elif _model_name.startswith('cpg'):
-            model_builder = model_builder(replicate_names,
-                                          cpg_wlen=cpg_wlen)
-
-        else:
-            model_builder = model_builder(replicate_names,
-                                          cpg_wlen=cpg_wlen,
-                                          dna_wlen=dna_wlen)
 
         log.info('Reading data ...')
         nb_sample = dat.get_nb_sample(opts.data_files, opts.nb_sample)
@@ -123,11 +95,12 @@ class App(object):
                                     batch_size=opts.batch_size,
                                     loop=False, shuffle=False)
 
-        data_reader = model_builder.reader(opts.data_files,
-                                           output_names=model.output_names,
-                                           nb_sample=nb_sample,
-                                           batch_size=opts.batch_size,
-                                           loop=False, shuffle=False)
+        data_reader = mod.data_reader_from_model(model)
+        data_reader = data_reader(opts.data_files,
+                                  nb_sample=nb_sample,
+                                  batch_size=opts.batch_size,
+                                  loop=False,
+                                  shuffle=False)
 
         log.info('Predicting ...')
         data = dict()
@@ -169,6 +142,8 @@ class App(object):
 
         _perf = pd.pivot_table(perf, index='output', columns='metric',
                                values='value')
+        _perf.reset_index('output', inplace=True)
+        _perf.columns.name = None
         if 'auc' in _perf.columns:
             _perf.sort_values('auc', inplace=True, ascending=False)
         else:

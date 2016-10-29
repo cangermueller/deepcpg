@@ -27,7 +27,7 @@ LOG_PRECISION = 4
 
 CLA_METRICS = [met.acc, met.f1, met.mcc, met.tpr, met.tnr]
 
-REG_METRICS = [met.mse, met.mad]
+REG_METRICS = [met.mse, met.mae]
 
 
 def get_output_weights(output_names, weight_patterns):
@@ -142,9 +142,15 @@ class App(object):
             type=int,
             help='Maximum number of replicates')
         p.add_argument(
-            '--model_name',
-            help='Model name',
-            default='dna01')
+            '--dna_model',
+            help='Name of DNA model')
+        p.add_argument(
+            '--cpg_model',
+            help='Name of Cpg model')
+        p.add_argument(
+            '--joint_model',
+            help='Name of joint model',
+            default='joint01')
         p.add_argument(
             '--nb_epoch',
             help='Maximum # training epochs',
@@ -244,29 +250,29 @@ class App(object):
             default=1)
         return p
 
-    def callbacks(self):
+    def get_callbacks(self):
         opts = self.opts
-        cbacks = []
+        callbacks = []
 
         if opts.val_files:
-            cbacks.append(kcbk.EarlyStopping(
+            callbacks.append(kcbk.EarlyStopping(
                 'val_loss' if opts.val_files else 'loss',
                 patience=opts.early_stopping,
                 verbose=1
             ))
 
-        cbacks.append(kcbk.ModelCheckpoint(
+        callbacks.append(kcbk.ModelCheckpoint(
             os.path.join(opts.out_dir, 'model_weights_last.h5'),
             save_best_only=False))
         monitor = 'val_loss' if opts.val_files else 'loss'
-        cbacks.append(kcbk.ModelCheckpoint(
+        callbacks.append(kcbk.ModelCheckpoint(
             os.path.join(opts.out_dir, 'model_weights.h5'),
             monitor=monitor,
             save_best_only=True, verbose=1
         ))
 
         max_time = int(opts.max_time * 3600) if opts.max_time else None
-        cbacks.append(cbk.TrainingStopper(
+        callbacks.append(cbk.TrainingStopper(
             max_time=max_time,
             stop_file=opts.stop_file,
             verbose=1
@@ -277,7 +283,7 @@ class App(object):
             print('Learning rate: %.3g' % lr)
             return lr
 
-        cbacks.append(kcbk.LearningRateScheduler(learning_rate_schedule))
+        callbacks.append(kcbk.LearningRateScheduler(learning_rate_schedule))
 
         def save_lc(epoch, epoch_logs, val_epoch_logs):
             logs = {'lc_train.csv': epoch_logs,
@@ -301,17 +307,38 @@ class App(object):
             precision=LOG_PRECISION,
             verbose=not opts.no_log_outputs
         )
-        cbacks.append(self.perf_logger)
+        callbacks.append(self.perf_logger)
 
         if K._BACKEND == 'tensorflow':
-            cbacks.append(cbk.TensorBoard(
+            callbacks.append(cbk.TensorBoard(
                 log_dir=opts.out_dir,
                 histogram_freq=1,
                 write_graph=True,
                 write_images=True
             ))
 
-        return cbacks
+        return callbacks
+
+    def get_class_weights(self, output_names, output_stats):
+        class_weights = OrderedDict()
+        for output_name in output_names:
+            class_weights[output_name] = get_class_weight(
+                output_name, output_stats[output_name])
+
+        table = OrderedDict()
+        for output_name in output_names:
+            class_weight = class_weights[output_name]
+            if not class_weight:
+                continue
+            column = []
+            for cla, weight in class_weight.items():
+                column.append('%s=%.2f' % (cla, weight))
+            table[output_name] = column
+
+        if table:
+            print('Class weights:')
+            print(format_table(table))
+            print()
 
     def main(self, name, opts):
         logging.basicConfig(filename=opts.log_file,
@@ -350,28 +377,11 @@ class App(object):
         print(format_table(table))
         print()
 
-        class_weights = None
-        if not opts.no_class_weights:
+        if opts.no_class_weights:
+            class_weights = None
+        else:
             log.info('Initializing class weights ...')
-            class_weights = OrderedDict()
-            for output_name in output_names:
-                class_weights[output_name] = get_class_weight(
-                    output_name, output_stats[output_name])
-
-            table = OrderedDict()
-            for output_name in output_names:
-                class_weight = class_weights[output_name]
-                if not class_weight:
-                    continue
-                column = []
-                for cla, weight in class_weight.items():
-                    column.append('%s=%.2f' % (cla, weight))
-                table[output_name] = column
-
-            if table:
-                print('Class weights:')
-                print(format_table(table))
-                print()
+            class_weights = self.get_class_weights(output_names, output_stats)
 
         output_weights = None
         if opts.output_weights:
@@ -386,14 +396,23 @@ class App(object):
             print()
 
         log.info('Building model ...')
-        model_builder = mod.get_class(opts.model_name)
-
-        _model_name = opts.model_name.lower()
-
-        if _model_name.startswith('dna') or _model_name.startswith('joint'):
+        if opts.dna_model:
+            dna_model_builder = mod.dna.get(opts.dna_model)(
+                l1_decay=opts.l1_decay,
+                l2_decay=opts.l2_decay,
+                dropout=opts.dropout)
             dna_wlen = dat.get_dna_wlen(opts.train_files[0], opts.dna_wlen)
+            dna_inputs = dna_model_builder.inputs(dna_wlen)
+            dna_model = dna_model_builder(dna_inputs)
+        else:
+            dna_model = None
 
-        if _model_name.startswith('cpg') or _model_name.startswith('joint'):
+        if opts.cpg_model:
+            cpg_model_builder = mod.cpg.get(opts.cpg_model)(
+                l1_decay=opts.l1_decay,
+                l2_decay=opts.l2_decay,
+                dropout=opts.dropout)
+
             cpg_wlen = dat.get_cpg_wlen(opts.train_files[0], opts.cpg_wlen)
             replicate_names = dat.get_replicate_names(
                 opts.train_files[0],
@@ -406,36 +425,28 @@ class App(object):
                 print(replicate_name)
             print()
 
-        if _model_name.startswith('dna'):
-            model_builder = model_builder(dna_wlen=dna_wlen,
-                                          dropout=opts.dropout,
-                                          l1_decay=opts.l1_decay,
-                                          l2_decay=opts.l2_decay,
-                                          init=opts.initialization)
-        elif _model_name.startswith('cpg'):
-            model_builder = model_builder(replicate_names,
-                                          cpg_wlen=cpg_wlen,
-                                          dropout=opts.dropout,
-                                          l1_decay=opts.l1_decay,
-                                          l2_decay=opts.l2_decay,
-                                          init=opts.initialization)
+            cpg_inputs = cpg_model_builder.inputs(cpg_wlen, replicate_names)
+            cpg_model = cpg_model_builder(cpg_inputs)
         else:
-            model_builder = model_builder(replicate_names=replicate_names,
-                                          cpg_wlen=cpg_wlen,
-                                          dna_wlen=dna_wlen,
-                                          dropout=opts.dropout,
-                                          l1_decay=opts.l1_decay,
-                                          l2_decay=opts.l2_decay,
-                                          init=opts.initialization)
+            cpg_model = None
 
-        stem = model_builder()
+        if dna_model is not None and cpg_model is not None:
+            joint_model_builder = mod.joint.get(opts.joint_model)(
+                l1_decay=opts.l1_decay,
+                l2_decay=opts.l2_decay,
+                dropout=opts.dropout)
+            stem = joint_model_builder([dna_model, cpg_model])
+            stem.name = '_'.join([stem.name, dna_model.name, cpg_model.name])
+        elif dna_model is not None:
+            stem = dna_model
+        else:
+            stem = cpg_model
+
         outputs = mod.add_output_layers(stem.outputs, output_names)
-        model = Model(input=stem.inputs, output=outputs, name=_model_name)
+        model = Model(input=stem.inputs, output=outputs, name=stem.name)
         model.summary()
 
-        mod.save_model(model, os.path.join(opts.out_dir, 'model.json'))
-
-        log.info('Compile model ...')
+        #  mod.save_model(model, os.path.join(opts.out_dir, 'model.json'))
 
         self.metrics = dict()
         for output_name in output_names:
@@ -447,43 +458,38 @@ class App(object):
                       loss_weights=output_weights,
                       metrics=self.metrics)
 
-        log.info('Initializing callbacks ...')
-        cbacks = self.callbacks()
-
         log.info('Reading data ...')
+        data_reader = mod.data_reader_from_model(model)
+
         nb_train_sample = dat.get_nb_sample(opts.train_files,
                                             opts.nb_train_sample)
-        if not nb_train_sample:
-            raise ValueError('Two few training samples!')
-        train_data = model_builder.reader(opts.train_files,
-                                          output_names=output_names,
-                                          batch_size=opts.batch_size,
-                                          nb_sample=nb_train_sample,
-                                          class_weights=class_weights,
-                                          shuffle=True,
-                                          loop=True)
+        train_data = data_reader(opts.train_files,
+                                 class_weights=class_weights,
+                                 batch_size=opts.batch_size,
+                                 nb_sample=nb_train_sample,
+                                 shuffle=True,
+                                 loop=True)
+
         if opts.val_files:
             nb_val_sample = dat.get_nb_sample(opts.val_files,
                                               opts.nb_val_sample)
-            if not nb_val_sample:
-                raise ValueError('Two few validation samples!')
-            val_data = model_builder.reader(opts.val_files,
-                                            output_names=output_names,
-                                            batch_size=opts.batch_size,
-                                            nb_sample=nb_val_sample,
-                                            class_weights=class_weights,
-                                            shuffle=False,
-                                            loop=True)
+            val_data = data_reader(opts.val_files,
+                                   batch_size=opts.batch_size,
+                                   nb_sample=nb_val_sample,
+                                   shuffle=False,
+                                   loop=True)
         else:
             val_data = None
             nb_val_sample = None
 
-        # Train model
+        log.info('Initializing callbacks ...')
+        callbacks = self.get_callbacks()
+
         log.info('Training model ...')
         print()
         model.fit_generator(
             train_data, nb_train_sample, opts.nb_epoch,
-            callbacks=cbacks,
+            callbacks=callbacks,
             validation_data=val_data,
             nb_val_samples=nb_val_sample,
             max_q_size=opts.data_q_size,
@@ -504,6 +510,7 @@ class App(object):
         if os.path.isfile(filename):
             model.load_weights(filename)
 
+        # TODO: As custom objects?
         # Delete metrics since they cause problems when loading the model
         # from HDF5 file
         model.metrics = None
