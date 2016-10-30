@@ -160,6 +160,31 @@ def read_from(reader, nb_sample=None):
     return data
 
 
+class Model(object):
+
+    def __init__(self, dropout=0.0, l1_decay=0.0, l2_decay=0.0,
+                 init='he_uniform'):
+        self.dropout = dropout
+        self.l1_decay = l1_decay
+        self.l2_decay = l2_decay
+        self.init = init
+        self.name = self.__class__.__name__
+
+    def inputs(self, *args, **kwargs):
+        pass
+
+    def __call__(self, inputs=None):
+        pass
+
+
+def encode_replicate_names(replicate_names):
+    return '--'.join(replicate_names)
+
+
+def decode_replicate_names(replicate_names):
+    return replicate_names.split('--')
+
+
 class DataReader(object):
 
     def __init__(self, output_names=None,
@@ -229,7 +254,7 @@ class DataReader(object):
                     states.append(data_raw[tmp + 'state'])
                     dists.append(data_raw[tmp + 'dist'])
                 states, dists = self._prepro_cpg(states, dists)
-                replicates_id = '--'.join(self.replicate_names)
+                replicates_id = encode_replicate_names(self.replicate_names)
                 inputs['cpg/state/%s' % replicates_id] = states
                 inputs['cpg/dist/%s' % replicates_id] = dists
 
@@ -247,23 +272,6 @@ class DataReader(object):
                 yield (inputs, outputs, weights)
 
 
-class Model(object):
-
-    def __init__(self, dropout=0.0, l1_decay=0.0, l2_decay=0.0,
-                 init='he_uniform'):
-        self.dropout = dropout
-        self.l1_decay = l1_decay
-        self.l2_decay = l2_decay
-        self.init = init
-        self.name = self.__class__.__name__
-
-    def inputs(self, *args, **kwargs):
-        pass
-
-    def __call__(self, inputs=None):
-        pass
-
-
 def data_reader_from_model(model):
     use_dna = False
     dna_wlen = None
@@ -276,7 +284,8 @@ def data_reader_from_model(model):
             use_dna = True
             dna_wlen = input_shape[0]
         elif input_name.startswith('cpg/state/'):
-            replicate_names = input_name.replace('cpg/state/', '').split('--')
+            replicate_names = decode_replicate_names(
+                input_name.replace('cpg/state/', ''))
             assert len(replicate_names) == input_shape[1]
             cpg_wlen = input_shape[2]
 

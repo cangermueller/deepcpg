@@ -15,7 +15,6 @@ class JointModel(Model):
         for model in models:
             inputs.extend(model.inputs)
             outputs.extend(model.outputs)
-
         return (inputs, outputs)
 
 
@@ -47,9 +46,7 @@ class Joint02(JointModel):
 
     def __call__(self, models):
         inputs, outputs = self._get_inputs_outputs(models)
-
         x = kl.merge(outputs, mode=self.mode)
-
         return km.Model(input=inputs, output=x, name=self.name)
 
 

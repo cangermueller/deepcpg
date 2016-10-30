@@ -262,11 +262,11 @@ class App(object):
             ))
 
         callbacks.append(kcbk.ModelCheckpoint(
-            os.path.join(opts.out_dir, 'model_weights_last.h5'),
+            os.path.join(opts.out_dir, 'model_weights_train.h5'),
             save_best_only=False))
         monitor = 'val_loss' if opts.val_files else 'loss'
         callbacks.append(kcbk.ModelCheckpoint(
-            os.path.join(opts.out_dir, 'model_weights.h5'),
+            os.path.join(opts.out_dir, 'model_weights_val.h5'),
             monitor=monitor,
             save_best_only=True, verbose=1
         ))
@@ -506,7 +506,7 @@ class App(object):
                                precision=LOG_PRECISION))
 
         # Restore model with highest validation performance
-        filename = os.path.join(opts.out_dir, 'model_weights.h5')
+        filename = os.path.join(opts.out_dir, 'model_weights_val.h5')
         if os.path.isfile(filename):
             model.load_weights(filename)
 
