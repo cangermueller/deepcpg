@@ -446,7 +446,7 @@ class App(object):
         model = Model(input=stem.inputs, output=outputs, name=stem.name)
         model.summary()
 
-        #  mod.save_model(model, os.path.join(opts.out_dir, 'model.json'))
+        mod.save_model(model, os.path.join(opts.out_dir, 'model.json'))
 
         self.metrics = dict()
         for output_name in output_names:
