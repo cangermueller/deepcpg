@@ -164,7 +164,7 @@ def disp(x, axis=1):
 
 
 def mode(x, axis=1):
-    mode = x.mean(axis=axis).astype(np.int8)
+    mode = x.mean(axis=axis).round().astype(np.int8)
     assert np.all((mode == 0) | (mode == 1))
     return mode
 
