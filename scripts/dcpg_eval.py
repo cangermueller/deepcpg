@@ -11,6 +11,7 @@ import logging
 from deepcpg import data as dat
 from deepcpg import evaluation as ev
 from deepcpg import models as mod
+from deepcpg.data import hdf
 from deepcpg.utils import ProgressBar
 
 
@@ -90,10 +91,10 @@ class App(object):
         log.info('Reading data ...')
         nb_sample = dat.get_nb_sample(opts.data_files, opts.nb_sample)
 
-        meta_reader = dat.h5_reader(opts.data_files, ['chromo', 'pos'],
-                                    nb_sample=nb_sample,
-                                    batch_size=opts.batch_size,
-                                    loop=False, shuffle=False)
+        meta_reader = hdf.reader(opts.data_files, ['chromo', 'pos'],
+                                 nb_sample=nb_sample,
+                                 batch_size=opts.batch_size,
+                                 loop=False, shuffle=False)
 
         data_reader = mod.data_reader_from_model(model)
         data_reader = data_reader(opts.data_files,

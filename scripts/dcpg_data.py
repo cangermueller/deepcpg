@@ -293,7 +293,10 @@ class App(object):
             raise '--cpg_wlen must be even!'
 
         # Parse functions for computing output statistics
-        cpg_stats_meta = output_stats_meta_by_name(opts.cpg_stats)
+        if opts.cpg_stats:
+            cpg_stats_meta = output_stats_meta_by_name(opts.cpg_stats)
+        else:
+            cpg_stats_meta = None
 
         outputs = OrderedDict()
 
@@ -409,7 +412,7 @@ class App(object):
                                                  dtype=np.int8,
                                                  compression='gzip')
                     # Compute and write statistics
-                    if cpg_stats_meta:
+                    if cpg_stats_meta is not None:
                         cpg_mat = np.ma.masked_values(chunk_outputs['cpg_mat'],
                                                       dat.CPG_NAN)
                         for name, fun in cpg_stats_meta.items():

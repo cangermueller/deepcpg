@@ -8,6 +8,7 @@ import pandas as pd
 
 from .. import data as dat
 from .. import evaluation as ev
+from ..data import hdf
 from ..data.dna import int2onehot
 from ..utils import as_list
 
@@ -240,7 +241,7 @@ class DataReader(object):
         if self.output_names:
             names.extend(['outputs/%s' % name for name in self.output_names])
 
-        for data_raw in dat.h5_reader(data_files, names, *args, **kwargs):
+        for data_raw in hdf.reader(data_files, names, *args, **kwargs):
             inputs = dict()
 
             if self.use_dna:
