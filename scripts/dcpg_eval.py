@@ -141,6 +141,9 @@ class App(object):
         perf = perf[['metric', 'output', 'value']]
         perf.sort_values(['metric', 'value'], inplace=True)
 
+        if opts.out_summary:
+            perf.to_csv(opts.out_summary, sep='\t', index=False)
+
         _perf = pd.pivot_table(perf, index='output', columns='metric',
                                values='value')
         _perf.reset_index('output', inplace=True)
@@ -150,11 +153,9 @@ class App(object):
         else:
             _perf.sort_values('mse', inplace=True, ascending=True)
         print(_perf.to_string())
-        if opts.out_summary:
-            perf.to_csv(opts.out_summary, sep='\t', index=False)
 
         if opts.out_data:
-            dat.h5_write_data(data, opts.out_data)
+            hdf.write_data(data, opts.out_data)
 
         log.info('Done!')
 

@@ -1,12 +1,11 @@
-from collections import OrderedDict
-
 from keras import backend as K
-from keras import metrics as kmet
 
 from .utils import get_from_module
+from .data import CPG_NAN
 
 
 def contingency_table(y, z):
+    y = K.round(y)
     z = K.round(z)
 
     def count_matches(a, b):
@@ -70,12 +69,22 @@ def mcc(y, z):
         K.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
 
 
-def mse(y, z):
-    return kmet.mean_squared_error(y, z)
+def mse(y, z, mask=CPG_NAN):
+    if mask:
+        weights = 1 - K.cast(K.equal(y, mask), K.floatx())
+    else:
+        weights = K.ones_like(y)
+    _mse = K.sum(K.square(y - z) * weights) / K.sum(weights)
+    return _mse
 
 
-def mae(y, z):
-    return kmet.mean_absolute_error(y, z)
+def mae(y, z, mask=CPG_NAN):
+    if mask:
+        weights = 1 - K.cast(K.equal(y, mask), K.floatx())
+    else:
+        weights = K.ones_like(y)
+    _mae = K.sum(K.abs(y - z) * weights) / K.sum(weights)
+    return _mae
 
 
 def get(name):

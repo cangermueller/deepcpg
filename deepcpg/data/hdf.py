@@ -6,29 +6,6 @@ import numpy as np
 from ..utils import filter_regex
 
 
-def add_to_dict(src, dst):
-    for key, value in src.items():
-        if isinstance(value, dict):
-            if key not in dst:
-                dst[key] = dict()
-            add_to_dict(value, dst[key])
-        else:
-            if key not in dst:
-                dst[key] = []
-            dst[key].append(value)
-
-
-def stack_dict(data):
-    sdata = dict()
-    for key, value in data.items():
-        if isinstance(value, dict):
-            sdata[key] = stack_dict(value)
-        else:
-            fun = np.vstack if value[0].ndim > 1 else np.hstack
-            sdata[key] = fun(value)
-    return sdata
-
-
 def _ls(item, recursive=False, groups=False, level=0):
     keys = []
     if isinstance(item, h5.Group):
@@ -152,6 +129,8 @@ def reader(data_files, names, batch_size=128, nb_sample=None, shuffle=False,
 
 
 def read_from(reader, nb_sample=None):
+    from .utils import stack_dict
+
     data = dict()
     nb_seen = 0
     for data_batch in reader:

@@ -25,7 +25,7 @@ from deepcpg.utils import format_table, EPS
 
 LOG_PRECISION = 4
 
-CLA_METRICS = [met.acc, met.f1, met.mcc, met.tpr, met.tnr]
+CLA_METRICS = [met.acc, met.f1, met.tpr, met.tnr]
 
 REG_METRICS = [met.mse, met.mae]
 
@@ -85,10 +85,12 @@ def get_metrics(output_name):
     if output_name.startswith('cpg'):
         metrics = CLA_METRICS
     elif output_name.startswith('bulk'):
-        metrics = REG_METRICS
+        metrics = REG_METRICS + CLA_METRICS
     elif output_name in ['stats/diff', 'stats/mode']:
         metrics = CLA_METRICS
-    elif output_name in ['stats/mean', 'stats/var']:
+    elif output_name == 'stats/mean':
+        metrics = REG_METRICS + CLA_METRICS
+    elif output_name == 'stats/var':
         metrics = REG_METRICS
     else:
         raise ValueError('Invalid output name "%s"!' % output_name)
@@ -510,9 +512,8 @@ class App(object):
         if os.path.isfile(filename):
             model.load_weights(filename)
 
-        # TODO: As custom objects?
         # Delete metrics since they cause problems when loading the model
-        # from HDF5 file
+        # from HDF5 file. Metrics can be loaded from json + weights file.
         model.metrics = None
         model.metrics_names = None
         model.metrics_tensors = None

@@ -82,11 +82,18 @@ def add_output_layers(x, output_names):
 
 
 def get_eval_metrics(output_name):
-    if output_name.startswith('bulk') or \
-            output_name in ['stats/mean', 'stats/var']:
+    if output_name.startswith('cpg'):
+        metrics = ev.CLA_METRICS
+    elif output_name.startswith('bulk'):
+        metrics = ev.REG_METRICS + ev.CLA_METRICS
+    elif output_name in ['stats/diff', 'stats/mode']:
+        metrics = ev.CLA_METRICS
+    elif output_name == 'stats/mean':
+        metrics = ev.REG_METRICS + ev.CLA_METRICS
+    elif output_name == 'stats/var':
         metrics = ev.REG_METRICS
     else:
-        metrics = ev.CLA_METRICS
+        raise ValueError('Invalid output name "%s"!' % output_name)
     return metrics
 
 

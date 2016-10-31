@@ -11,6 +11,29 @@ from . import hdf
 CPG_NAN = -1
 
 
+def add_to_dict(src, dst):
+    for key, value in src.items():
+        if isinstance(value, dict):
+            if key not in dst:
+                dst[key] = dict()
+            add_to_dict(value, dst[key])
+        else:
+            if key not in dst:
+                dst[key] = []
+            dst[key].append(value)
+
+
+def stack_dict(data):
+    sdata = dict()
+    for key, value in data.items():
+        if isinstance(value, dict):
+            sdata[key] = stack_dict(value)
+        else:
+            fun = np.vstack if value[0].ndim > 1 else np.hstack
+            sdata[key] = fun(value)
+    return sdata
+
+
 def get_output_stats(data_files, output_names, nb_sample=None):
     names = {'outputs': output_names}
     stats = OrderedDict()
