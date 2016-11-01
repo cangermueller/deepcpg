@@ -27,9 +27,7 @@ class DnaModel(Model):
 class DnaLegacy(DnaModel):
     """Old DNA module"""
 
-    def __call__(self, inputs=None):
-        if inputs is None:
-            inputs = self.inputs()
+    def __call__(self, inputs):
         x = inputs[0]
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
@@ -51,9 +49,7 @@ class DnaLegacy(DnaModel):
 class Dna01(DnaModel):
     """Simple: 126785 params"""
 
-    def __call__(self, inputs=None):
-        if inputs is None:
-            inputs = self.inputs()
+    def __call__(self, inputs):
         x = inputs[0]
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
@@ -86,9 +82,7 @@ class Dna01(DnaModel):
 class Dna02(DnaModel):
     """521793 params"""
 
-    def __call__(self, inputs=None):
-        if inputs is None:
-            inputs = self.inputs()
+    def __call__(self, inputs):
         x = inputs[0]
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
@@ -128,8 +122,6 @@ class Dna03(DnaModel):
     """CNN + RNN: 1089921 params"""
 
     def __call__(self, inputs):
-        if inputs is None:
-            inputs = self.inputs()
         x = inputs[0]
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
@@ -164,7 +156,7 @@ class Dna03(DnaModel):
         return km.Model(input=inputs, output=x, name=self.name)
 
 
-class DnaResNet01(DnaModel):
+class ResNet01(DnaModel):
 
     def _res_block(self, inputs, nb_filter, size=3, stride=1,
                    change_dim=False, stage=1, block=1):
@@ -217,17 +209,14 @@ class DnaResNet01(DnaModel):
 
         x = kl.merge([identity, x], name=name + 'merge', mode='sum')
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return x
 
-    def __call__(self, inputs=None):
-        if inputs is None:
-            inputs = self.inputs()
+    def __call__(self, inputs):
         x = inputs[0]
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(128, 9,
                       name='conv1',
-                      subsample_length=2,
                       init=self.init,
                       W_regularizer=w_reg)(x)
         x = kl.BatchNormalization(name='bn1')(x)
@@ -235,7 +224,7 @@ class DnaResNet01(DnaModel):
         x = kl.MaxPooling1D(2, name='pool1')(x)
 
         # 124
-        x = self._res_block(x, [32, 32, 128], stage=1, block=1)
+        x = self._res_block(x, [32, 32, 128], stage=1, block=1, stride=2)
         x = self._res_block(x, [32, 32, 128], stage=1, block=2)
 
         # 64
@@ -248,7 +237,6 @@ class DnaResNet01(DnaModel):
 
         # 16
         x = self._res_block(x, [256, 256, 1024], stage=4, block=1, stride=2)
-        x = self._res_block(x, [256, 256, 1024], stage=4, block=2)
 
         x = kl.GlobalAveragePooling1D()(x)
 

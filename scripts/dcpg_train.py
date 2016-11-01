@@ -128,13 +128,13 @@ class App(object):
             nargs='+',
             default=['cpg/.*'])
         p.add_argument(
-            '--output_weights',
-            help='List of regex=weight patterns',
-            nargs='+')
-        p.add_argument(
             '--nb_output',
             type=int,
             help='Maximum number of outputs')
+        p.add_argument(
+            '--output_weights',
+            help='List of regex=weight patterns',
+            nargs='+')
         p.add_argument(
             '--replicate_names',
             help='List of regex to filter CpG context units',

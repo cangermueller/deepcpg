@@ -33,9 +33,7 @@ class Cpg01(CpgModel):
 
         return km.Model(input=input, output=x)
 
-    def __call__(self, inputs=None):
-        if inputs is None:
-            inputs = self.inputs()
+    def __call__(self, inputs):
         x = self._merge_inputs(inputs)
 
         shape = getattr(x, '_keras_shape')
@@ -49,9 +47,7 @@ class Cpg01(CpgModel):
 class Cpg02(CpgModel):
     """GRU(256) without embedding layer; 548865 parameters"""
 
-    def __call__(self, inputs=None):
-        if inputs is None:
-            inputs = self.inputs()
+    def __call__(self, inputs):
         x = kl.merge(inputs, mode='concat', concat_axis=2)
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
@@ -72,9 +68,7 @@ class Cpg03(CpgModel):
 
         return km.Model(input=input, output=x)
 
-    def __call__(self, inputs=None):
-        if inputs is None:
-            inputs = self.inputs()
+    def __call__(self, inputs):
         x = self._merge_inputs(inputs)
 
         shape = getattr(x, '_keras_shape')

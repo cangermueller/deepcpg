@@ -7,9 +7,14 @@ EPS = 10e-8
 
 
 def as_list(value):
-    if not isinstance(value, list):
+    if isinstance(value, list):
+        value = value
+    elif isinstance(value, tuple):
+        value = list(value)
+    else:
         value = [value]
     return value
+
 
 def move_columns_front(frame, columns):
     if not isinstance(columns, list):

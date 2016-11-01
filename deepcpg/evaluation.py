@@ -4,6 +4,7 @@ import numpy as np
 import sklearn.metrics as skm
 
 from .data import CPG_NAN
+from .utils import get_from_module
 
 
 def cor(y, z):
@@ -87,3 +88,7 @@ def evaluate(y, z, mask=CPG_NAN, metrics=CLA_METRICS):
         p[metric.__name__] = metric(y, z)
     p['n'] = len(y)
     return p
+
+
+def get(name):
+    return get_from_module(name, globals())

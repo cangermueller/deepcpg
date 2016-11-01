@@ -3,7 +3,7 @@ import re
 import h5py as h5
 import numpy as np
 
-from ..utils import filter_regex
+from ..utils import filter_regex, as_list
 
 
 def _ls(item, recursive=False, groups=False, level=0):
@@ -128,12 +128,22 @@ def reader(data_files, names, batch_size=128, nb_sample=None, shuffle=False,
                 break
 
 
+def to_dict(data):
+    data = as_list(data)
+    return dict(zip(range(len(data)), data))
+
+
 def read_from(reader, nb_sample=None):
     from .utils import stack_dict
 
     data = dict()
     nb_seen = 0
+    is_dict = True
+
     for data_batch in reader:
+        if not isinstance(data_batch, dict):
+            data_batch = to_dict(data_batch)
+            is_dict = False
         for key, value in data_batch.items():
             values = data.setdefault(key, [])
             values.append(value)
@@ -145,6 +155,9 @@ def read_from(reader, nb_sample=None):
     if nb_sample:
         for key, value in data.items():
             data[key] = value[:nb_sample]
+
+    if not is_dict:
+        data = [data[i] for i in range(len(data))]
 
     return data
 
