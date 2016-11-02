@@ -25,7 +25,7 @@ from deepcpg.utils import format_table, EPS
 
 LOG_PRECISION = 4
 
-CLA_METRICS = [met.acc, met.f1, met.tpr, met.tnr]
+CLA_METRICS = [met.acc]
 
 REG_METRICS = [met.mse, met.mae]
 

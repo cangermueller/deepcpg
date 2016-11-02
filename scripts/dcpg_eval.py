@@ -15,6 +15,24 @@ from deepcpg.data import hdf
 from deepcpg.utils import ProgressBar
 
 
+def unstack_report(report):
+    report = pd.pivot_table(report, index='output', columns='metric',
+                            values='value')
+    report.reset_index('output', inplace=True)
+    report.columns.name = None
+    metrics = []
+    for fun in ev.CLA_METRICS + ev.REG_METRICS:
+        metric = fun.__name__
+        if metric in report.columns:
+            metrics.append(metric)
+    report = report[['output'] + metrics]
+    if 'auc' in report.columns:
+        report.sort_values('auc', inplace=True, ascending=False)
+    else:
+        report.sort_values('mse', inplace=True, ascending=True)
+    return report
+
+
 class App(object):
 
     def run(self, args):
@@ -144,15 +162,8 @@ class App(object):
         if opts.out_summary:
             perf.to_csv(opts.out_summary, sep='\t', index=False)
 
-        _perf = pd.pivot_table(perf, index='output', columns='metric',
-                               values='value')
-        _perf.reset_index('output', inplace=True)
-        _perf.columns.name = None
-        if 'auc' in _perf.columns:
-            _perf.sort_values('auc', inplace=True, ascending=False)
-        else:
-            _perf.sort_values('mse', inplace=True, ascending=True)
-        print(_perf.to_string())
+        report = unstack_report(perf)
+        print(report.to_string())
 
         if opts.out_data:
             hdf.write_data(data, opts.out_data)
