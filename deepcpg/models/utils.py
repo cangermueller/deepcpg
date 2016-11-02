@@ -10,7 +10,7 @@ from .. import data as dat
 from .. import evaluation as ev
 from ..data import hdf
 from ..data.dna import int2onehot
-from ..utils import as_list
+from ..utils import to_list
 
 
 class ScaledSigmoid(kl.Layer):
@@ -242,12 +242,12 @@ class DataReader(object):
             names.append('inputs/dna')
 
         if self.replicate_names:
-            for name in as_list(self.replicate_names):
+            for name in to_list(self.replicate_names):
                 names.append('inputs/cpg/%s/state' % name)
                 names.append('inputs/cpg/%s/dist' % name)
 
         if self.output_names:
-            for name in as_list(self.output_names):
+            for name in to_list(self.output_names):
                 names.append('outputs/%s' % name)
 
         for data_raw in hdf.reader(data_files, names, *args, **kwargs):
@@ -288,7 +288,7 @@ def data_reader_from_model(model):
     cpg_wlen = None
     replicate_names = None
 
-    input_shapes = as_list(model.input_shape)
+    input_shapes = to_list(model.input_shape)
     for input_name, input_shape in zip(model.input_names, input_shapes):
         if input_name == 'dna':
             use_dna = True
