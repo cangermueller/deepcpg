@@ -235,6 +235,7 @@ class DataReader(object):
             prepro_dists = prepro_dists[:, :, tmp]
         return (prepro_states, prepro_dists)
 
+    @dat.threadsafe_generator
     def __call__(self, data_files, class_weights=None, *args, **kwargs):
         names = []
         if self.use_dna:

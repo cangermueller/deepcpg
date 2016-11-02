@@ -1,5 +1,6 @@
 from collections import Counter, OrderedDict
 import gzip
+import threading
 
 import h5py as h5
 import numpy as np
@@ -9,6 +10,30 @@ from ..utils import EPS
 from . import hdf
 
 CPG_NAN = -1
+
+
+class threadsafe_iter:
+    """Takes an iterator/generator and makes it thread-safe by
+    serializing call to the `next` method of given iterator/generator.
+    """
+    def __init__(self, it):
+        self.it = it
+        self.lock = threading.Lock()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        with self.lock:
+            return next(self.it)
+
+
+def threadsafe_generator(f):
+    """A decorator that takes a generator function and makes it thread-safe.
+    """
+    def g(*a, **kw):
+        return threadsafe_iter(f(*a, **kw))
+    return g
 
 
 def add_to_dict(src, dst):
