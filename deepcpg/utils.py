@@ -6,7 +6,7 @@ import numpy as np
 EPS = 10e-8
 
 
-def as_list(value):
+def to_list(value):
     if not isinstance(value, list):
         value = [value]
     return value
