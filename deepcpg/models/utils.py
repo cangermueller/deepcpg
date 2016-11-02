@@ -67,16 +67,16 @@ def load_model(model_files, custom_objects=CUSTOM_OBJECTS):
     return model
 
 
-def add_output_layers(x, output_names):
+def add_output_layers(stem, output_names):
     outputs = []
     for output_name in output_names:
         if output_name == 'stats/var':
-            x = kl.Dense(1, init='he_uniform')(x)
+            x = kl.Dense(1, init='he_uniform')(stem)
             x = ScaledSigmoid(0.25, name=output_name)(x)
         else:
             x = kl.Dense(1, init='he_uniform',
                          activation='sigmoid',
-                         name=output_name)(x)
+                         name=output_name)(stem)
         outputs.append(x)
     return outputs
 
@@ -198,10 +198,10 @@ class DataReader(object):
     def __init__(self, output_names=None,
                  use_dna=True, dna_wlen=None,
                  replicate_names=None, cpg_wlen=None, cpg_max_dist=25000):
-        self.output_names = as_list(output_names)
+        self.output_names = output_names
         self.use_dna = use_dna
         self.dna_wlen = dna_wlen
-        self.replicate_names = as_list(replicate_names)
+        self.replicate_names = replicate_names
         self.cpg_wlen = cpg_wlen
         self.cpg_max_dist = cpg_max_dist
 
@@ -241,12 +241,13 @@ class DataReader(object):
             names.append('inputs/dna')
 
         if self.replicate_names:
-            for name in self.replicate_names:
+            for name in as_list(self.replicate_names):
                 names.append('inputs/cpg/%s/state' % name)
                 names.append('inputs/cpg/%s/dist' % name)
 
         if self.output_names:
-            names.extend(['outputs/%s' % name for name in self.output_names])
+            for name in as_list(self.output_names):
+                names.append('outputs/%s' % name)
 
         for data_raw in hdf.reader(data_files, names, *args, **kwargs):
             inputs = dict()

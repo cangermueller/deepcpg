@@ -7,11 +7,7 @@ EPS = 10e-8
 
 
 def as_list(value):
-    if isinstance(value, list):
-        value = value
-    elif isinstance(value, tuple):
-        value = list(value)
-    else:
+    if not isinstance(value, list):
         value = [value]
     return value
 
