@@ -3,7 +3,7 @@ import re
 import h5py as h5
 import numpy as np
 
-from ..utils import filter_regex, as_list
+from ..utils import filter_regex
 
 
 def _ls(item, recursive=False, groups=False, level=0):
@@ -94,10 +94,22 @@ def reader(data_files, names, batch_size=128, nb_sample=None, shuffle=False,
     while True:
         if shuffle and file_idx == 0:
             np.random.shuffle(data_files)
-        h5_file = h5.File(data_files[file_idx], 'r')
-        nb_sample_file = len(h5_file[names[0]])
-        nb_batch = int(np.ceil(nb_sample_file / batch_size))
 
+        h5_file = h5.File(data_files[file_idx], 'r')
+        data_file = dict()
+        for name in names:
+            data_file[name] = h5_file[name]
+        nb_sample_file = len(list(data_file.values())[0])
+
+        if shuffle:
+            # Shuffle data within the entire file, which requires reading
+            # the entire file into memory
+            idx = np.arange(nb_sample_file)
+            np.random.shuffle(idx)
+            for name, value in data_file.items():
+                data_file[name] = value[:len(idx)][idx]
+
+        nb_batch = int(np.ceil(nb_sample_file / batch_size))
         for batch in range(nb_batch):
             batch_start = batch * batch_size
             nb_read = min(nb_sample - nb_seen, batch_size)
@@ -107,10 +119,10 @@ def reader(data_files, names, batch_size=128, nb_sample=None, shuffle=False,
                 break
             nb_seen += _batch_size
 
-            data = dict()
+            data_batch = dict()
             for name in names:
-                data[name] = h5_file[name][batch_start:batch_end]
-            yield data
+                data_batch[name] = data_file[name][batch_start:batch_end]
+            yield data_batch
 
             if nb_seen >= nb_sample:
                 break
@@ -128,8 +140,9 @@ def reader(data_files, names, batch_size=128, nb_sample=None, shuffle=False,
                 break
 
 
-def to_dict(data):
-    data = as_list(data)
+def _to_dict(data):
+    if isinstance(data, np.ndarray):
+        data = [data]
     return dict(zip(range(len(data)), data))
 
 
@@ -142,7 +155,7 @@ def read_from(reader, nb_sample=None):
 
     for data_batch in reader:
         if not isinstance(data_batch, dict):
-            data_batch = to_dict(data_batch)
+            data_batch = _to_dict(data_batch)
             is_dict = False
         for key, value in data_batch.items():
             values = data.setdefault(key, [])

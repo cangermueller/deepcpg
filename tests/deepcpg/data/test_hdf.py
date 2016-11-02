@@ -1,6 +1,7 @@
 from collections import OrderedDict
 import os
 
+import h5py as h5
 import numpy as np
 from numpy import testing as npt
 
@@ -89,21 +90,26 @@ class TestReader(object):
                          [1, 1, 1, 1, 1])
 
     def test_nb_sample(self):
-        """Test nb_sample together with shuffle. Should always return the same,
-        if nb_sample < size of first data file."""
+        """Test nb_sample together with shuffle. Should always return the same
+        data, if nb_sample = size of first data file."""
 
         names = ['pos', '/outputs/cpg/BS27_4_SER']
+        h5_file = h5.File(self.data_files[0], 'r')
+        nb_sample = len(h5_file[names[0]])
+        h5_file.close()
+
         data_ref = None
-        nb_sample = 100  # Smaller than size of first file
-        for i in range(10):
+        for i in range(2):
             data = hdf.read(self.data_files, names, shuffle=True,
                             nb_sample=nb_sample)
-            if data_ref:
-                for name in names:
-                    assert len(data_ref[name]) == nb_sample
-                    assert np.all(data_ref[name] == data[name])
-            else:
+            if not data_ref:
                 data_ref = data
+                idx_ref = np.argsort(data_ref['pos'])
+                continue
+            idx_data = np.argsort(data['pos'])
+            for name in names:
+                assert len(data_ref[name]) == nb_sample
+                assert np.all(data_ref[name][idx_ref] == data[name][idx_data])
 
     def test_read_reader(self):
         """Test if read and reader yield the same data."""
@@ -127,3 +133,13 @@ class TestReader(object):
                 fun = np.vstack if value[0].ndim > 1 else np.hstack
                 data_loop[key] = fun(value)
                 assert np.all(data[key] == data_loop[key])
+
+    def test_read_from(self):
+        data_files = self.data_files[:2]
+        names = ['pos', '/outputs/cpg/BS27_4_SER']
+        data = hdf.read(data_files, names)
+        for nb_sample in [99, 9999, 99999999999]:
+            reader = hdf.reader(data_files, names)
+            data_read = hdf.read_from(reader, nb_sample)
+            for name in names:
+                assert np.all(data[name][:nb_sample] == data_read[name])

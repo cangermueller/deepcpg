@@ -83,25 +83,3 @@ class Cpg03(CpgModel):
 
 def get(name):
     return get_from_module(name, globals())
-
-
-class Cpg04(CpgModel):
-
-    def _replicate_model(self, input):
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Dense(512, init=self.init, W_regularizer=w_reg)(input)
-        #  x = kl.BatchNormalization(mode=2, axis=1)(x)
-        x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
-
-        return km.Model(input=input, output=x)
-
-    def __call__(self, inputs):
-        x = self._merge_inputs(inputs)
-
-        shape = getattr(x, '_keras_shape')
-        replicate_model = self._replicate_model(kl.Input(shape=shape[2:]))
-        x = kl.TimeDistributed(replicate_model)(x)
-        x = kl.GlobalAveragePooling1D()(x)
-
-        return km.Model(input=inputs, output=x, name=self.name)
