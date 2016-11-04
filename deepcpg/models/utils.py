@@ -3,6 +3,7 @@ import os
 from keras import backend as K
 from keras import models as km
 from keras import layers as kl
+from keras.utils.np_utils import to_categorical
 import numpy as np
 import pandas as pd
 
@@ -32,14 +33,13 @@ class ScaledSigmoid(kl.Layer):
 CUSTOM_OBJECTS = {'ScaledSigmoid': ScaledSigmoid}
 
 
-def get_sample_weights(y, class_weights):
+def get_sample_weights(y, class_weights=None):
     y = y[:]
-    if not class_weights:
-        class_weights = {0: 0.5, 1: 0.5}
-    sample_weights = np.zeros(y.shape, dtype=K.floatx())
-    sample_weights.fill(K.epsilon())
-    for cla, weight in class_weights.items():
-        sample_weights[y == cla] = weight
+    sample_weights = np.ones(y.shape, dtype=K.floatx())
+    sample_weights[y == dat.CPG_NAN] = K.epsilon()
+    if class_weights is not None:
+        for cla, weight in class_weights.items():
+            sample_weights[y == cla] = weight
     return sample_weights
 
 
@@ -73,6 +73,10 @@ def add_output_layers(stem, output_names):
         if output_name == 'stats/var':
             x = kl.Dense(1, init='he_uniform')(stem)
             x = ScaledSigmoid(0.25, name=output_name)(x)
+        elif output_name == 'stats/cat_var':
+            x = kl.Dense(3, init='he_uniform',
+                         activation='softmax',
+                         name=output_name)(stem)
         else:
             x = kl.Dense(1, init='he_uniform',
                          activation='sigmoid',
@@ -86,7 +90,8 @@ def get_eval_metrics(output_name):
         metrics = ev.CLA_METRICS
     elif output_name.startswith('bulk'):
         metrics = ev.REG_METRICS + ev.CLA_METRICS
-    elif output_name in ['stats/diff', 'stats/mode']:
+    elif output_name in ['stats/diff', 'stats/mode', 'stats/cat_var',
+                         'stats/cat2_var']:
         metrics = ev.CLA_METRICS
     elif output_name == 'stats/mean':
         metrics = ev.REG_METRICS + ev.CLA_METRICS
@@ -278,6 +283,8 @@ class DataReader(object):
                     outputs[name] = data_raw['outputs/%s' % name]
                     cweights = class_weights[name] if class_weights else None
                     weights[name] = get_sample_weights(outputs[name], cweights)
+                    if name == 'stats/cat_var':
+                        outputs[name] = to_categorical(outputs[name], 3)
 
                 yield (inputs, outputs, weights)
 

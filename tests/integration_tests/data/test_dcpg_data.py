@@ -3,7 +3,7 @@ import os
 import numpy as np
 from numpy import testing as npt
 
-from deepcpg.data import h5_read, CPG_NAN
+from deepcpg.data import hdf, CPG_NAN
 from deepcpg.data.fasta import read_chromo
 from deepcpg.data.dna import CHAR_TO_INT
 
@@ -31,12 +31,14 @@ class TestMake(object):
                  '/outputs/cpg/BS28_2_SER',
                  '/outputs/stats/mean',
                  '/outputs/stats/var',
+                 '/outputs/stats/cat_var',
+                 '/outputs/stats/cat2_var',
                  '/outputs/stats/diff',
                  '/outputs/stats/mode',
                  '/outputs/bulk/BS9N_2I',
                  '/outputs/bulk/BS9N_SER'
                  ]
-        self.data = h5_read(self.data_files, names)
+        self.data = hdf.read(self.data_files, names)
         self.chromo = self.data['chromo']
         self.pos = self.data['pos']
 
@@ -212,6 +214,17 @@ class TestMake(object):
         self._test_stats('19', 4190700, 'var', 0.0)
         self._test_stats('19', 4190700, 'diff', 0)
         self._test_stats('19', 4190700, 'mode', 0)
+
+        v = self.data['/outputs/stats/var']
+        assert np.all((v >= 0) & (v <= 0.25))
+
+        cv = self.data['/outputs/stats/cat_var']
+        assert np.all((cv == CPG_NAN) | (cv == 0) | (cv == 1) | (cv == 2))
+        assert np.all(cv[v == CPG_NAN] == CPG_NAN)
+
+        cv = self.data['/outputs/stats/cat2_var']
+        assert np.all((cv == CPG_NAN) | (cv == 0) | (cv == 1))
+        assert np.all(cv[v == CPG_NAN] == CPG_NAN)
 
     def _test_bulk(self, chromo, pos, name, expected):
         idx = (self.chromo == chromo.encode()) & (self.pos == pos)

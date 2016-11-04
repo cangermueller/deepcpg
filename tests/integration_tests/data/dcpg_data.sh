@@ -20,7 +20,9 @@ cmd="$cmd && dcpg_data.py
   --dna_db ./dna_db
   --cpg_profiles $(ls ./cpg_files/BS27_4_SER.bed ./cpg_files/BS28_2_SER.bed)
   --bulk_profiles $(ls ./cpg_files/BS9N_2I.bed ./cpg_files/BS9N_SER.bed)
-  --cpg_stats mean var diff mode
+  --cpg_cov 1
+  --cpg_stats mean mode var cat_var cat2_var diff
+  --cpg_stats_cov 1
   --dna_wlen 501
   --cpg_wlen 50
   --chunk_size 5000

@@ -72,6 +72,8 @@ def reader(data_files, names, batch_size=128, nb_sample=None, shuffle=False,
     data_files = list(data_files)
     if isinstance(names, dict):
         names = hnames_to_names(names)
+    elif not isinstance(names, list):
+        names = [names]
 
     if nb_sample:
         # Select the first k files s.t. the total sample size is at least

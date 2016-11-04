@@ -27,11 +27,6 @@ def contingency_table(y, z):
     return (tp, tn, fp, fn)
 
 
-def acc(y, z):
-    tp, tn, fp, fn = contingency_table(y, z)
-    return (tp + tn) / (tp + tn + fn + fp)
-
-
 def prec(y, z):
     tp, tn, fp, fn = contingency_table(y, z)
     return tp / (tp + fp)
@@ -67,6 +62,22 @@ def mcc(y, z):
     tp, tn, fp, fn = contingency_table(y, z)
     return (tp * tn - fp * fn) /\
         K.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
+
+
+def acc(y, z):
+    tp, tn, fp, fn = contingency_table(y, z)
+    return (tp + tn) / (tp + tn + fp + fn)
+
+
+def cat_acc(y, z, mask=CPG_NAN):
+    if mask:
+        weights = 1 - K.cast(K.equal(y, mask), K.floatx())
+    else:
+        weights = K.ones_like(y)
+
+    _acc = K.cast(K.equal(K.argmax(y), K.argmax(z)), K.floatx())
+    _acc = K.sum(_acc) / K.sum(weights)
+    return _acc
 
 
 def mse(y, z, mask=CPG_NAN):

@@ -20,6 +20,7 @@ from deepcpg import callbacks as cbk
 from deepcpg import data as dat
 from deepcpg import metrics as met
 from deepcpg import models as mod
+from deepcpg.data import hdf
 from deepcpg.utils import format_table, EPS
 
 
@@ -28,6 +29,16 @@ LOG_PRECISION = 4
 CLA_METRICS = [met.acc]
 
 REG_METRICS = [met.mse, met.mae]
+
+
+def get_output_stats(output):
+    stats = OrderedDict()
+    output = np.ma.masked_values(output, dat.CPG_NAN)
+    stats['nb_tot'] = len(output)
+    stats['frac_obs'] = np.sum(output != dat.CPG_NAN) / len(output)
+    stats['mean'] = float(np.mean(output))
+    stats['var'] = float(np.var(output))
+    return stats
 
 
 def get_output_weights(output_names, weight_patterns):
@@ -48,15 +59,33 @@ def get_output_weights(output_names, weight_patterns):
     return output_weights
 
 
-def get_class_weight(output_name, output_stats):
+def get_class_weights(labels, nb_class=None):
+    freq = np.bincount(labels) / len(labels)
+
+    if nb_class is None:
+        nb_class = len(freq)
+
+    if len(freq) < nb_class:
+        tmp = np.zeros(nb_class, dtype=freq.dtype)
+        tmp[:len(freq)] = freq
+        freq = tmp
+    weights = 1 / (freq + EPS)
+    weights /= weights.sum()
+    return weights
+
+
+def get_output_class_weights(output_name, output):
+    output = output[output != dat.CPG_NAN]
     if output_name.startswith('cpg'):
-        frac_one = max(output_stats['mean'], EPS)
-        weight = OrderedDict()
-        weight[0] = frac_one
-        weight[1] = 1 - frac_one
+        weights = get_class_weights(output, 2)
+    elif output_name == 'stats/cat_var':
+        weights = get_class_weights(output, 3)
+    elif output_name == 'stats/cat2_var':
+        weights = get_class_weights(output, 2)
     else:
-        weight = None
-    return weight
+        return None
+    weights = OrderedDict(zip(range(len(weights)), weights))
+    return weights
 
 
 def perf_logs_str(logs):
@@ -71,10 +100,12 @@ def get_objectives(output_names):
             objective = 'binary_crossentropy'
         elif output_name.startswith('bulk'):
             objective = 'mean_squared_error'
-        elif output_name in ['stats/diff', 'stats/mode']:
+        elif output_name in ['stats/diff', 'stats/mode', 'stats/cat2_var']:
             objective = 'binary_crossentropy'
         elif output_name in ['stats/mean', 'stats/var']:
             objective = 'mean_squared_error'
+        elif output_name in ['stats/cat_var']:
+            objective = 'categorical_crossentropy'
         else:
             raise ValueError('Invalid output name "%s"!')
         objectives[output_name] = objective
@@ -86,12 +117,14 @@ def get_metrics(output_name):
         metrics = CLA_METRICS
     elif output_name.startswith('bulk'):
         metrics = REG_METRICS + CLA_METRICS
-    elif output_name in ['stats/diff', 'stats/mode']:
+    elif output_name in ['stats/diff', 'stats/mode', 'stats/cat2_var']:
         metrics = CLA_METRICS
     elif output_name == 'stats/mean':
         metrics = REG_METRICS + CLA_METRICS
     elif output_name == 'stats/var':
         metrics = REG_METRICS
+    elif output_name == 'stats/cat_var':
+        metrics = [met.cat_acc]
     else:
         raise ValueError('Invalid output name "%s"!' % output_name)
     return metrics
@@ -321,22 +354,25 @@ class App(object):
 
         return callbacks
 
-    def get_class_weights(self, output_names, output_stats):
-        class_weights = OrderedDict()
-        for output_name in output_names:
-            class_weights[output_name] = get_class_weight(
-                output_name, output_stats[output_name])
-
+    def print_output_stats(self, output_stats):
         table = OrderedDict()
-        for output_name in output_names:
-            class_weight = class_weights[output_name]
+        for name, stats in output_stats.items():
+            table.setdefault('name', []).append(name)
+            for key in ['nb_tot', 'frac_obs', 'mean', 'var']:
+                table.setdefault(key, []).append(stats[key])
+        print('Output statistics:')
+        print(format_table(table))
+        print()
+
+    def print_class_weights(self, class_weights):
+        table = OrderedDict()
+        for name, class_weight in class_weights.items():
             if not class_weight:
                 continue
             column = []
             for cla, weight in class_weight.items():
                 column.append('%s=%.2f' % (cla, weight))
-            table[output_name] = column
-
+                table[name] = column
         if table:
             print('Class weights:')
             print(format_table(table))
@@ -368,22 +404,23 @@ class App(object):
                                             nb_keys=opts.nb_output)
         if not output_names:
             raise ValueError('No outputs found!')
-        output_stats = dat.get_output_stats(opts.train_files, output_names)
 
-        table = OrderedDict()
-        for name, stat in output_stats.items():
-            table.setdefault('name', []).append(name)
-            for key in ['nb_tot', 'frac_obs', 'mean', 'var']:
-                table.setdefault(key, []).append(stat[key])
-        print('Output statistics:')
-        print(format_table(table))
-        print()
-
+        output_stats = OrderedDict()
         if opts.no_class_weights:
             class_weights = None
         else:
-            log.info('Initializing class weights ...')
-            class_weights = self.get_class_weights(output_names, output_stats)
+            class_weights = OrderedDict()
+
+        for name in output_names:
+            output = hdf.read(opts.train_files, 'outputs/%s' % name)
+            output = list(output.values())[0]
+            output_stats[name] = get_output_stats(output)
+            if class_weights is not None:
+                class_weights[name] = get_output_class_weights(name, output)
+
+        self.print_output_stats(output_stats)
+        if class_weights:
+            self.print_class_weights(class_weights)
 
         output_weights = None
         if opts.output_weights:

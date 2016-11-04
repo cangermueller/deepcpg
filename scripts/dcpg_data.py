@@ -135,15 +135,29 @@ def format_out_of(out, of):
 
 
 def mean(x, axis=1):
-    mean = np.mean(x, axis)
-    assert np.all((mean >= 0) & (mean <= 1))
-    return mean
+    return np.mean(x, axis)
 
 
-def var(x, axis=1):
-    var = x.var(axis=1)
-    assert np.all((var >= 0) & (var <= 0.25))
-    return var
+def mode(x, axis=1):
+    return x.mean(axis=axis).round().astype(np.int8)
+
+
+def var(x, *args, **kwargs):
+    m = mean(x, *args, **kwargs)
+    return m * (1 - m)
+
+
+def cat_var(x, nb_bin=3, *args, **kwargs):
+    v = var(x, *args, **kwargs)
+    bins = np.linspace(-EPS, 0.25, nb_bin + 1)
+    cv = np.digitize(v, bins, right=True) - 1
+    return np.ma.masked_array(cv, v.mask)
+
+
+def cat2_var(*args, **kwargs):
+    cv = cat_var(*args, **kwargs)
+    cv[cv > 0] = 1
+    return cv
 
 
 def entropy(x, axis=1):
@@ -154,19 +168,7 @@ def entropy(x, axis=1):
 
 
 def diff(x, axis=1):
-    diff = x.min(axis=axis) != x.max(axis=axis)
-    return diff
-
-
-def disp(x, axis=1):
-    mean = x.mean(axis=1)
-    return x.var(axis=1) - mean * (1 - mean)
-
-
-def mode(x, axis=1):
-    mode = x.mean(axis=axis).round().astype(np.int8)
-    assert np.all((mode == 0) | (mode == 1))
-    return mode
+    return x.min(axis=axis) != x.max(axis=axis).astype(np.int8)
 
 
 def output_stats_meta_by_name(names):
@@ -174,16 +176,18 @@ def output_stats_meta_by_name(names):
     for name in names:
         if name == 'mean':
             fun = (mean, np.float32)
+        elif name == 'mode':
+            fun = (mode, np.int8)
         elif name == 'var':
             fun = (var, np.float32)
+        elif name == 'cat_var':
+            fun = (cat_var, np.int8)
+        elif name == 'cat2_var':
+            fun = (cat2_var, np.int8)
         elif name == 'entropy':
             fun = (entropy, np.float32)
         elif name == 'diff':
             fun = (diff, np.int8)
-        elif name == 'disp':
-            fun = (disp, np.float32)
-        elif name == 'mode':
-            fun = (mode, np.int8)
         else:
             raise ValueError('Invalid statistic "%s"!' % name)
         funs[name] = fun
@@ -218,34 +222,40 @@ class App(object):
             help='DNA database file')
         p.add_argument(
             '--dna_wlen',
+            help='DNA window length',
             type=int,
-            default=501,
-            help='DNA window length')
+            default=501)
         p.add_argument(
             '--cpg_profiles',
-            nargs='+',
-            help='BED files with single-cell methylation profiles')
+            help='BED files with single-cell methylation profiles',
+            nargs='+')
         p.add_argument(
             '--bulk_profiles',
-            nargs='+',
-            help='BED files with bulk methylation profiles')
-        p.add_argument(
-            '--cpg_wlen',
-            type=int,
-            help='CpG window length')
+            help='BED files with bulk methylation profiles',
+            nargs='+')
         p.add_argument(
             '--pos_file',
             help='Position file')
         p.add_argument(
-            '--min_cpg_cov',
-            type=float,
-            help='Filter sites by CpG coverage. Number of observations per '
-                 'site, or percentage if smaller than one.')
+            '--cpg_wlen',
+            help='CpG window length',
+            type=int)
+        p.add_argument(
+            '--cpg_cov',
+            help='Minimum CpG coverage.',
+            type=int,
+            default=1)
         p.add_argument(
             '--cpg_stats',
             help='Output statistics derived from single-cell profiles',
             nargs='+',
-            choices=['mean', 'var', 'entropy', 'diff', 'disp', 'mode'])
+            choices=['mean', 'mode', 'var', 'cat_var', 'cat2_var', 'entropy',
+                     'diff'])
+        p.add_argument(
+            '--cpg_stats_cov',
+            help='Minimum CpG coverage for computing statistics',
+            type=int,
+            default=1)
         p.add_argument(
             '--chromos',
             nargs='+',
@@ -356,15 +366,10 @@ class App(object):
                 chromo_outputs['bulk'] = map_cpg_tables(outputs['bulk'],
                                                         chromo, chromo_pos)
 
-            if 'cpg_mat' in chromo_outputs and opts.min_cpg_cov:
-                min_cpg_cov = opts.min_cpg_cov
-                if min_cpg_cov < 1:
-                    # Convert percentage to absolute number
-                    nb_cell = chromo_outputs['cpg_mat'].shape[1]
-                    min_cpg_cov = max(int(nb_cell * min_cpg_cov), 1)
-                idx = np.sum(chromo_outputs['cpg_mat'] != dat.CPG_NAN, axis=1)
-                assert np.all(idx.sum() >= 1)
-                idx = idx >= min_cpg_cov
+            if 'cpg_mat' in chromo_outputs and opts.cpg_cov:
+                cov = np.sum(chromo_outputs['cpg_mat'] != dat.CPG_NAN, axis=1)
+                assert np.all(cov >= 1)
+                idx = cov >= opts.cpg_cov
                 tmp = '%s sites matched minimum coverage filter'
                 tmp %= format_out_of(idx.sum(), len(idx))
                 log.info(tmp)
@@ -415,8 +420,11 @@ class App(object):
                     if cpg_stats_meta is not None:
                         cpg_mat = np.ma.masked_values(chunk_outputs['cpg_mat'],
                                                       dat.CPG_NAN)
+                        mask = np.sum(~cpg_mat.mask, axis=1)
+                        mask = mask < opts.cpg_stats_cov
                         for name, fun in cpg_stats_meta.items():
                             stat = fun[0](cpg_mat).data.astype(fun[1])
+                            stat[mask] = dat.CPG_NAN
                             assert len(stat) == len(chunk_pos)
                             out_group.create_dataset('stats/%s' % name,
                                                      data=stat,
