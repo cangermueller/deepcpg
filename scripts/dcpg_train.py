@@ -93,25 +93,6 @@ def perf_logs_str(logs):
     return t
 
 
-def get_objectives(output_names):
-    objectives = dict()
-    for output_name in output_names:
-        if output_name.startswith('cpg'):
-            objective = 'binary_crossentropy'
-        elif output_name.startswith('bulk'):
-            objective = 'mean_squared_error'
-        elif output_name in ['stats/diff', 'stats/mode', 'stats/cat2_var']:
-            objective = 'binary_crossentropy'
-        elif output_name in ['stats/mean', 'stats/var']:
-            objective = 'mean_squared_error'
-        elif output_name in ['stats/cat_var']:
-            objective = 'categorical_crossentropy'
-        else:
-            raise ValueError('Invalid output name "%s"!')
-        objectives[output_name] = objective
-    return objectives
-
-
 def get_metrics(output_name):
     if output_name.startswith('cpg'):
         metrics = CLA_METRICS
@@ -493,7 +474,7 @@ class App(object):
 
         optimizer = Adam(lr=opts.learning_rate)
         model.compile(optimizer=optimizer,
-                      loss=get_objectives(output_names),
+                      loss=mod.get_objectives(output_names),
                       loss_weights=output_weights,
                       metrics=self.metrics)
 

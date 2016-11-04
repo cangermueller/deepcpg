@@ -67,6 +67,25 @@ def load_model(model_files, custom_objects=CUSTOM_OBJECTS):
     return model
 
 
+def get_objectives(output_names):
+    objectives = dict()
+    for output_name in output_names:
+        if output_name.startswith('cpg'):
+            objective = 'binary_crossentropy'
+        elif output_name.startswith('bulk'):
+            objective = 'mean_squared_error'
+        elif output_name in ['stats/diff', 'stats/mode', 'stats/cat2_var']:
+            objective = 'binary_crossentropy'
+        elif output_name in ['stats/mean', 'stats/var']:
+            objective = 'mean_squared_error'
+        elif output_name in ['stats/cat_var']:
+            objective = 'categorical_crossentropy'
+        else:
+            raise ValueError('Invalid output name "%s"!')
+        objectives[output_name] = objective
+    return objectives
+
+
 def add_output_layers(stem, output_names):
     outputs = []
     for output_name in output_names:
@@ -284,7 +303,9 @@ class DataReader(object):
                     cweights = class_weights[name] if class_weights else None
                     weights[name] = get_sample_weights(outputs[name], cweights)
                     if name == 'stats/cat_var':
-                        outputs[name] = to_categorical(outputs[name], 3)
+                        output = outputs[name]
+                        outputs[name] = to_categorical(output, 3)
+                        outputs[name][output == dat.CPG_NAN] = 0
 
                 yield (inputs, outputs, weights)
 

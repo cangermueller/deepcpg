@@ -69,31 +69,35 @@ def acc(y, z):
     return (tp + tn) / (tp + tn + fp + fn)
 
 
-def cat_acc(y, z, mask=CPG_NAN):
-    if mask:
-        weights = 1 - K.cast(K.equal(y, mask), K.floatx())
-    else:
+def _sample_weights(y, mask=None):
+    if mask is None:
         weights = K.ones_like(y)
+    else:
+        weights = 1 - K.cast(K.equal(y, mask), K.floatx())
+    return weights
 
-    _acc = K.cast(K.equal(K.argmax(y), K.argmax(z)), K.floatx())
-    _acc = K.sum(_acc) / K.sum(weights)
+
+def _cat_sample_weights(y, mask=None):
+    return 1 - K.cast(K.equal(K.sum(y, axis=-1), 0), K.floatx())
+
+
+def cat_acc(y, z):
+    weights = _cat_sample_weights(y)
+    _acc = K.cast(K.equal(K.argmax(y, axis=-1),
+                          K.argmax(z, axis=-1)),
+                  K.floatx())
+    _acc = K.sum(_acc * weights) / K.sum(weights)
     return _acc
 
 
 def mse(y, z, mask=CPG_NAN):
-    if mask:
-        weights = 1 - K.cast(K.equal(y, mask), K.floatx())
-    else:
-        weights = K.ones_like(y)
+    weights = _sample_weights(y, mask)
     _mse = K.sum(K.square(y - z) * weights) / K.sum(weights)
     return _mse
 
 
 def mae(y, z, mask=CPG_NAN):
-    if mask:
-        weights = 1 - K.cast(K.equal(y, mask), K.floatx())
-    else:
-        weights = K.ones_like(y)
+    weights = _sample_weights(y, mask)
     _mae = K.sum(K.abs(y - z) * weights) / K.sum(weights)
     return _mae
 
