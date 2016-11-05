@@ -71,9 +71,15 @@ def f1(y, z, round=True):
     return skm.f1_score(y, z)
 
 
+def cat_acc(y, z):
+    return np.mean(y.argmax(axis=1) == z.argmax(axis=1))
+
+
 CLA_METRICS = [auc, acc, tpr, tnr, f1, mcc]
 
 REG_METRICS = [mse, mad, cor]
+
+CAT_METRICS = [cat_acc]
 
 
 def evaluate(y, z, mask=CPG_NAN, metrics=CLA_METRICS):
@@ -86,6 +92,22 @@ def evaluate(y, z, mask=CPG_NAN, metrics=CLA_METRICS):
     p = OrderedDict()
     for metric in metrics:
         p[metric.__name__] = metric(y, z)
+    p['n'] = len(y)
+    return p
+
+
+def evaluate_cat(y, z, metrics=CAT_METRICS,
+                 binary_metrics=None):
+    idx = y.sum(axis=1) > 0
+    y = y[idx]
+    z = z[idx]
+    p = OrderedDict()
+    for metric in metrics:
+        p[metric.__name__] = metric(y, z)
+    if binary_metrics:
+        for i in range(y.shape[1]):
+            for metric in binary_metrics:
+                p['%s_%d' % (metric.__name__, i)] = metric(y[:, i], z[:, i])
     p['n'] = len(y)
     return p
 
