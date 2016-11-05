@@ -320,7 +320,7 @@ def data_reader_from_model(model):
     for input_name, input_shape in zip(model.input_names, input_shapes):
         if input_name == 'dna':
             use_dna = True
-            dna_wlen = input_shape[0]
+            dna_wlen = input_shape[1]
         elif input_name.startswith('cpg/state/'):
             replicate_names = decode_replicate_names(
                 input_name.replace('cpg/state/', ''))
