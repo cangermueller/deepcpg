@@ -28,7 +28,6 @@ class Cpg01(CpgModel):
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Dense(512, init=self.init, W_regularizer=w_reg)(input)
         x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
 
         return km.Model(input=input, output=x)
 
@@ -39,6 +38,7 @@ class Cpg01(CpgModel):
         replicate_model = self._replicate_model(kl.Input(shape=shape[2:]))
         x = kl.TimeDistributed(replicate_model)(x)
         x = kl.GlobalAveragePooling1D()(x)
+        x = kl.Dropout(self.dropout)(x)
 
         return km.Model(input=inputs, output=x, name=self.name)
 
@@ -51,6 +51,7 @@ class Cpg02(CpgModel):
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Bidirectional(kl.GRU(256, W_regularizer=w_reg))(x)
+        x = kl.Dropout(self.dropout)(x)
 
         return km.Model(input=inputs, output=x, name=self.name)
 
@@ -62,7 +63,6 @@ class Cpg03(CpgModel):
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Dense(256, init=self.init, W_regularizer=w_reg)(input)
         x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
 
         return km.Model(input=input, output=x)
 
@@ -75,6 +75,26 @@ class Cpg03(CpgModel):
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Bidirectional(kl.GRU(256, W_regularizer=w_reg))(x)
+        x = kl.Dropout(self.dropout)(x)
+
+        return km.Model(input=inputs, output=x, name=self.name)
+
+
+class Cpg04(CpgModel):
+    """GRU with two layers (2x128, 2x256) with embedding layer.
+    964353 parameters"""
+
+    def __call__(self, inputs):
+        x = self._merge_inputs(inputs)
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Bidirectional(kl.GRU(128, W_regularizer=w_reg,
+                                    return_sequences=True),
+                             merge_mode='concat')(x)
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Bidirectional(kl.GRU(256, W_regularizer=w_reg))(x)
+        x = kl.Dropout(self.dropout)(x)
 
         return km.Model(input=inputs, output=x, name=self.name)
 

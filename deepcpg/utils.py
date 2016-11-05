@@ -38,6 +38,8 @@ def format_row(values, widths=None, sep=' | '):
     if widths:
         _values = []
         for value, width in zip(values, widths):
+            if value is None:
+                value = ''
             _values.append('{0:>{1}s}'.format(value, width))
     return sep.join(_values)
 
@@ -69,7 +71,7 @@ def format_table(table, colwidth=None, precision=2, header=True, sep=' | '):
         if not nb_row:
             nb_row = len(values)
         else:
-            nb_row = min(nb_row, len(values))
+            nb_row = max(nb_row, len(values))
         tot_width += width
     tot_width += len(sep) * (len(col_widths) - 1)
     rows = []
@@ -77,7 +79,12 @@ def format_table(table, colwidth=None, precision=2, header=True, sep=' | '):
         rows.append(format_row(col_names, col_widths, sep=sep))
         rows.append('-' * tot_width)
     for row in range(nb_row):
-        values = [values[row] for values in ftable.values()]
+        values = []
+        for col_values in ftable.values():
+            if row < len(col_values):
+                values.append(col_values[row])
+            else:
+                values.append(None)
         rows.append(format_row(values, col_widths, sep=sep))
     return '\n'.join(rows)
 

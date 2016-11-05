@@ -80,7 +80,7 @@ def get_output_class_weights(output_name, output):
         weights = get_class_weights(output, 2)
     elif output_name == 'stats/cat_var':
         weights = get_class_weights(output, 3)
-    elif output_name == 'stats/cat2_var':
+    elif output_name in ['stats/cat2_var', 'stats/diff', 'stats/mode']:
         weights = get_class_weights(output, 2)
     else:
         return None

@@ -239,6 +239,7 @@ class ResNet01(DnaModel):
         x = self._res_block(x, [256, 256, 1024], stage=4, block=1, stride=2)
 
         x = kl.GlobalAveragePooling1D()(x)
+        x = kl.Dropout(self.dropout)(x)
 
         return km.Model(input=inputs, output=x, name=self.name)
 
