@@ -109,8 +109,7 @@ def get_eval_metrics(output_name):
         metrics = ev.CLA_METRICS
     elif output_name.startswith('bulk'):
         metrics = ev.REG_METRICS + ev.CLA_METRICS
-    elif output_name in ['stats/diff', 'stats/mode', 'stats/cat_var',
-                         'stats/cat2_var']:
+    elif output_name in ['stats/diff', 'stats/mode', 'stats/cat2_var']:
         metrics = ev.CLA_METRICS
     elif output_name == 'stats/mean':
         metrics = ev.REG_METRICS + ev.CLA_METRICS

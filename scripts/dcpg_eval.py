@@ -12,7 +12,7 @@ from deepcpg import data as dat
 from deepcpg import evaluation as ev
 from deepcpg import models as mod
 from deepcpg.data import hdf
-from deepcpg.utils import ProgressBar
+from deepcpg.utils import ProgressBar, to_list
 
 
 def unstack_report(report):
@@ -20,16 +20,21 @@ def unstack_report(report):
                             values='value')
     report.reset_index('output', inplace=True)
     report.columns.name = None
-    metrics = []
-    for fun in ev.CLA_METRICS + ev.REG_METRICS:
-        metric = fun.__name__
-        if metric in report.columns:
-            metrics.append(metric)
-    report = report[['output'] + metrics]
+    idx = []
+    columns = list(report.columns)
+    for fun in ev.CAT_METRICS + ev.CLA_METRICS + ev.REG_METRICS:
+        for i, column in enumerate(columns):
+            if column.startswith(fun.__name__):
+                idx.append(i)
+    tmp = ['output'] + [columns[i] for i in idx]
+    tmp += [col for col in columns if col not in tmp]
+    report = report[tmp]
     if 'auc' in report.columns:
         report.sort_values('auc', inplace=True, ascending=False)
-    else:
+    elif 'mse' in report.columns:
         report.sort_values('mse', inplace=True, ascending=True)
+    elif 'acc' in report.columns:
+        report.sort_values('acc', inplace=True, ascending=False)
     return report
 
 
@@ -128,16 +133,15 @@ class App(object):
             batch_size = len(list(inputs.values())[0])
             progbar.update(batch_size)
 
-            preds = model.predict(inputs)
-            if not isinstance(preds, list):
-                preds = [preds]
-            pred = [pred.squeeze() for pred in preds]
+            preds = to_list(model.predict(inputs))
 
             data_batch = dict()
             data_batch['preds'] = dict()
-            for name, pred in zip(model.output_names, preds):
-                data_batch['preds'][name] = pred
-            data_batch['outputs'] = outputs
+            data_batch['outputs'] = dict()
+            for i, name in enumerate(model.output_names):
+                data_batch['preds'][name] = preds[i].squeeze()
+                data_batch['outputs'][name] = outputs[name].squeeze()
+
             for name, value in next(meta_reader).items():
                 data_batch[name] = value
             dat.add_to_dict(data_batch, data)
@@ -148,9 +152,15 @@ class App(object):
 
         perf = []
         for output in model.output_names:
-            metrics = mod.get_eval_metrics(output)
-            tmp = ev.evaluate(data['outputs'][output], data['preds'][output],
-                              metrics=metrics)
+            if output in ['stats/cat_var']:
+                tmp = ev.evaluate_cat(data['outputs'][output],
+                                      data['preds'][output],
+                                      binary_metrics=[ev.auc])
+            else:
+                metrics = mod.get_eval_metrics(output)
+                tmp = ev.evaluate(data['outputs'][output],
+                                  data['preds'][output],
+                                  metrics=metrics)
             tmp = pd.DataFrame({'output': output,
                                 'metric': list(tmp.keys()),
                                 'value': list(tmp.values())})
