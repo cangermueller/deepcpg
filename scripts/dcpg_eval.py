@@ -15,25 +15,34 @@ from deepcpg.utils import ProgressBar, to_list
 
 
 def unstack_report(report):
-    report = pd.pivot_table(report, index='output', columns='metric',
+    index = list(report.columns[~report.columns.isin(['metric', 'value'])])
+    report = pd.pivot_table(report, index=index, columns='metric',
                             values='value')
-    report.reset_index('output', inplace=True)
+    report.reset_index(index, inplace=True)
     report.columns.name = None
-    idx = []
+
+    # Sort columns
     columns = list(report.columns)
+    sorted_columns = []
     for fun in ev.CAT_METRICS + ev.CLA_METRICS + ev.REG_METRICS:
         for i, column in enumerate(columns):
             if column.startswith(fun.__name__):
-                idx.append(i)
-    tmp = ['output'] + [columns[i] for i in idx]
-    tmp += [col for col in columns if col not in tmp]
-    report = report[tmp]
+                sorted_columns.append(column)
+    sorted_columns = index + sorted_columns
+    sorted_columns += [col for col in columns if col not in sorted_columns]
+    report = report[sorted_columns]
+    order = []
+    if 'dset' in report.columns:
+        order.append(('dset', True))
     if 'auc' in report.columns:
-        report.sort_values('auc', inplace=True, ascending=False)
+        order.append(('auc', False))
     elif 'mse' in report.columns:
-        report.sort_values('mse', inplace=True, ascending=True)
+        order.append(('mse', True))
     elif 'acc' in report.columns:
-        report.sort_values('acc', inplace=True, ascending=False)
+        order.append(('acc', False))
+    report.sort_values([x[0] for x in order],
+                       ascending=[x[1] for x in order],
+                       inplace=True)
     return report
 
 
