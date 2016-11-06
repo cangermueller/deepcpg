@@ -3,7 +3,6 @@
 import sys
 import os
 
-
 import argparse
 import pandas as pd
 import logging
@@ -53,26 +52,18 @@ class App(object):
             description='Evaluates the performance of a model')
         p.add_argument(
             'data_files',
-            nargs='+',
-            help='Test data files')
+            help='Test data files',
+            nargs='+')
         p.add_argument(
             '--model_files',
-            nargs='+',
-            help='Model files')
+            help='Model files',
+            nargs='+')
         p.add_argument(
             '-o', '--out_summary',
             help='Output summary file')
         p.add_argument(
             '--out_data',
             help='Output file with predictions and labels')
-        p.add_argument(
-            '--replicate_names',
-            help='List of regex to filter CpG context units',
-            nargs='+')
-        p.add_argument(
-            '--nb_replicate',
-            type=int,
-            help='Maximum number of replicates')
         p.add_argument(
             '--batch_size',
             help='Batch size',
@@ -89,11 +80,6 @@ class App(object):
         p.add_argument(
             '--log_file',
             help='Write log messages to file')
-        p.add_argument(
-            '--data_nb_worker',
-            help='Number of worker for data generator queue',
-            type=int,
-            default=1)
         return p
 
     def main(self, name, opts):
@@ -113,18 +99,17 @@ class App(object):
 
         log.info('Reading data ...')
         nb_sample = dat.get_nb_sample(opts.data_files, opts.nb_sample)
-
-        meta_reader = hdf.reader(opts.data_files, ['chromo', 'pos'],
-                                 nb_sample=nb_sample,
-                                 batch_size=opts.batch_size,
-                                 loop=False, shuffle=False)
-
         data_reader = mod.data_reader_from_model(model)
         data_reader = data_reader(opts.data_files,
                                   nb_sample=nb_sample,
                                   batch_size=opts.batch_size,
                                   loop=False,
                                   shuffle=False)
+
+        meta_reader = hdf.reader(opts.data_files, ['chromo', 'pos'],
+                                 nb_sample=nb_sample,
+                                 batch_size=opts.batch_size,
+                                 loop=False, shuffle=False)
 
         log.info('Predicting ...')
         data = dict()
@@ -145,9 +130,7 @@ class App(object):
             for name, value in next(meta_reader).items():
                 data_batch[name] = value
             dat.add_to_dict(data_batch, data)
-
         progbar.close()
-
         data = dat.stack_dict(data)
 
         perf = []
