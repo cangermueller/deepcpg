@@ -81,7 +81,7 @@ class Cpg03(CpgModel):
 
 
 class Cpg04(CpgModel):
-    """GRU with two layers (2x128, 2x256) with embedding layer.
+    """GRU with two layers (2x128, 2x256).
     964353 parameters"""
 
     def __call__(self, inputs):
@@ -94,6 +94,50 @@ class Cpg04(CpgModel):
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Bidirectional(kl.GRU(256, W_regularizer=w_reg))(x)
+        x = kl.Dropout(self.dropout)(x)
+
+        return km.Model(input=inputs, output=x, name=self.name)
+
+
+class Cpg05(CpgModel):
+    """LSTM with two layers (2x128, 2x256).
+    1285633 parameters"""
+
+    def __call__(self, inputs):
+        x = self._merge_inputs(inputs)
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Bidirectional(kl.LSTM(128, W_regularizer=w_reg,
+                                     return_sequences=True),
+                             merge_mode='concat')(x)
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Bidirectional(kl.LSTM(256, W_regularizer=w_reg))(x)
+        x = kl.Dropout(self.dropout)(x)
+
+        return km.Model(input=inputs, output=x, name=self.name)
+
+
+class Cpg06(CpgModel):
+    """GRU with three layers (2x128, 2x128, 2x256)
+    1260033 parameters"""
+
+    def __call__(self, inputs):
+        x = self._merge_inputs(inputs)
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Bidirectional(kl.GRU(128, W_regularizer=w_reg,
+                                    return_sequences=True),
+                             merge_mode='concat')(x)
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Bidirectional(kl.GRU(128, W_regularizer=w_reg,
+                                    return_sequences=True),
+                             merge_mode='concat')(x)
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Bidirectional(kl.GRU(256, W_regularizer=w_reg))(x)
+
         x = kl.Dropout(self.dropout)(x)
 
         return km.Model(input=inputs, output=x, name=self.name)

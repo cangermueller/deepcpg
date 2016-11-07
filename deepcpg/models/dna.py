@@ -33,8 +33,8 @@ class DnaLegacy(DnaModel):
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(97, 12, init=self.init, W_regularizer=w_reg)(x)
         x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
         x = kl.MaxPooling1D(3)(x)
+        x = kl.Dropout(self.dropout)(x)
 
         x = kl.Flatten()(x)
 
@@ -56,22 +56,22 @@ class Dna01(DnaModel):
         x = kl.Conv1D(64, 9, init=self.init, W_regularizer=w_reg)(x)
         x = kl.BatchNormalization()(x)
         x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
         x = kl.MaxPooling1D(4)(x)
+        x = kl.Dropout(self.dropout)(x)
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(128, 3, init=self.init, W_regularizer=w_reg)(x)
         x = kl.BatchNormalization()(x)
         x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
         x = kl.MaxPooling1D(4)(x)
+        x = kl.Dropout(self.dropout)(x)
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(256, 3, init=self.init, W_regularizer=w_reg)(x)
         x = kl.BatchNormalization()(x)
         x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
         x = kl.MaxPooling1D(2)(x)
+        x = kl.Dropout(self.dropout)(x)
 
         x = kl.GlobalAveragePooling1D()(x)
         x = kl.Dropout(self.dropout)(x)
@@ -89,29 +89,29 @@ class Dna02(DnaModel):
         x = kl.Conv1D(64, 9, init=self.init, W_regularizer=w_reg)(x)
         x = kl.BatchNormalization()(x)
         x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
         x = kl.MaxPooling1D(2, 2)(x)
+        x = kl.Dropout(self.dropout)(x)
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(128, 3, init=self.init, W_regularizer=w_reg)(x)
         x = kl.BatchNormalization()(x)
         x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
         x = kl.MaxPooling1D(2, 2)(x)
+        x = kl.Dropout(self.dropout)(x)
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(256, 3, init=self.init, W_regularizer=w_reg)(x)
         x = kl.BatchNormalization()(x)
         x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
         x = kl.MaxPooling1D(2, 2)(x)
+        x = kl.Dropout(self.dropout)(x)
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(512, 3, init=self.init, W_regularizer=w_reg)(x)
         x = kl.BatchNormalization()(x)
         x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
         x = kl.MaxPooling1D(2, 2)(x)
+        x = kl.Dropout(self.dropout)(x)
 
         x = kl.GlobalAveragePooling1D()(x)
 
@@ -128,24 +128,24 @@ class Dna03(DnaModel):
         x = kl.Conv1D(128, 9, init=self.init, W_regularizer=w_reg)(x)
         x = kl.BatchNormalization()(x)
         x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
         x = kl.MaxPooling1D(4)(x)
+        x = kl.Dropout(self.dropout)(x)
         # 125
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(256, 3, init=self.init, W_regularizer=w_reg)(x)
         x = kl.BatchNormalization()(x)
         x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
         x = kl.MaxPooling1D(2)(x)
+        x = kl.Dropout(self.dropout)(x)
         # 62
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(256, 3, init=self.init, W_regularizer=w_reg)(x)
         x = kl.BatchNormalization()(x)
         x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
         x = kl.MaxPooling1D(2)(x)
+        x = kl.Dropout(self.dropout)(x)
         # 32
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
@@ -157,39 +157,39 @@ class Dna03(DnaModel):
 
 
 class ResNet01(DnaModel):
+    "1745281 parameters"
 
-    def _res_block(self, inputs, nb_filter, size=3, stride=1,
-                   change_dim=False, stage=1, block=1):
+    def _res_block(self, inputs, nb_filter, size=3, stride=1, stage=1, block=1):
 
         name = '%02d-%02d/' % (stage, block)
         id_name = '%sid_' % (name)
         res_name = '%sres_' % (name)
 
         # Residual branch
-        x = kl.BatchNormalization(name=res_name + 'bn1')(inputs)
-        x = kl.Activation('relu', name=res_name + 'act1')(x)
 
         # 1x1 down-sample conv
+        x = kl.BatchNormalization(name=res_name + 'bn1')(inputs)
+        x = kl.Activation('relu', name=res_name + 'act1')(x)
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(nb_filter[0], 1,
                       name=res_name + 'conv1',
                       subsample_length=stride,
                       init=self.init,
                       W_regularizer=w_reg)(x)
-        x = kl.BatchNormalization(name=res_name + 'bn2')(x)
-        x = kl.Activation('relu', name=res_name + 'act2')(x)
 
         # LxL conv
+        x = kl.BatchNormalization(name=res_name + 'bn2')(x)
+        x = kl.Activation('relu', name=res_name + 'act2')(x)
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(nb_filter[1], size,
                       name=res_name + 'conv2',
                       border_mode='same',
                       init=self.init,
                       W_regularizer=w_reg)(x)
-        x = kl.BatchNormalization(name=res_name + 'bn3')(x)
-        x = kl.Activation('relu', name=res_name + 'act3')(x)
 
         # 1x1 up-sample conv
+        x = kl.BatchNormalization(name=res_name + 'bn3')(x)
+        x = kl.Activation('relu', name=res_name + 'act3')(x)
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(nb_filter[2], 1,
                       name=res_name + 'conv3',
@@ -197,7 +197,7 @@ class ResNet01(DnaModel):
                       W_regularizer=w_reg)(x)
 
         # Identity branch
-        if change_dim or stride > 1:
+        if nb_filter[-1] != inputs._keras_shape[-1] or stride > 1:
             w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
             identity = kl.Conv1D(nb_filter[2], 1,
                                  name=id_name + 'conv1',
@@ -242,6 +242,160 @@ class ResNet01(DnaModel):
         x = kl.Dropout(self.dropout)(x)
 
         return km.Model(input=inputs, output=x, name=self.name)
+
+
+class ResNet02(ResNet01):
+    "Like ResNet01, but more blocks per stage.  1985857 parameters"
+
+    def __call__(self, inputs):
+        x = inputs[0]
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(128, 9,
+                      name='conv1',
+                      init=self.init,
+                      W_regularizer=w_reg)(x)
+        x = kl.BatchNormalization(name='bn1')(x)
+        x = kl.Activation('relu', name='act1')(x)
+        x = kl.MaxPooling1D(2, name='pool1')(x)
+
+        # 124
+        x = self._res_block(x, [32, 32, 128], stage=1, block=1, stride=2)
+        x = self._res_block(x, [32, 32, 128], stage=1, block=2)
+        x = self._res_block(x, [32, 32, 128], stage=1, block=3)
+
+        # 64
+        x = self._res_block(x, [64, 64, 256], stage=2, block=1, stride=2)
+        x = self._res_block(x, [64, 64, 256], stage=2, block=2)
+        x = self._res_block(x, [64, 64, 256], stage=2, block=3)
+
+        # 32
+        x = self._res_block(x, [128, 128, 512], stage=3, block=1, stride=2)
+        x = self._res_block(x, [128, 128, 512], stage=3, block=2)
+        x = self._res_block(x, [128, 128, 512], stage=3, block=3)
+
+        # 16
+        x = self._res_block(x, [256, 256, 1024], stage=4, block=1, stride=2)
+
+        x = kl.GlobalAveragePooling1D()(x)
+        x = kl.Dropout(self.dropout)(x)
+
+        return km.Model(input=inputs, output=x, name=self.name)
+
+
+class ResNet03(ResNet01):
+    "2 conv instead of bottleneck. 2815233 parameters"
+
+    def _res_block(self, inputs, nb_filter, size=3, stride=1, stage=1, block=1):
+
+        name = '%02d-%02d/' % (stage, block)
+        id_name = '%sid_' % (name)
+        res_name = '%sres_' % (name)
+
+        # Residual branch
+        x = kl.BatchNormalization(name=res_name + 'bn1')(inputs)
+        x = kl.Activation('relu', name=res_name + 'act1')(x)
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(nb_filter, size,
+                      name=res_name + 'conv1',
+                      border_mode='same',
+                      subsample_length=stride,
+                      init=self.init,
+                      W_regularizer=w_reg)(x)
+
+        x = kl.BatchNormalization(name=res_name + 'bn2')(x)
+        x = kl.Activation('relu', name=res_name + 'act2')(x)
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(nb_filter, size,
+                      name=res_name + 'conv2',
+                      border_mode='same',
+                      init=self.init,
+                      W_regularizer=w_reg)(x)
+
+        # Identity branch
+        if nb_filter != inputs._keras_shape[-1] or stride > 1:
+            w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+            identity = kl.Conv1D(nb_filter, size,
+                                 name=id_name + 'conv1',
+                                 border_mode='same',
+                                 subsample_length=stride,
+                                 init=self.init,
+                                 W_regularizer=w_reg)(inputs)
+        else:
+            identity = inputs
+
+        x = kl.merge([identity, x], name=name + 'merge', mode='sum')
+
+        return x
+
+    def __call__(self, inputs):
+        x = inputs[0]
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(128, 9,
+                      name='conv1',
+                      init=self.init,
+                      W_regularizer=w_reg)(x)
+        x = kl.BatchNormalization(name='bn1')(x)
+        x = kl.Activation('relu', name='act1')(x)
+        x = kl.MaxPooling1D(2, name='pool1')(x)
+
+        # 124
+        x = self._res_block(x, 128, stage=1, block=1, stride=2)
+        x = self._res_block(x, 128, stage=1, block=2)
+
+        # 64
+        x = self._res_block(x, 256, stage=2, block=1, stride=2)
+
+        # 32
+        x = self._res_block(x, 256, stage=3, block=1, stride=2)
+
+        # 32
+        x = self._res_block(x, 512, stage=4, block=1, stride=2)
+
+        x = kl.GlobalAveragePooling1D()(x)
+        x = kl.Dropout(self.dropout)(x)
+
+        return km.Model(input=inputs, output=x, name=self.name)
+
+
+class ResNet04(ResNet03):
+    "2 conv instead of bottleneck. 2628865 parameters"
+
+    def __call__(self, inputs):
+        x = inputs[0]
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(64, 9,
+                      name='conv1',
+                      init=self.init,
+                      W_regularizer=w_reg)(x)
+        x = kl.BatchNormalization(name='bn1')(x)
+        x = kl.Activation('relu', name='act1')(x)
+        x = kl.MaxPooling1D(2, name='pool1')(x)
+
+        # 124
+        x = self._res_block(x, 64, stage=1, block=1, stride=2)
+        x = self._res_block(x, 64, stage=1, block=2)
+
+        # 64
+        x = self._res_block(x, 128, stage=2, block=1, stride=2)
+        x = self._res_block(x, 128, stage=2, block=2)
+
+        # 32
+        x = self._res_block(x, 256, stage=3, block=1, stride=2)
+        x = self._res_block(x, 256, stage=3, block=2)
+
+        # 16
+        x = self._res_block(x, 512, stage=4, block=1, stride=2)
+
+        x = kl.GlobalAveragePooling1D()(x)
+        x = kl.Dropout(self.dropout)(x)
+
+        return km.Model(input=inputs, output=x, name=self.name)
+
+
+
 
 
 def get(name):
