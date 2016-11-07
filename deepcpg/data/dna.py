@@ -24,5 +24,5 @@ def int2onehot(seqs, dim=4):
         enc_seqs[t, i] = 1
     return enc_seqs
 
-def onehot2int(seqs):
-    return seqs.argmax(axis=2)
+def onehot2int(seqs, axis=-1):
+    return seqs.argmax(axis=axis)
