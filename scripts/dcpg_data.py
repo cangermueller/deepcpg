@@ -84,7 +84,7 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
             win = max(0, delta - p) * 'N' + win
             win += max(0, p + delta + 1 - len(seq)) * 'N'
             assert len(win) == wlen
-        seq_wins[i] = dna.char2int(win)
+        seq_wins[i] = dna.char_to_int(win)
     # Randomly choose missing nucleotides
     idx = seq_wins == dna.CHAR_TO_INT['N']
     seq_wins[idx] = np.random.randint(0, 4, idx.sum())

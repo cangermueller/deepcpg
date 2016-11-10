@@ -10,7 +10,7 @@ import pandas as pd
 from .. import data as dat
 from .. import evaluation as ev
 from ..data import hdf
-from ..data.dna import int2onehot
+from ..data.dna import int_to_onehot
 from ..utils import to_list
 
 
@@ -234,7 +234,7 @@ class DataReader(object):
             center = cur_wlen // 2
             delta = self.dna_wlen // 2
             dna = dna[:, (center - delta):(center + delta + 1)]
-        return int2onehot(dna)
+        return int_to_onehot(dna)
 
     def _prepro_cpg(self, states, dists):
         prepro_states = []

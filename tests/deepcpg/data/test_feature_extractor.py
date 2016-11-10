@@ -144,7 +144,7 @@ class TestKmersFeatureExtractor(object):
     def _translate_seqs(self, seqs):
         if not isinstance(seqs, list):
             seqs = [seqs]
-        _seqs = np.array([dna.char2int(seq) for seq in seqs], dtype=np.int32)
+        _seqs = np.array([dna.char_to_int(seq) for seq in seqs], dtype=np.int32)
         return _seqs
 
     def _kmer_idx(self, kmer):
