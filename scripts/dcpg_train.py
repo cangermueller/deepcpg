@@ -34,8 +34,8 @@ REG_METRICS = [met.mse, met.mae]
 def get_output_stats(output):
     stats = OrderedDict()
     output = np.ma.masked_values(output, dat.CPG_NAN)
-    stats['nb_tot'] = len(output)
-    stats['frac_obs'] = np.sum(output != dat.CPG_NAN) / len(output)
+    stats['nb_tot'] = np.sum(output != dat.CPG_NAN)
+    stats['frac_obs'] = stats['nb_tot'] / len(output)
     stats['mean'] = float(np.mean(output))
     stats['var'] = float(np.var(output))
     return stats
@@ -393,7 +393,8 @@ class App(object):
             class_weights = OrderedDict()
 
         for name in output_names:
-            output = hdf.read(opts.train_files, 'outputs/%s' % name)
+            output = hdf.read(opts.train_files, 'outputs/%s' % name,
+                              nb_sample=opts.nb_train_sample)
             output = list(output.values())[0]
             output_stats[name] = get_output_stats(output)
             if class_weights is not None:

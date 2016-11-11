@@ -1,14 +1,27 @@
 #!/usr/bin/env python
 
+from collections import OrderedDict
 import os
 import sys
 
 import argparse
 import logging
+import numpy as np
 import pandas as pd
 import seaborn as sns
 
 from deepcpg import data as dat
+from deepcpg.data import hdf
+
+
+def get_output_stats(output):
+    stats = OrderedDict()
+    output = np.ma.masked_values(output, dat.CPG_NAN)
+    stats['nb_tot'] = np.sum(output != dat.CPG_NAN)
+    stats['frac_obs'] = stats['nb_tot'] / len(output)
+    stats['mean'] = float(np.mean(output))
+    stats['var'] = float(np.var(output))
+    return stats
 
 
 def plot_stats(stats):
@@ -52,6 +65,10 @@ class App(object):
             help='List of regex to filter outputs',
             nargs='+')
         p.add_argument(
+            '--nb_sample',
+            help='Maximum number of samples',
+            type=int)
+        p.add_argument(
             '--verbose',
             help='More detailed log messages',
             action='store_true')
@@ -72,7 +89,12 @@ class App(object):
 
         output_names = dat.get_output_names(opts.data_files[0],
                                             regex=opts.output_names)
-        stats = dat.get_output_stats(opts.data_files, output_names)
+        stats = OrderedDict()
+        for name in output_names:
+            output = hdf.read(opts.data_files, 'outputs/%s' % name,
+                              nb_sample=opts.nb_sample)
+            output = list(output.values())[0]
+            stats[name] = get_output_stats(output)
         tmp = []
         for key, value in stats.items():
             tmp.append(pd.DataFrame(value, index=[key]))
