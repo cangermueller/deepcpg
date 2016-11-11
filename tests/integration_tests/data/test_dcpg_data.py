@@ -27,6 +27,8 @@ class TestMake(object):
                  '/inputs/cpg/BS27_4_SER/state',
                  '/inputs/cpg/BS28_2_SER/dist',
                  '/inputs/cpg/BS28_2_SER/state',
+                 '/inputs/annos/exons',
+                 '/inputs/annos/CGI',
                  '/outputs/cpg/BS27_4_SER',
                  '/outputs/cpg/BS28_2_SER',
                  '/outputs/stats/mean',
@@ -242,3 +244,15 @@ class TestMake(object):
         self._test_bulk('18', 3013979, 'BS9N_SER', 1.0)
         self._test_bulk('19', 4438754, 'BS9N_2I', -1)
         self._test_bulk('19', 4438754, 'BS9N_SER', 0.333)
+
+    def _test_annos(self, chromo, pos, name, expected):
+        idx = (self.chromo == chromo.encode()) & (self.pos == pos)
+        actual = int(self.data['/inputs/annos/%s' % name][idx])
+        assert actual == expected
+
+    def test_annos(self):
+        self._test_annos('18', 3000023, 'CGI', 0)
+        self._test_annos('18', 3000023, 'exons', 0)
+        self._test_annos('18', 3267095, 'exons', 1)
+        self._test_annos('18', 4375924, 'exons', 1)
+        self._test_annos('19', 4438754, 'exons', 0)

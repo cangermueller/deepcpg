@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from deepcpg import data as dat
+from deepcpg.data import annotations as an
 from deepcpg.data import dna
 from deepcpg.data import fasta
 from deepcpg.data import feature_extractor as fext
@@ -204,6 +205,18 @@ def select_dict(data, idx):
     return data
 
 
+def read_anno_file(anno_file, chromo, pos):
+    anno = pd.read_table(anno_file, header=None, usecols=[0, 1, 2],
+                         dtype={0: 'str', 1: 'int32', 2: 'int32'})
+    anno.columns = ['chromo', 'start', 'end']
+    anno.chromo = anno.chromo.str.lower().str.replace('chr', '')
+    anno = anno.loc[anno.chromo == chromo]
+    anno.sort_values('start', inplace=True)
+    start, end = an.join_overlapping(anno.start.values, anno.end.values)
+    anno = np.array(an.is_in(pos, start, end), dtype='int8')
+    return anno
+
+
 class App(object):
 
     def run(self, args):
@@ -236,6 +249,10 @@ class App(object):
         p.add_argument(
             '--pos_file',
             help='Position file')
+        p.add_argument(
+            '--anno_files',
+            help='Annotation files',
+            nargs='+')
         p.add_argument(
             '--cpg_wlen',
             help='CpG window length',
@@ -346,6 +363,7 @@ class App(object):
             pos_table = pos_table.iloc[:opts.nb_sample]
 
         # Iterate over chromosomes
+        # ------------------------
         for chromo in pos_table.chromo.unique():
             log.info('-' * 80)
             log.info('Chromosome %s ...' % (chromo))
@@ -384,7 +402,15 @@ class App(object):
             if opts.dna_db:
                 chromo_dna = fasta.read_chromo(opts.dna_db, chromo)
 
-            # Write output chunk files
+            annos = None
+            if opts.anno_files:
+                annos = dict()
+                for anno_file in opts.anno_files:
+                    name = os.path.splitext(os.path.basename(anno_file))[0]
+                    annos[name] = read_anno_file(anno_file, chromo, chromo_pos)
+
+            # Iterate over chunks
+            # -------------------
             nb_chunk = int(np.ceil(len(chromo_pos) / opts.chunk_size))
             for chunk in range(nb_chunk):
                 log.info('Chunk \t%d / %d' % (chunk + 1, nb_chunk))
@@ -480,6 +506,13 @@ class App(object):
                         group.create_dataset('state', data=state,
                                              compression='gzip')
                         group.create_dataset('dist', data=dist,
+                                             compression='gzip')
+
+                if annos:
+                    group = in_group.create_group('annos')
+                    for name, anno in annos.items():
+                        group.create_dataset(name, data=anno[chunk_idx],
+                                             dtype='int8',
                                              compression='gzip')
 
                 chunk_file.close()
