@@ -209,7 +209,7 @@ def read_anno_file(anno_file, chromo, pos):
     anno = pd.read_table(anno_file, header=None, usecols=[0, 1, 2],
                          dtype={0: 'str', 1: 'int32', 2: 'int32'})
     anno.columns = ['chromo', 'start', 'end']
-    anno.chromo = anno.chromo.str.lower().str.replace('chr', '')
+    anno.chromo = anno.chromo.str.upper().str.replace('chr', '')
     anno = anno.loc[anno.chromo == chromo]
     anno.sort_values('start', inplace=True)
     start, end = an.join_overlapping(anno.start.values, anno.end.values)
