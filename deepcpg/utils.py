@@ -7,7 +7,7 @@ EPS = 10e-8
 
 
 def to_list(value):
-    if not isinstance(value, list):
+    if not isinstance(value, list) and value is not None:
         value = [value]
     return value
 

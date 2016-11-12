@@ -29,6 +29,8 @@ WEBLOGO_OPTS += ' -C "#FBB116" G G'
 WEBLOGO_OPTS += ' -C "#0C8040" T T'
 
 ALPHABET = dna.get_alphabet(False)
+ALPHABET_R = OrderedDict([(value, key) for key, value in ALPHABET.items()])
+MEME_ALPHABET = OrderedDict([('A', 0), ('C', 1), ('G', 2), ('T', 3)])
 
 
 def zeropad_array(x, n, axis=0):
@@ -138,6 +140,14 @@ def plot_filter_heatmap(weights, filename=None):
         plt.savefig(filename)
 
 
+def map_alphabets(values, src_alphabet, dst_alphabet):
+    assert len(src_alphabet) == len(dst_alphabet)
+    _values = values.copy()
+    for src_char, src_int in src_alphabet.items():
+        _values[dst_alphabet[src_char]] = values[src_int]
+    return _values
+
+
 def open_meme(filename, seqs):
     nt_chars = list(ALPHABET.keys())
 
@@ -146,6 +156,7 @@ def open_meme(filename, seqs):
         nt_freq.append(np.sum(seqs == nt_int) + 1)
     nt_freq = np.array(nt_freq, dtype=np.float32)
     nt_freq = nt_freq / nt_freq.sum()
+    nt_freq = map_alphabets(nt_freq, ALPHABET, MEME_ALPHABET)
 
     # open file for writing
     meme_file = open(filename, 'w')
@@ -153,7 +164,7 @@ def open_meme(filename, seqs):
     # print intro material
     print('MEME version 4', file=meme_file)
     print('', file=meme_file)
-    print('ALPHABET=%s' % ''.join(nt_chars), file=meme_file)
+    print('ALPHABET= %s' % ''.join(list(MEME_ALPHABET.keys())), file=meme_file)
     print('', file=meme_file)
     print('Background letter frequencies:', file=meme_file)
     nt_freq_str = []
@@ -180,9 +191,11 @@ def add_to_meme(meme_file, idx, pwm, nb_site, trim_thr=None):
             return
         pwm = pwm[start:end]
 
+    pwm = map_alphabets(pwm.T, ALPHABET, MEME_ALPHABET).T
+
     print('MOTIF filter%d' % idx, file=meme_file)
-    tmp = 'letter-probability matrix: length= %d w= %d nsites= %d'
-    tmp = tmp % (pwm.shape[1], len(pwm), nb_site)
+    tmp = 'letter-probability matrix: alength= %d w= %d nsites= %d'
+    tmp = tmp % (len(MEME_ALPHABET), len(pwm), nb_site)
     print(tmp, file=meme_file)
 
     for row in pwm:
@@ -215,34 +228,29 @@ def read_tomtom(path):
 
 
 def read_motif_proteins(meme_db_file):
-    ''' Hash motif_id's to protein names using the MEME DB file '''
-    motif_protein = {}
+    motif_proteins = {}
     for line in open(meme_db_file):
         a = line.split()
         if len(a) > 0 and a[0] == 'MOTIF':
             if a[2][0] == '(':
-                motif_protein[a[1]] = a[2][1:a[2].find(')')]
+                motif_proteins[a[1]] = a[2][1:a[2].find(')')]
             else:
-                motif_protein[a[1]] = a[2]
-    return motif_protein
+                motif_proteins[a[1]] = a[2]
+    motif_proteins = {'target id': list(motif_proteins.keys()),
+                      'protein': list(motif_proteins.values())}
+    motif_proteins = pd.DataFrame(motif_proteins, columns=motif_proteins)
+    return motif_proteins
 
 
-def parse_filter_summary(filter_stats_file, tomtom_file, meme_db_file):
+def get_summary(filter_stats_file, tomtom_file, motif_proteins):
     filter_stats = pd.read_table(filter_stats_file)
     tomtom = read_tomtom(tomtom_file)
     tomtom = tomtom.sort_values(['idx', 'q-value', 'e-value'])
-    tomtom = tomtom.groupby('idx').first().reset_index()
+    #  tomtom = tomtom.groupby('idx').first().reset_index()
     tomtom = tomtom.loc[:, ~tomtom.columns.isin(['query id', 'optimal offset'])]
-    motif_protein = read_motif_proteins(meme_db_file)
-    motif_protein = {'target id': list(motif_protein.keys()),
-                     'protein': list(motif_protein.values())}
-    motif_protein = pd.DataFrame(motif_protein, columns=motif_protein)
     d = pd.merge(filter_stats, tomtom, on='idx', how='outer')
-    d = pd.merge(d, motif_protein, on='target id', how='left')
-    cols = list(filter_stats.columns)
-    cols.extend(['target id', 'protein', 'e-value', 'q-value', 'overlap',
-                 'query consensus', 'target consensus', 'orientation'])
-    d = d.loc[:, cols]
+    d = pd.merge(d, motif_proteins, on='target id', how='left')
+    d.index.name = None
     return d
 
 
@@ -250,6 +258,11 @@ def plot_logo(fasta_file, out_file, format='pdf', options=''):
     cmd = 'weblogo {opts} -s large < {inp} > {out} -F {f} 2> /dev/null'
     cmd = cmd.format(opts=options, inp=fasta_file, out=out_file, f=format)
     subprocess.call(cmd, shell=True)
+
+
+def get_motif_from_weights(weights):
+    idx = weights.argmax(axis=0)
+    return ''.join([ALPHABET_R[i] for i in idx])
 
 
 class App(object):
@@ -401,11 +414,12 @@ class App(object):
         for idx in filters_list:
             log.info('Filter %d' % idx)
             filter_act = filters_act[:, :, idx]
-            filter_weights = filters_weights[:, :, idx].T
+            filter_weights = filters_weights[:, ::-1, idx].T
             assert len(filter_weights) == len(ALPHABET)
 
             stats = OrderedDict()
             stats['idx'] = idx
+            stats['motif'] = get_motif_from_weights(filter_weights)
             stats['act_mean'] = filter_act.mean()
             stats['act_std'] = filter_act.std()
             stats['ic'] = 0
@@ -459,12 +473,12 @@ class App(object):
         print(filter_stats.to_string())
         filter_stats.to_csv(pt.join(opts.out_dir, 'stats.csv'),
                             float_format='%.4f',
-                            sep='\t', index=True)
+                            sep='\t', index=False)
 
         if opts.motif_db:
             log.info('Running tomtom')
             cmd = 'tomtom -dist pearson -thresh {thr} -oc {out_dir} ' + \
-                '{meme_file} {motif_db} %s 2> /dev/null'
+                '{meme_file} {motif_db}'
             cmd = cmd.format(thr=opts.fdr,
                              out_dir=pt.join(opts.out_dir, 'tomtom'),
                              meme_file=meme_filename,
@@ -472,11 +486,16 @@ class App(object):
             print('\n', cmd)
             subprocess.call(cmd, shell=True)
 
-            summary = parse_filter_summary(
+            motif_proteins = read_motif_proteins(opts.motif_db)
+            tmp = pt.join(opts.out_dir, 'tomtom', 'motif_proteins.csv')
+            motif_proteins.to_csv(tmp, sep='\t', index=False)
+
+            summary = get_summary(
                 pt.join(opts.out_dir, 'stats.csv'),
                 pt.join(opts.out_dir, 'tomtom', 'tomtom.txt'),
-                pt.join(opts.out_dir, opts.motif_db))
-            summary.sort_values('act_mean', ascending=False, inplace=True)
+                motif_proteins)
+            summary.sort_values(['q-value', 'act_mean'],
+                                ascending=[True, False], inplace=True)
             print('\nTomtom results:')
             print(summary.to_string())
             summary.to_csv(pt.join(opts.out_dir, 'summary.csv'), index=True,

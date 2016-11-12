@@ -138,7 +138,7 @@ class App(object):
             help='Output directory')
         p.add_argument(
             '--output_names',
-            help='List of regex to filter outputs',
+            help='Regex to select outputs',
             nargs='+',
             default=['cpg/.*'])
         p.add_argument(
@@ -151,7 +151,7 @@ class App(object):
             nargs='+')
         p.add_argument(
             '--replicate_names',
-            help='List of regex to filter CpG context units',
+            help='Regex to select replicates',
             nargs='+')
         p.add_argument(
             '--nb_replicate',
@@ -382,7 +382,7 @@ class App(object):
         log.info('Computing output statistics ...')
         output_names = dat.get_output_names(opts.train_files[0],
                                             regex=opts.output_names,
-                                            nb_keys=opts.nb_output)
+                                            nb_key=opts.nb_output)
         if not output_names:
             raise ValueError('No outputs found!')
 
@@ -438,7 +438,7 @@ class App(object):
             replicate_names = dat.get_replicate_names(
                 opts.train_files[0],
                 regex=opts.replicate_names,
-                nb_keys=opts.nb_replicate)
+                nb_key=opts.nb_replicate)
             if not replicate_names:
                 raise ValueError('Not replicates found!')
             print('Replicate names:')

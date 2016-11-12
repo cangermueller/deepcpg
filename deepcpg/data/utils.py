@@ -59,32 +59,6 @@ def stack_dict(data):
     return sdata
 
 
-def get_output_stats(data_files, output_names, nb_sample=None):
-    names = {'outputs': output_names}
-    stats = OrderedDict()
-    # batch_size large to reliably estimate statistics from batches
-    reader = hdf.reader(data_files, names, loop=False, shuffle=False,
-                        batch_size=100000,
-                        nb_sample=nb_sample)
-    nb_batch = 0
-    for batch in reader:
-        for name in output_names:
-            output = batch['outputs/%s' % name]
-            stat = stats.setdefault(name, Counter())
-            stat['nb_tot'] += len(output)
-            stat['frac_obs'] += np.sum(output != CPG_NAN)
-            output = np.ma.masked_values(output, CPG_NAN)
-            stat['mean'] += float(output.mean())
-            stat['var'] += float(output.var())
-        nb_batch += 1
-
-    for stat in stats.values():
-        for key in ['mean', 'var']:
-            stat[key] /= (nb_batch + EPS)
-        stat['frac_obs'] /= (stat['nb_tot'] + EPS)
-    return stats
-
-
 def get_nb_sample(data_files, nb_max=None, batch_size=None):
     nb_sample = 0
     for data_file in data_files:
@@ -99,13 +73,6 @@ def get_nb_sample(data_files, nb_max=None, batch_size=None):
     return nb_sample
 
 
-def get_output_names(data_file, *args, **kwargs):
-    return hdf.ls(data_file, 'outputs',
-                  recursive=True,
-                  groups=False,
-                  *args, **kwargs)
-
-
 def get_dna_wlen(data_file, max_len=None):
     data_file = h5.File(data_file, 'r')
     wlen = data_file['/inputs/dna'].shape[1]
@@ -114,10 +81,23 @@ def get_dna_wlen(data_file, max_len=None):
     return wlen
 
 
+def get_output_names(data_file, *args, **kwargs):
+    return hdf.ls(data_file, 'outputs',
+                  recursive=True,
+                  groups=False,
+                  *args, **kwargs)
+
+
 def get_replicate_names(data_file, *args, **kwargs):
     return hdf.ls(data_file, 'inputs/cpg',
                   recursive=False,
                   groups=True,
+                  *args, **kwargs)
+
+
+def get_anno_names(data_file, *args, **kwargs):
+    return hdf.ls(data_file, 'inputs/annos',
+                  recursive=False,
                   *args, **kwargs)
 
 

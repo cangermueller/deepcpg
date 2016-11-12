@@ -7,7 +7,7 @@ INT_TO_CHAR = {v: k for k, v in CHAR_TO_INT.items()}
 
 
 def get_alphabet(special=False, reverse=False):
-    alpha = dict(CHAR_TO_INT)
+    alpha = OrderedDict(CHAR_TO_INT)
     if not special:
         del alpha['N']
     if reverse:

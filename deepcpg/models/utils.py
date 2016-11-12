@@ -221,10 +221,10 @@ class DataReader(object):
     def __init__(self, output_names=None,
                  use_dna=True, dna_wlen=None,
                  replicate_names=None, cpg_wlen=None, cpg_max_dist=25000):
-        self.output_names = output_names
+        self.output_names = to_list(output_names)
         self.use_dna = use_dna
         self.dna_wlen = dna_wlen
-        self.replicate_names = replicate_names
+        self.replicate_names = to_list(replicate_names)
         self.cpg_wlen = cpg_wlen
         self.cpg_max_dist = cpg_max_dist
 
@@ -265,12 +265,12 @@ class DataReader(object):
             names.append('inputs/dna')
 
         if self.replicate_names:
-            for name in to_list(self.replicate_names):
+            for name in self.replicate_names:
                 names.append('inputs/cpg/%s/state' % name)
                 names.append('inputs/cpg/%s/dist' % name)
 
         if self.output_names:
-            for name in to_list(self.output_names):
+            for name in self.output_names:
                 names.append('outputs/%s' % name)
 
         for data_raw in hdf.reader(data_files, names, *args, **kwargs):

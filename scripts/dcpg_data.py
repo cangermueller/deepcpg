@@ -284,7 +284,7 @@ class App(object):
         p.add_argument(
             '--chunk_size',
             type=int,
-            default=10240,
+            default=32768,
             help='Chunk size. Should be divisible by batch size')
         p.add_argument(
             '-o', '--out_dir',

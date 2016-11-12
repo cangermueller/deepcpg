@@ -3,7 +3,7 @@ import re
 import h5py as h5
 import numpy as np
 
-from ..utils import filter_regex
+from ..utils import filter_regex, to_list
 
 
 def _ls(item, recursive=False, groups=False, level=0):
@@ -20,7 +20,7 @@ def _ls(item, recursive=False, groups=False, level=0):
 
 
 def ls(filename, group='/', recursive=False, groups=False,
-       regex=None, nb_keys=None):
+       regex=None, nb_key=None):
     if not group.startswith('/'):
         group = '/%s' % group
     h5_file = h5.File(filename, 'r')
@@ -30,8 +30,8 @@ def ls(filename, group='/', recursive=False, groups=False,
     h5_file.close()
     if regex:
         keys = filter_regex(keys, regex)
-    if nb_keys:
-        keys = keys[:nb_keys]
+    if nb_key:
+        keys = keys[:nb_key]
     return keys
 
 
@@ -66,14 +66,19 @@ def hnames_to_names(hnames):
 
 def reader(data_files, names, batch_size=128, nb_sample=None, shuffle=False,
            loop=False):
-    if not isinstance(data_files, list):
-        data_files = [data_files]
-    # Copy, since it might be changed by shuffling
-    data_files = list(data_files)
     if isinstance(names, dict):
         names = hnames_to_names(names)
-    elif not isinstance(names, list):
-        names = [names]
+    else:
+        names = to_list(names)
+    # Copy, since list will be changes if shuffle=True
+    data_files = list(to_list(data_files))
+
+    # Check if names exist
+    h5_file = h5.File(data_files[0], 'r')
+    for name in names:
+        if name not in h5_file:
+            raise ValueError('%s does not exist!' % name)
+    h5_file.close()
 
     if nb_sample:
         # Select the first k files s.t. the total sample size is at least
