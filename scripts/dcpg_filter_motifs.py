@@ -11,12 +11,12 @@ import logging
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 import seaborn as sns
+from sklearn.decomposition import PCA
 import numpy as np
 import subprocess
 import pandas as pd
-import warnings
 
-from deepcpg.utils import EPS
+from deepcpg.utils import EPS, linear_weights
 from deepcpg.data import dna
 
 mpl.use('agg')
@@ -117,14 +117,13 @@ def write_kmers(kmers, filename):
 
 
 def plot_filter_densities(densities, filename=None):
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        sns.set(font_scale=1.3)
-        fig, ax = plt.subplots()
-        sns.distplot(densities, kde=False, ax=ax)
-        ax.set_xlabel('Activation')
-        if filename:
-            fig.savefig(filename)
+    sns.set(font_scale=1.3)
+    fig, ax = plt.subplots()
+    sns.distplot(densities, kde=False, ax=ax)
+    ax.set_xlabel('Activation')
+    if filename:
+        fig.savefig(filename)
+        plt.close()
 
 
 def plot_filter_heatmap(weights, filename=None):
@@ -134,10 +133,37 @@ def plot_filter_heatmap(weights, filename=None):
     sns.heatmap(weights, cmap='RdYlBu_r', linewidths=0.2, vmin=-param_range,
                 vmax=param_range, ax=ax)
     ax.set_xticklabels(range(1, weights.shape[1] + 1))
-    labels = dna.int_to_char(range(weights.shape[0]))
+    labels = [ALPHABET_R[i] for i in reversed(range(weights.shape[0]))]
     ax.set_yticklabels(labels, rotation='horizontal', size=10)
     if filename:
         plt.savefig(filename)
+        plt.close()
+
+
+def plot_pca(act, pc_x=1, pc_y=2, labels=None, filename=None):
+    act = act.T
+    pca = PCA()
+    pca.fit(act)
+    eig_vec = pca.transform(act)
+    data = pd.DataFrame(eig_vec)
+    data.columns = ['PC%d' % i for i in range(data.shape[1])]
+    data['act_mean'] = act.mean(axis=1)
+
+    pc_x = 'PC%d' % pc_x
+    pc_y = 'PC%d' % pc_y
+    fig, ax = plt.subplots(figsize=(10, 8))
+    scatter = ax.scatter(data[pc_x], data[pc_y],
+                         c=data['act_mean'], cmap='RdBu_r')
+    ax.set_xlabel(pc_x)
+    ax.set_ylabel(pc_y)
+    fig.colorbar(scatter)
+    if labels:
+        for i, row in data.iterrows():
+            ax.annotate('%d' % labels[i], xy=(row[pc_x], row[pc_y]),
+                        fontsize=10)
+    if filename:
+        fig.savefig(filename)
+        plt.close()
 
 
 def map_alphabets(values, src_alphabet, dst_alphabet):
@@ -242,11 +268,10 @@ def read_motif_proteins(meme_db_file):
     return motif_proteins
 
 
-def get_summary(filter_stats_file, tomtom_file, motif_proteins):
+def get_report(filter_stats_file, tomtom_file, motif_proteins):
     filter_stats = pd.read_table(filter_stats_file)
     tomtom = read_tomtom(tomtom_file)
     tomtom = tomtom.sort_values(['idx', 'q-value', 'e-value'])
-    #  tomtom = tomtom.groupby('idx').first().reset_index()
     tomtom = tomtom.loc[:, ~tomtom.columns.isin(['query id', 'optimal offset'])]
     d = pd.merge(filter_stats, tomtom, on='idx', how='outer')
     d = pd.merge(d, motif_proteins, on='target id', how='left')
@@ -312,6 +337,15 @@ class App(object):
             help='Plot filter heatmaps',
             action='store_true')
         p.add_argument(
+            '--plot_pca',
+            help='Plot activation principal components',
+            action='store_true')
+        p.add_argument(
+            '--nb_sample_pca',
+            help='Number of samples for PCA',
+            type=int,
+            default=1000)
+        p.add_argument(
             '--fdr',
             help='FDR for motif matching',
             default=0.05,
@@ -321,7 +355,7 @@ class App(object):
             help='Maximum # samples',
             type=int)
         p.add_argument(
-            '--select_filters',
+            '--filters',
             help='Filters to be tested (starting from 0)',
             nargs='+')
         p.add_argument(
@@ -362,10 +396,21 @@ class App(object):
         log.info('Reading data')
         in_file = h5.File(opts.in_file, 'r')
 
-        nb_sample = len(in_file['/act'])
+        nb_sample = in_file['/act'].shape[0]
         if opts.nb_sample:
             nb_sample = min(opts.nb_sample, nb_sample)
-        filters_act = in_file['/act'][:nb_sample]
+
+        nb_filter = in_file['/act'].shape[-1]
+        filters_idx = opts.filters
+        if filters_idx is None:
+            filters_idx = range(nb_filter)
+        else:
+            filters_idx = ranges_to_list(filters_idx, 0, nb_filter - 1)
+            nb_filter = len(filters_idx)
+
+        # Get only view on data to reduce memory usage. Possible since filters
+        # can be processed independently.
+        filters_act = in_file['/act']
 
         seqs = in_file['/inputs/dna'][:nb_sample]
         if seqs.shape[1] != filters_act.shape[1]:
@@ -376,22 +421,12 @@ class App(object):
 
         filters_weights = in_file['weights/weights']
         assert filters_weights.shape[1] == 1
-        filters_weights = filters_weights[:, 0]
+        filters_weights = filters_weights[:, 0, :]
         filter_len = len(filters_weights)
-        nb_filter = filters_weights.shape[-1]
-        assert filters_act.shape[-1] == nb_filter
-
-        in_file.close()
 
         print('Filters: %d' % nb_filter)
         print('Filter len: %d' % filter_len)
-        print('Samples: %d' % len(filters_act))
-
-        filters_list = opts.select_filters
-        if filters_list is None:
-            filters_list = range(nb_filter)
-        else:
-            filters_list = ranges_to_list(filters_list, 0, nb_filter - 1)
+        print('Samples: %d' % nb_sample)
 
         os.makedirs(opts.out_dir, exist_ok=True)
         sub_dirs = dict()
@@ -408,13 +443,33 @@ class App(object):
         meme_filename = pt.join(opts.out_dir, 'meme.txt')
         meme_file = open_meme(meme_filename, seqs)
 
+        if opts.plot_pca:
+            tmp = min(len(filters_act), opts.nb_sample_pca)
+            log.info('Performing PCA on activations using %d samples' % tmp)
+            # Down-sample activations to at most nb_sample_pca samples to reduce
+            # memory usage and run-time.
+            pca_act = filters_act[:tmp, :, filters_idx]
+
+            act = pca_act.mean(axis=1)
+            tmp = pt.join(opts.out_dir, 'pca_mean.pdf')
+            plot_pca(act, labels=filters_idx, filename=tmp)
+
+            weights = linear_weights(pca_act.shape[1])
+            act = np.average(pca_act, 1, weights)
+            tmp = pt.join(opts.out_dir, 'pca_wmean.pdf')
+            plot_pca(act, labels=filters_idx, filename=tmp)
+
+            act = pca_act.max(axis=1)
+            tmp = pt.join(opts.out_dir, 'pca_max.pdf')
+            plot_pca(act, labels=filters_idx, filename=tmp)
+
         log.info('Analyzing filters')
         log.info('-----------------')
         filter_stats = []
-        for idx in filters_list:
+        for idx in filters_idx:
             log.info('Filter %d' % idx)
-            filter_act = filters_act[:, :, idx]
-            filter_weights = filters_weights[:, ::-1, idx].T
+            filter_act = filters_act[:nb_sample, :, idx]
+            filter_weights = filters_weights[:, :, idx].T
             assert len(filter_weights) == len(ALPHABET)
 
             stats = OrderedDict()
@@ -490,17 +545,26 @@ class App(object):
             tmp = pt.join(opts.out_dir, 'tomtom', 'motif_proteins.csv')
             motif_proteins.to_csv(tmp, sep='\t', index=False)
 
-            summary = get_summary(
+            report = get_report(
                 pt.join(opts.out_dir, 'stats.csv'),
                 pt.join(opts.out_dir, 'tomtom', 'tomtom.txt'),
                 motif_proteins)
-            summary.sort_values(['q-value', 'act_mean'],
-                                ascending=[True, False], inplace=True)
-            print('\nTomtom results:')
-            print(summary.to_string())
-            summary.to_csv(pt.join(opts.out_dir, 'summary.csv'), index=True,
-                           sep='\t', float_format='%.3f')
+            report.sort_values(['idx', 'q-value', 'act_mean'],
+                               ascending=[True, True, False], inplace=True)
+            report.to_csv(pt.join(opts.out_dir, 'report.csv'), index=False,
+                          sep='\t', float_format='%.3f')
 
+            report_top = report.groupby('idx').first().reset_index()
+            report_top.sort_values(['q-value', 'act_mean'],
+                                   ascending=[True, False], inplace=True)
+            report_top.to_csv(pt.join(opts.out_dir,
+                                      'report_top.csv'), index=False,
+                              sep='\t', float_format='%.3f')
+
+            print('\nTomtom results:')
+            print(report_top.to_string())
+
+        in_file.close()
         log.info('Done!')
         return 0
 

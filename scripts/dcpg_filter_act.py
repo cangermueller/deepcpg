@@ -13,16 +13,7 @@ import logging
 from deepcpg import data as dat
 from deepcpg import models as mod
 from deepcpg.data import hdf, dna
-from deepcpg.utils import ProgressBar, to_list
-
-
-def linear_weights(wlen, start=0.1):
-    w = np.linspace(start, 1, np.ceil(wlen / 2))
-    v = w
-    if wlen % 2:
-        v = v[:-1]
-    w = np.hstack((w, v[::-1]))
-    return (w)
+from deepcpg.utils import ProgressBar, to_list, linear_weights
 
 
 def get_layer_by_depth(layers, depth=1, layer_class=kl.Activation):

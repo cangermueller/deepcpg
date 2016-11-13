@@ -6,6 +6,15 @@ import numpy as np
 EPS = 10e-8
 
 
+def linear_weights(length, start=0.1):
+    weights = np.linspace(start, 1, np.ceil(length / 2))
+    tmp = weights
+    if length % 2:
+        tmp = tmp[:-1]
+    weights = np.hstack((weights, tmp[::-1]))
+    return weights
+
+
 def to_list(value):
     if not isinstance(value, list) and value is not None:
         value = [value]
