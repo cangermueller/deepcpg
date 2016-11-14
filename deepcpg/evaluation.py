@@ -1,6 +1,7 @@
 from collections import OrderedDict
 
 import numpy as np
+import pandas as pd
 import sklearn.metrics as skm
 
 from .data import CPG_NAN
@@ -110,6 +111,74 @@ def evaluate_cat(y, z, metrics=CAT_METRICS,
                 p['%s_%d' % (metric.__name__, i)] = metric(y[:, i], z[:, i])
     p['n'] = len(y)
     return p
+
+
+def get_output_metrics(output_name):
+    if output_name.startswith('cpg'):
+        metrics = CLA_METRICS
+    elif output_name.startswith('bulk'):
+        metrics = REG_METRICS + CLA_METRICS
+    elif output_name in ['stats/diff', 'stats/mode', 'stats/cat2_var']:
+        metrics = CLA_METRICS
+    elif output_name == 'stats/mean':
+        metrics = REG_METRICS + CLA_METRICS
+    elif output_name == 'stats/var':
+        metrics = REG_METRICS
+    else:
+        raise ValueError('Invalid output name "%s"!' % output_name)
+    return metrics
+
+
+def evaluate_outputs(outputs, preds):
+    perf = []
+    for output_name in outputs.keys():
+        if output_name in ['stats/cat_var']:
+            tmp = evaluate_cat(outputs[output_name],
+                               preds[output_name],
+                               binary_metrics=[auc])
+        else:
+            metrics = get_output_metrics(output_name)
+            tmp = evaluate(outputs[output_name],
+                           preds[output_name],
+                           metrics=metrics)
+        tmp = pd.DataFrame({'output': output_name,
+                            'metric': list(tmp.keys()),
+                            'value': list(tmp.values())})
+        perf.append(tmp)
+    perf = pd.concat(perf)
+    perf = perf[['metric', 'output', 'value']]
+    perf.sort_values(['metric', 'value'], inplace=True)
+    return perf
+
+
+def unstack_report(report):
+    index = list(report.columns[~report.columns.isin(['metric', 'value'])])
+    report = pd.pivot_table(report, index=index, columns='metric',
+                            values='value')
+    report.reset_index(index, inplace=True)
+    report.columns.name = None
+
+    # Sort columns
+    columns = list(report.columns)
+    sorted_columns = []
+    for fun in CAT_METRICS + CLA_METRICS + REG_METRICS:
+        for i, column in enumerate(columns):
+            if column.startswith(fun.__name__):
+                sorted_columns.append(column)
+    sorted_columns = index + sorted_columns
+    sorted_columns += [col for col in columns if col not in sorted_columns]
+    report = report[sorted_columns]
+    order = []
+    if 'auc' in report.columns:
+        order.append(('auc', False))
+    elif 'mse' in report.columns:
+        order.append(('mse', True))
+    elif 'acc' in report.columns:
+        order.append(('acc', False))
+    report.sort_values([x[0] for x in order],
+                       ascending=[x[1] for x in order],
+                       inplace=True)
+    return report
 
 
 def get(name):

@@ -104,22 +104,6 @@ def add_output_layers(stem, output_names):
     return outputs
 
 
-def get_eval_metrics(output_name):
-    if output_name.startswith('cpg'):
-        metrics = ev.CLA_METRICS
-    elif output_name.startswith('bulk'):
-        metrics = ev.REG_METRICS + ev.CLA_METRICS
-    elif output_name in ['stats/diff', 'stats/mode', 'stats/cat2_var']:
-        metrics = ev.CLA_METRICS
-    elif output_name == 'stats/mean':
-        metrics = ev.REG_METRICS + ev.CLA_METRICS
-    elif output_name == 'stats/var':
-        metrics = ev.REG_METRICS
-    else:
-        raise ValueError('Invalid output name "%s"!' % output_name)
-    return metrics
-
-
 def predict_generator(model, generator, nb_sample=None):
     data = None
     nb_seen = 0

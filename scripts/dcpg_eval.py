@@ -4,7 +4,6 @@ import sys
 import os
 
 import argparse
-import pandas as pd
 import logging
 
 from deepcpg import data as dat
@@ -12,38 +11,6 @@ from deepcpg import evaluation as ev
 from deepcpg import models as mod
 from deepcpg.data import hdf
 from deepcpg.utils import ProgressBar, to_list
-
-
-def unstack_report(report):
-    index = list(report.columns[~report.columns.isin(['metric', 'value'])])
-    report = pd.pivot_table(report, index=index, columns='metric',
-                            values='value')
-    report.reset_index(index, inplace=True)
-    report.columns.name = None
-
-    # Sort columns
-    columns = list(report.columns)
-    sorted_columns = []
-    for fun in ev.CAT_METRICS + ev.CLA_METRICS + ev.REG_METRICS:
-        for i, column in enumerate(columns):
-            if column.startswith(fun.__name__):
-                sorted_columns.append(column)
-    sorted_columns = index + sorted_columns
-    sorted_columns += [col for col in columns if col not in sorted_columns]
-    report = report[sorted_columns]
-    order = []
-    if 'dset' in report.columns:
-        order.append(('dset', True))
-    if 'auc' in report.columns:
-        order.append(('auc', False))
-    elif 'mse' in report.columns:
-        order.append(('mse', True))
-    elif 'acc' in report.columns:
-        order.append(('acc', False))
-    report.sort_values([x[0] for x in order],
-                       ascending=[x[1] for x in order],
-                       inplace=True)
-    return report
 
 
 class App(object):
@@ -106,14 +73,14 @@ class App(object):
         log.info('Loading model ...')
         model = mod.load_model(opts.model_files)
 
-        log.info('Reading data ...')
+        log.info('Loading data ...')
         nb_sample = dat.get_nb_sample(opts.data_files, opts.nb_sample)
         data_reader = mod.data_reader_from_model(model)
+
         data_reader = data_reader(opts.data_files,
                                   nb_sample=nb_sample,
                                   batch_size=opts.batch_size,
-                                  loop=False,
-                                  shuffle=False)
+                                  loop=False, shuffle=False)
 
         meta_reader = hdf.reader(opts.data_files, ['chromo', 'pos'],
                                  nb_sample=nb_sample,
@@ -142,30 +109,13 @@ class App(object):
         progbar.close()
         data = dat.stack_dict(data)
 
-        perf = []
-        for output in model.output_names:
-            if output in ['stats/cat_var']:
-                tmp = ev.evaluate_cat(data['outputs'][output],
-                                      data['preds'][output],
-                                      binary_metrics=[ev.auc])
-            else:
-                metrics = mod.get_eval_metrics(output)
-                tmp = ev.evaluate(data['outputs'][output],
-                                  data['preds'][output],
-                                  metrics=metrics)
-            tmp = pd.DataFrame({'output': output,
-                                'metric': list(tmp.keys()),
-                                'value': list(tmp.values())})
-            perf.append(tmp)
-        perf = pd.concat(perf)
-        perf = perf[['metric', 'output', 'value']]
-        perf.sort_values(['metric', 'value'], inplace=True)
+        eval_report = ev.evaluate_outputs(data['outputs'], data['preds'])
 
         if opts.out_summary:
-            perf.to_csv(opts.out_summary, sep='\t', index=False)
+            eval_report.to_csv(opts.out_summary, sep='\t', index=False)
 
-        report = unstack_report(perf)
-        print(report.to_string())
+        eval_report = ev.unstack_report(eval_report)
+        print(eval_report.to_string())
 
         if opts.out_data:
             hdf.write_data(data, opts.out_data)

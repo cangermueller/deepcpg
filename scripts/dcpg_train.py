@@ -479,7 +479,7 @@ class App(object):
                       loss_weights=output_weights,
                       metrics=self.metrics)
 
-        log.info('Reading data ...')
+        log.info('Loading data ...')
         data_reader = mod.data_reader_from_model(model)
 
         nb_train_sample = dat.get_nb_sample(opts.train_files,
