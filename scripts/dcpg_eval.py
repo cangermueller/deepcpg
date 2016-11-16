@@ -35,8 +35,8 @@ class App(object):
             help='Model files',
             nargs='+')
         p.add_argument(
-            '-o', '--out_summary',
-            help='Output summary file')
+            '-o', '--out_report',
+            help='Output report file')
         p.add_argument(
             '--out_data',
             help='Output file with predictions and labels')
@@ -109,13 +109,13 @@ class App(object):
         progbar.close()
         data = dat.stack_dict(data)
 
-        eval_report = ev.evaluate_outputs(data['outputs'], data['preds'])
+        report = ev.evaluate_outputs(data['outputs'], data['preds'])
 
-        if opts.out_summary:
-            eval_report.to_csv(opts.out_summary, sep='\t', index=False)
+        if opts.out_report:
+            report.to_csv(opts.out_report, sep='\t', index=False)
 
-        eval_report = ev.unstack_report(eval_report)
-        print(eval_report.to_string())
+        report = ev.unstack_report(report)
+        print(report.to_string())
 
         if opts.out_data:
             hdf.write_data(data, opts.out_data)
