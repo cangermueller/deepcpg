@@ -471,7 +471,7 @@ class App(object):
 
                 # DNA windows
                 if chromo_dna:
-                    log.info('Extract DNA sequence windows ...')
+                    log.info('Extracting DNA sequence windows ...')
                     dna_wins = extract_seq_windows(chromo_dna, pos=chunk_pos,
                                                    wlen=opts.dna_wlen)
                     assert len(dna_wins) == len(chunk_pos)
@@ -480,7 +480,7 @@ class App(object):
 
                 # CpG neighbors
                 if opts.cpg_wlen:
-                    log.info('Extract CpG neighbors ...')
+                    log.info('Extracting CpG neighbors ...')
                     cpg_ext = fext.KnnCpgFeatureExtractor(opts.cpg_wlen // 2)
                     context_group = in_group.create_group('cpg')
                     # outputs['cpg'], since neighboring CpG sites might lie
