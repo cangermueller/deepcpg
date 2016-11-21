@@ -6,6 +6,16 @@ import numpy as np
 EPS = 10e-8
 
 
+def slice_dict(data, idx):
+    if isinstance(data, dict):
+        data_sliced = dict()
+        for key, value in data.items():
+            data_sliced[key] = slice_dict(value, idx)
+        return data_sliced
+    else:
+        return data[idx]
+
+
 def linear_weights(length, start=0.1):
     weights = np.linspace(start, 1, np.ceil(length / 2))
     tmp = weights
