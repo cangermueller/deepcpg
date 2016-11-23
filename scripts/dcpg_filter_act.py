@@ -69,6 +69,10 @@ class App(object):
             help='Slice wlen at center',
             type=int)
         p.add_argument(
+            '--store_outputs',
+            help='Store output labels',
+            action='store_true')
+        p.add_argument(
             '--store_preds',
             help='Store model predictions',
             action='store_true')
@@ -192,6 +196,10 @@ class App(object):
                 for i, name in enumerate(model.input_names):
                     h5_dump('inputs/%s' % name,
                             dna.onehot_to_int(inputs[i]), idx)
+
+            if opts.store_outputs:
+                for name, output in outputs.items():
+                    h5_dump('outputs/%s' % name, output, idx)
 
             fun_eval = fun(inputs)
             act = fun_eval[0]
