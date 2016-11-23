@@ -8,18 +8,21 @@ import os.path as pt
 import argparse
 import h5py as h5
 import logging
-import matplotlib as mpl
-from matplotlib import pyplot as plt
-import seaborn as sns
+
 from sklearn.decomposition import PCA
 import numpy as np
 import subprocess
 import pandas as pd
 
+import matplotlib as mpl
+mpl.use('agg')
+from matplotlib import pyplot as plt
+import seaborn as sns
+
 from deepcpg.utils import EPS, linear_weights
 from deepcpg.data import dna
 
-mpl.use('agg')
+
 sns.set_style('darkgrid')
 
 WEBLOGO_OPTS = '-X NO -Y NO --errorbars NO --fineprint ""'
