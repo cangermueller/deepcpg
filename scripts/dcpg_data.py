@@ -52,8 +52,8 @@ def read_cpg_profiles(filenames, *args, **kwargs):
     for filename in filenames:
         cpg_file = dat.GzipFile(filename, 'r')
         output_name = output_name_from_filename(filename)
-        cpg_profiles[output_name] = dat.read_cpg_table(cpg_file,
-                                                       *args, **kwargs)
+        cpg_profile = dat.read_cpg_table(cpg_file, sort=True, *args, **kwargs)
+        cpg_profiles[output_name] = cpg_profile
         cpg_file.close()
     return cpg_profiles
 
@@ -75,11 +75,15 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
     nb_win = len(pos)
     seq = seq.upper()
     seq_wins = np.zeros((nb_win, wlen), dtype='int8')
+    nb_no_cpg = 0
 
     for i in range(nb_win):
         p = pos[i] - seq_index
         if cpg_sites and seq[p:p + 2] != 'CG':
-            raise ValueError('No CpG at position %d!' % p)
+            nb_no_cpg += 1
+            c = 3
+            print(seq[p-c:p+2+c])
+            #  raise ValueError('No CpG at position %d!' % p)
         win = seq[max(0, p - delta): min(len(seq), p + delta + 1)]
         if len(win) < wlen:
             win = max(0, delta - p) * 'N' + win
@@ -90,9 +94,10 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
     idx = seq_wins == dna.CHAR_TO_INT['N']
     seq_wins[idx] = np.random.randint(0, 4, idx.sum())
     assert seq_wins.max() < 4
-    if cpg_sites:
-        assert np.all(seq_wins[:, delta] == 3)
-        assert np.all(seq_wins[:, delta + 1] == 2)
+    #  if cpg_sites:
+    #      assert np.all(seq_wins[:, delta] == 3)
+    #      assert np.all(seq_wins[:, delta + 1] == 2)
+    print('%d (%.3f) invalid sites!' % (nb_no_cpg, nb_no_cpg / nb_win))
     return seq_wins
 
 
@@ -120,9 +125,11 @@ def map_values(values, pos, target_pos, dtype=None, nan=dat.CPG_NAN):
 
 
 def map_cpg_tables(cpg_tables, chromo, chromo_pos):
+    chromo_pos.sort()
     mapped_tables = OrderedDict()
     for name, cpg_table in cpg_tables.items():
         cpg_table = cpg_table.loc[cpg_table.chromo == chromo]
+        cpg_table.sort_values(['chromo', 'pos'], inplace=True)
         mapped_table = map_values(cpg_table.value.values,
                                   cpg_table.pos.values,
                                   chromo_pos)
@@ -356,6 +363,7 @@ class App(object):
             for cpg_table in list(outputs['cpg'].values()):
                 pos_tables.append(cpg_table[['chromo', 'pos']])
             pos_table = prepro_pos_table(pos_tables)
+        log.info('%d samples' % len(pos_table))
 
         if opts.chromos:
             pos_table = pos_table.loc[pos_table.chromo.isin(opts.chromos)]
