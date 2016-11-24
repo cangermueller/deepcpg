@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from collections import OrderedDict
+import re
 import sys
 import os
 import os.path as pt
@@ -70,15 +71,20 @@ def format_out_of(out, of):
 
 
 def get_act_kmers(filter_act, filter_len, seqs, thr_per=0.5, thr_max=25000,
-                  log=None):
+                  log=None, thr_per_norm=True):
     assert filter_act.shape[0] == seqs.shape[0]
     assert filter_act.shape[1] == seqs.shape[1]
 
     _thr_per = 0
     if thr_per:
-        filter_act_mean = filter_act.mean()
-        filter_act_norm = filter_act - filter_act_mean
-        _thr_per = thr_per * filter_act_norm.max() + filter_act_mean
+        if thr_per_norm:
+            filter_act_mean = filter_act.mean()
+            filter_act_norm = filter_act - filter_act_mean
+            _thr_per = thr_per * filter_act_norm.max() + filter_act_mean
+        else:
+            _thr_per = thr_per * filter_act.max() + \
+                (1 - thr_per) * filter_act.min()
+
         if log:
             tmp = format_out_of(np.sum(filter_act >= _thr_per), filter_act.size)
             log('%s passed percentage threshold' % tmp)
@@ -178,12 +184,9 @@ def map_alphabets(values, src_alphabet, dst_alphabet):
 
 
 def open_meme(filename, seqs):
-    nt_chars = list(ALPHABET.keys())
-
-    nt_freq = []
+    nt_freq = np.zeros(len(ALPHABET))
     for nt_int in ALPHABET.values():
-        nt_freq.append(np.sum(seqs == nt_int) + 1)
-    nt_freq = np.array(nt_freq, dtype=np.float32)
+        nt_freq[nt_int] = np.sum(seqs == nt_int) + 1
     nt_freq = nt_freq / nt_freq.sum()
     nt_freq = map_alphabets(nt_freq, ALPHABET, MEME_ALPHABET)
 
@@ -197,8 +200,8 @@ def open_meme(filename, seqs):
     print('', file=meme_file)
     print('Background letter frequencies:', file=meme_file)
     nt_freq_str = []
-    for i, nt_char in enumerate(nt_chars):
-        nt_freq_str.append('%s %.4f' % (nt_char, nt_freq[i]))
+    for nt_char, nt_int in MEME_ALPHABET.items():
+        nt_freq_str.append('%s %.4f' % (nt_char, nt_freq[nt_int]))
     print(' '.join(nt_freq_str), file=meme_file)
     print('', file=meme_file)
 
@@ -256,28 +259,40 @@ def read_tomtom(path):
     return d
 
 
-def read_motif_proteins(meme_db_file):
-    motif_proteins = {}
+def read_meme_db(meme_db_file):
+    motifs = []
+    motif = None
     for line in open(meme_db_file):
-        a = line.split()
-        if len(a) > 0 and a[0] == 'MOTIF':
-            if a[2][0] == '(':
-                motif_proteins[a[1]] = a[2][1:a[2].find(')')]
-            else:
-                motif_proteins[a[1]] = a[2]
-    motif_proteins = {'target id': list(motif_proteins.keys()),
-                      'protein': list(motif_proteins.values())}
-    motif_proteins = pd.DataFrame(motif_proteins, columns=motif_proteins)
-    return motif_proteins
+        if line.startswith('MOTIF'):
+            if motif:
+                motifs.append(motif)
+                motif = None
+            tmp = line.split()[1:]
+            if len(tmp) < 2:
+                continue
+            motif = OrderedDict()
+            motif['id'] = tmp[0]
+            protein = re.sub(r'\(([^)]+)\)', r'\1', tmp[1])
+            motif['protein'] = protein.split('_')[0]
+            motif['url'] = ''
+        elif motif and line.startswith('URL'):
+            motif['url'] = line.split()[1]
+    if motif:
+        motifs.append(motif)
+    for i, motif in enumerate(motifs):
+        motifs[i] = pd.DataFrame(motif, index=[0])
+    motifs = pd.concat(motifs)
+    return motifs
 
 
-def get_report(filter_stats_file, tomtom_file, motif_proteins):
+def get_report(filter_stats_file, tomtom_file, meme_motifs):
     filter_stats = pd.read_table(filter_stats_file)
     tomtom = read_tomtom(tomtom_file)
     tomtom = tomtom.sort_values(['idx', 'q-value', 'e-value'])
     tomtom = tomtom.loc[:, ~tomtom.columns.isin(['query id', 'optimal offset'])]
     d = pd.merge(filter_stats, tomtom, on='idx', how='outer')
-    d = pd.merge(d, motif_proteins, on='target id', how='left')
+    meme_motifs = meme_motifs.rename(columns={'id': 'target id'})
+    d = pd.merge(d, meme_motifs, on='target id', how='left')
     d.index.name = None
     return d
 
@@ -315,13 +330,18 @@ class App(object):
             help='Output directory',
             default='.')
         p.add_argument(
-            '-m', '--motif_db',
-            help='MEME database for matching motifs')
+            '-m', '--motif_dbs',
+            help='MEME databases for matching motifs',
+            nargs='+')
         p.add_argument(
-            '-a', '--act_thr_per',
+            '--act_thr_per',
             help='Percentage of maximum activation for selecting sites',
             default=0.5,
             type=float)
+        p.add_argument(
+            '--act_thr_per_nonorm',
+            help='Do not normalize',
+            action='store_true')
         p.add_argument(
             '--act_thr_max',
             help='Max number of sites to be selected',
@@ -502,7 +522,8 @@ class App(object):
             log.info('Extracting activating kmers')
             act_kmers = get_act_kmers(filter_act, filter_len, seqs,
                                       thr_per=opts.act_thr_per,
-                                      thr_max=opts.act_thr_max)
+                                      thr_max=opts.act_thr_max,
+                                      thr_per_norm=not opts.act_thr_per_nonorm)
             stats.nb_site = len(act_kmers)
 
             if len(act_kmers) < 10:
@@ -533,25 +554,28 @@ class App(object):
                             float_format='%.4f',
                             sep='\t', index=False)
 
-        if opts.motif_db:
+        if opts.motif_dbs:
             log.info('Running tomtom')
             cmd = 'tomtom -dist pearson -thresh {thr} -oc {out_dir} ' + \
-                '{meme_file} {motif_db}'
+                '{meme_file} {motif_dbs}'
             cmd = cmd.format(thr=opts.fdr,
                              out_dir=pt.join(opts.out_dir, 'tomtom'),
                              meme_file=meme_filename,
-                             motif_db=opts.motif_db)
+                             motif_dbs=' '.join(opts.motif_dbs))
             print('\n', cmd)
             subprocess.call(cmd, shell=True)
 
-            motif_proteins = read_motif_proteins(opts.motif_db)
-            tmp = pt.join(opts.out_dir, 'tomtom', 'motif_proteins.csv')
-            motif_proteins.to_csv(tmp, sep='\t', index=False)
+            meme_motifs = []
+            for motif_db in opts.motif_dbs:
+                meme_motifs.append(read_meme_db(motif_db))
+            meme_motifs = pd.concat(meme_motifs)
+            tmp = pt.join(opts.out_dir, 'tomtom', 'meme_motifs.csv')
+            meme_motifs.to_csv(tmp, sep='\t', index=False)
 
             report = get_report(
                 pt.join(opts.out_dir, 'stats.csv'),
                 pt.join(opts.out_dir, 'tomtom', 'tomtom.txt'),
-                motif_proteins)
+                meme_motifs)
             report.sort_values(['idx', 'q-value', 'act_mean'],
                                ascending=[True, True, False], inplace=True)
             report.to_csv(pt.join(opts.out_dir, 'report.csv'), index=False,
