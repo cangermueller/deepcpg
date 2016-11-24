@@ -119,10 +119,6 @@ class App(object):
         if not opts.model_files:
             raise ValueError('No model files provided!')
 
-        if opts.act_wlen is not None and opts.act_wlen % 2 == 0:
-            raise ValueError('Activation window length must be divisible by ' +
-                             'two!')
-
         log.info('Loading model ...')
         K.set_learning_phase(0)
         model = mod.load_model(opts.model_files)
@@ -184,6 +180,7 @@ class App(object):
                 )
             out_group[path][idx:idx+len(data)] = data
 
+        log.info('Computing activations')
         progbar = ProgressBar(nb_sample, log.info)
         idx = 0
         for inputs, outputs, weights in data_reader:
@@ -204,12 +201,12 @@ class App(object):
             fun_eval = fun(inputs)
             act = fun_eval[0]
 
-            if opts.act_wlen is not None:
+            if opts.act_wlen:
                 delta = opts.act_wlen // 2
                 ctr = act.shape[1] // 2
                 act = act[:, (ctr-delta):(ctr+delta+1)]
 
-            if opts.act_fun is not None:
+            if opts.act_fun:
                 if opts.act_fun == 'mean':
                     act = act.mean(axis=1)
                 elif opts.act_fun == 'wmean':
