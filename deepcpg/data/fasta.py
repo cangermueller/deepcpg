@@ -44,7 +44,8 @@ def read_file(filename, gzip=None):
 def read_chromo(dna_db, chromo):
     filename = glob(os.path.join(dna_db, '*.chromosome.%s.*fa.gz' % chromo))
     if len(filename) != 1:
-        raise 'File for chromosome "%s" not found in "%s"!' % (chromo, dna_db)
+        tmp = 'File for chromosome "%s" not found in "%s"!' % (chromo, dna_db)
+        raise ValueError(tmp)
     filename = filename[0]
 
     fasta_seqs = read_file(filename)
