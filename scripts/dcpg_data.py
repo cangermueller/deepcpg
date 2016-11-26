@@ -75,15 +75,11 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
     nb_win = len(pos)
     seq = seq.upper()
     seq_wins = np.zeros((nb_win, wlen), dtype='int8')
-    nb_no_cpg = 0
 
     for i in range(nb_win):
         p = pos[i] - seq_index
         if cpg_sites and seq[p:p + 2] != 'CG':
-            nb_no_cpg += 1
-            c = 3
-            print(seq[p-c:p+2+c])
-            #  raise ValueError('No CpG at position %d!' % p)
+            raise ValueError('No CpG at position %d!' % p)
         win = seq[max(0, p - delta): min(len(seq), p + delta + 1)]
         if len(win) < wlen:
             win = max(0, delta - p) * 'N' + win
@@ -94,10 +90,9 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
     idx = seq_wins == dna.CHAR_TO_INT['N']
     seq_wins[idx] = np.random.randint(0, 4, idx.sum())
     assert seq_wins.max() < 4
-    #  if cpg_sites:
-    #      assert np.all(seq_wins[:, delta] == 3)
-    #      assert np.all(seq_wins[:, delta + 1] == 2)
-    print('%d (%.3f) invalid sites!' % (nb_no_cpg, nb_no_cpg / nb_win))
+    if cpg_sites:
+        assert np.all(seq_wins[:, delta] == 3)
+        assert np.all(seq_wins[:, delta + 1] == 2)
     return seq_wins
 
 
@@ -129,7 +124,7 @@ def map_cpg_tables(cpg_tables, chromo, chromo_pos):
     mapped_tables = OrderedDict()
     for name, cpg_table in cpg_tables.items():
         cpg_table = cpg_table.loc[cpg_table.chromo == chromo]
-        cpg_table.sort_values(['chromo', 'pos'], inplace=True)
+        cpg_table = cpg_table.sort_values(['chromo', 'pos'])
         mapped_table = map_values(cpg_table.value.values,
                                   cpg_table.pos.values,
                                   chromo_pos)
