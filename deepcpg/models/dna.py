@@ -55,7 +55,7 @@ class DnaL1(DnaModel):
         return km.Model(input=inputs, output=x, name=self.name)
 
 
-class DnaL1b(DnaModel):
+class DnaL2(DnaModel):
     """2.000.000 params"""
 
     def __call__(self, inputs):
@@ -63,7 +63,6 @@ class DnaL1b(DnaModel):
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(64, 9, init=self.init, W_regularizer=w_reg)(x)
-        x = kl.BatchNormalization()(x)
         x = kl.Activation('relu')(x)
         x = kl.MaxPooling1D(4)(x)
 
@@ -92,41 +91,6 @@ class DnaL2b(DnaModel):
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(128, 3, init=self.init, W_regularizer=w_reg)(x)
-        x = kl.BatchNormalization()(x)
-        x = kl.Activation('relu')(x)
-        x = kl.MaxPooling1D(2)(x)
-
-        x = kl.Flatten()(x)
-
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Dense(128, init=self.init, W_regularizer=w_reg)(x)
-        x = kl.BatchNormalization()(x)
-        x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
-
-        return km.Model(input=inputs, output=x, name=self.name)
-
-
-class DnaL3b(DnaModel):
-    """2.000.000 params"""
-
-    def __call__(self, inputs):
-        x = inputs[0]
-
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(64, 9, init=self.init, W_regularizer=w_reg)(x)
-        x = kl.BatchNormalization()(x)
-        x = kl.Activation('relu')(x)
-        x = kl.MaxPooling1D(4)(x)
-
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(128, 3, init=self.init, W_regularizer=w_reg)(x)
-        x = kl.BatchNormalization()(x)
-        x = kl.Activation('relu')(x)
-        x = kl.MaxPooling1D(2)(x)
-
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(256, 3, init=self.init, W_regularizer=w_reg)(x)
         x = kl.BatchNormalization()(x)
         x = kl.Activation('relu')(x)
         x = kl.MaxPooling1D(2)(x)
@@ -591,7 +555,6 @@ class ResAtrous01(DnaModel):
                       name='conv1',
                       init=self.init,
                       W_regularizer=w_reg)(x)
-        x = kl.BatchNormalization(name='bn1')(x)
         x = kl.Activation('relu', name='act1')(x)
         x = kl.MaxPooling1D(2, name='pool1')(x)
 
