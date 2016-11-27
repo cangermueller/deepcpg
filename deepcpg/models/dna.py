@@ -419,17 +419,16 @@ class ResNet03(ResNet01):
 
 
 class ResNet01_01(ResNet01):
-    """ResNet01 with 64 filter. 1745281 parameters"""
+    """ResNet01 without BN + size 13 filter. 1745281 parameters"""
 
     def __call__(self, inputs):
         x = inputs[0]
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(64, 9,
+        x = kl.Conv1D(64, 13,
                       name='conv1',
                       init=self.init,
                       W_regularizer=w_reg)(x)
-        x = kl.BatchNormalization(name='bn1')(x)
         x = kl.Activation('relu', name='act1')(x)
         x = kl.MaxPooling1D(2, name='pool1')(x)
 
