@@ -95,7 +95,6 @@ def evaluate(y, z, mask=CPG_NAN, metrics=CLA_METRICS):
         if len(y):
             p[metric.__name__] = metric(y, z)
         else:
-            print(metric.__name__)
             p[metric.__name__] = np.nan
     p['n'] = len(y)
     return p
