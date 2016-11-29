@@ -92,7 +92,11 @@ def evaluate(y, z, mask=CPG_NAN, metrics=CLA_METRICS):
         z = z[t]
     p = OrderedDict()
     for metric in metrics:
-        p[metric.__name__] = metric(y, z)
+        if len(y):
+            p[metric.__name__] = metric(y, z)
+        else:
+            print(metric.__name__)
+            p[metric.__name__] = np.nan
     p['n'] = len(y)
     return p
 
