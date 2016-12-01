@@ -2,7 +2,6 @@
 
 from collections import OrderedDict
 import os
-import re
 import sys
 
 import argparse
@@ -38,20 +37,15 @@ def prepro_pos_table(pos_tables):
     return pos_table
 
 
-def output_name_from_filename(filename):
-    """Parses output name from file name."""
-    name = os.path.splitext(os.path.basename(filename))[0]
-    match = re.match(r'([^.]+)\.?', name)
-    assert match
-    name = match.group(1)
-    return name
+def split_ext(filename):
+    return os.path.basename(filename).split(os.extsep)[0]
 
 
 def read_cpg_profiles(filenames, *args, **kwargs):
     cpg_profiles = OrderedDict()
     for filename in filenames:
         cpg_file = dat.GzipFile(filename, 'r')
-        output_name = output_name_from_filename(filename)
+        output_name = split_ext(filename)
         cpg_profile = dat.read_cpg_table(cpg_file, sort=True, *args, **kwargs)
         cpg_profiles[output_name] = cpg_profile
         cpg_file.close()
@@ -208,10 +202,12 @@ def select_dict(data, idx):
 
 
 def annotate(anno_file, chromo, pos):
+    anno_file = dat.GzipFile(anno_file, 'r')
     anno = pd.read_table(anno_file, header=None, usecols=[0, 1, 2],
                          dtype={0: 'str', 1: 'int32', 2: 'int32'})
+    anno_file.close()
     anno.columns = ['chromo', 'start', 'end']
-    anno.chromo = anno.chromo.str.upper().str.replace('chr', '')
+    anno.chromo = anno.chromo.str.upper().str.replace('CHR', '')
     anno = anno.loc[anno.chromo == chromo]
     anno.sort_values('start', inplace=True)
     start, end = an.join_overlapping(anno.start.values, anno.end.values)
@@ -410,7 +406,7 @@ class App(object):
                 log.info('Annotating CpG sites ...')
                 annos = dict()
                 for anno_file in opts.anno_files:
-                    name = os.path.splitext(os.path.basename(anno_file))[0]
+                    name = split_ext(anno_file)
                     annos[name] = annotate(anno_file, chromo, chromo_pos)
 
             # Iterate over chunks

@@ -15,12 +15,22 @@ function run {
   fi
 }
 
+dna_db="./dna_db"
+if [[ ! -e $dna_db ]]; then
+  run "mkdir -p $dna_db"
+  cmd="wget
+    -P $dna_db
+    ftp://ftp.ensembl.org/pub/release-85/fasta/mus_musculus/dna/Mus_musculus.GRCm38.dna.chromosome.{18,19}.fa.gz
+    "
+  run $cmd
+fi
+
 cmd="rm -rf $out_dir && mkdir -p $out_dir"
 cmd="$cmd && dcpg_data.py
   --dna_db ./dna_db
-  --cpg_profiles $(ls ./cpg_files/BS27_4_SER.bed ./cpg_files/BS28_2_SER.bed)
-  --bulk_profiles $(ls ./cpg_files/BS9N_2I.bed ./cpg_files/BS9N_SER.bed)
-  --anno_files $(ls ./annos/*bed)
+  --cpg_profiles $(ls ./cpg_files/BS27_4_SER.bed.gz ./cpg_files/BS28_2_SER.bed.gz)
+  --bulk_profiles $(ls ./cpg_files/BS9N_2I.bed.gz ./cpg_files/BS9N_SER.bed.gz)
+  --anno_files $(ls ./annos/*)
   --cpg_cov 1
   --cpg_stats mean mode var cat_var cat2_var diff
   --cpg_stats_cov 1
