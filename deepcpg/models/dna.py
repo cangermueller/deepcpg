@@ -41,7 +41,7 @@ class DnaL1_01(DnaModel):
         x = inputs[0]
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(64, 11, init=self.init, W_regularizer=w_reg)(x)
+        x = kl.Conv1D(128, 11, init=self.init, W_regularizer=w_reg)(x)
         x = kl.Activation('relu')(x)
         x = kl.MaxPooling1D(4)(x)
 
@@ -62,7 +62,28 @@ class DnaL1_02(DnaModel):
         x = inputs[0]
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(128, 11, init=self.init, W_regularizer=w_reg)(x)
+        x = kl.Conv1D(128, 11, init='glorot_uniform', W_regularizer=w_reg)(x)
+        x = kl.Activation('relu')(x)
+        x = kl.MaxPooling1D(4)(x)
+
+        x = kl.Flatten()(x)
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Dense(128, init=self.init, W_regularizer=w_reg)(x)
+        x = kl.Activation('relu')(x)
+        x = kl.Dropout(self.dropout)(x)
+
+        return km.Model(input=inputs, output=x, name=self.name)
+
+
+class DnaL1_03(DnaModel):
+    """2.000.000 params"""
+
+    def __call__(self, inputs):
+        x = inputs[0]
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(128, 9, init='glorot_uniform', W_regularizer=w_reg)(x)
         x = kl.Activation('relu')(x)
         x = kl.MaxPooling1D(4)(x)
 
@@ -77,27 +98,6 @@ class DnaL1_02(DnaModel):
 
 
 class DnaL2_01(DnaModel):
-    """2.000.000 params"""
-
-    def __call__(self, inputs):
-        x = inputs[0]
-
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(64, 9, init=self.init, W_regularizer=w_reg)(x)
-        x = kl.Activation('relu')(x)
-        x = kl.MaxPooling1D(4)(x)
-
-        x = kl.Flatten()(x)
-
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Dense(128, init=self.init, W_regularizer=w_reg)(x)
-        x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
-
-        return km.Model(input=inputs, output=x, name=self.name)
-
-
-class DnaL2_02(DnaModel):
     """2.000.000 params"""
 
     def __call__(self, inputs):
@@ -327,15 +327,48 @@ class ResNet02(ResNet01):
 
 
 class ResNet03(ResNet01):
-    """ResNet01 without BN + size 13 filter. 1745281 parameters"""
 
     def __call__(self, inputs):
         x = inputs[0]
 
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(128, 13,
+        x = kl.Conv1D(128, 11,
                       name='conv1',
                       init=self.init,
+                      W_regularizer=w_reg)(x)
+        x = kl.Activation('relu', name='act1')(x)
+        x = kl.MaxPooling1D(2, name='pool1')(x)
+
+        # 124
+        x = self._res_block(x, [32, 32, 128], stage=1, block=1, stride=2)
+        x = self._res_block(x, [32, 32, 128], stage=1, block=2)
+
+        # 64
+        x = self._res_block(x, [64, 64, 256], stage=2, block=1, stride=2)
+        x = self._res_block(x, [64, 64, 256], stage=2, block=2)
+
+        # 32
+        x = self._res_block(x, [128, 128, 512], stage=3, block=1, stride=2)
+        x = self._res_block(x, [128, 128, 512], stage=3, block=2)
+
+        # 16
+        x = self._res_block(x, [256, 256, 1024], stage=4, block=1, stride=2)
+
+        x = kl.GlobalAveragePooling1D()(x)
+        x = kl.Dropout(self.dropout)(x)
+
+        return km.Model(input=inputs, output=x, name=self.name)
+
+
+class ResNet04(ResNet01):
+
+    def __call__(self, inputs):
+        x = inputs[0]
+
+        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(128, 11,
+                      name='conv1',
+                      init='glorot_uniform',
                       W_regularizer=w_reg)(x)
         x = kl.Activation('relu', name='act1')(x)
         x = kl.MaxPooling1D(2, name='pool1')(x)
