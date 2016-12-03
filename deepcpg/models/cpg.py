@@ -22,7 +22,8 @@ class CpgModel(Model):
         return kl.merge(inputs, mode='concat', concat_axis=2)
 
 
-class Cpg01(CpgModel):
+class CpgAvg(CpgModel):
+    """54000 params"""
 
     def _replicate_model(self, input):
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
@@ -43,26 +44,17 @@ class Cpg01(CpgModel):
         return km.Model(input=inputs, output=x, name=self.name)
 
 
-class Cpg02(CpgModel):
-    """GRU(256) without embedding layer; 548865 parameters"""
+class CpgRnn01(CpgModel):
+    """810000 parameters"""
 
-    def __call__(self, inputs):
-        x = kl.merge(inputs, mode='concat', concat_axis=2)
-
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Bidirectional(kl.GRU(256, W_regularizer=w_reg))(x)
-        x = kl.Dropout(self.dropout)(x)
-
-        return km.Model(input=inputs, output=x, name=self.name)
-
-
-class Cpg03(CpgModel):
-    """GRU(256) with embedding layer; 814849 parameters"""
+    def __init__(self, act_replicate='relu', *args, **kwargs):
+        super(CpgRnn01, self).__init__(*args, **kwargs)
+        self.act_replicate = act_replicate
 
     def _replicate_model(self, input):
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Dense(256, init=self.init, W_regularizer=w_reg)(input)
-        x = kl.Activation('relu')(x)
+        x = kl.Activation(self.act_replicate)(x)
 
         return km.Model(input=input, output=x)
 
@@ -80,56 +72,15 @@ class Cpg03(CpgModel):
         return km.Model(input=inputs, output=x, name=self.name)
 
 
-class Cpg04(CpgModel):
-    """GRU with two layers (2x128, 2x256).
-    964353 parameters"""
+class CpgRnn02(CpgRnn01):
+    """810000 parameters"""
 
-    def __call__(self, inputs):
-        x = self._merge_inputs(inputs)
-
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Bidirectional(kl.GRU(128, W_regularizer=w_reg,
-                                    return_sequences=True),
-                             merge_mode='concat')(x)
-
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Bidirectional(kl.GRU(256, W_regularizer=w_reg))(x)
-        x = kl.Dropout(self.dropout)(x)
-
-        return km.Model(input=inputs, output=x, name=self.name)
+    def __init__(self, *args, **kwargs):
+        super(CpgRnn02, self).__init__(act_replicate='linear', *args, **kwargs)
 
 
-class Cpg05(CpgModel):
-    """GRU(256); embedding linear 816389 parameters"""
-
-    def _replicate_model(self, input):
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Dense(256, init=self.init, W_regularizer=w_reg)(input)
-
-        return km.Model(input=input, output=x)
-
-    def __call__(self, inputs):
-        x = self._merge_inputs(inputs)
-
-        shape = getattr(x, '_keras_shape')
-        replicate_model = self._replicate_model(kl.Input(shape=shape[2:]))
-        x = kl.TimeDistributed(replicate_model)(x)
-
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Bidirectional(kl.GRU(256, W_regularizer=w_reg))(x)
-        x = kl.Dropout(self.dropout)(x)
-
-        return km.Model(input=inputs, output=x, name=self.name)
-
-
-class Cpg06(CpgModel):
-    """2x GRU(256); embedding linear 1112069 parameters"""
-
-    def _replicate_model(self, input):
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Dense(256, init=self.init, W_regularizer=w_reg)(input)
-
-        return km.Model(input=input, output=x)
+class CpgRnn03(CpgRnn01):
+    """1112069 params"""
 
     def __call__(self, inputs):
         x = self._merge_inputs(inputs)
