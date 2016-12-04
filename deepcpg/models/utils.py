@@ -33,6 +33,23 @@ class ScaledSigmoid(kl.Layer):
 CUSTOM_OBJECTS = {'ScaledSigmoid': ScaledSigmoid}
 
 
+def get_first_conv_layer(layers, get_act=False):
+    conv_layer = None
+    act_layer = None
+    for layer in layers:
+        if isinstance(layer, kl.Conv1D) and layer.input_shape[-1] == 4:
+            conv_layer = layer
+            if not get_act:
+                break
+        elif conv_layer and isinstance(layer, kl.Activation):
+            act_layer = layer
+            break
+    if get_act:
+        return (conv_layer, act_layer)
+    else:
+        return conv_layer
+
+
 def get_sample_weights(y, class_weights=None):
     y = y[:]
     sample_weights = np.ones(y.shape, dtype=K.floatx())
@@ -184,9 +201,18 @@ class Model(object):
         self.l2_decay = l2_decay
         self.init = init
         self.name = self.__class__.__name__
+        self.scope = None
 
     def inputs(self, *args, **kwargs):
         pass
+
+    def _build(self, input, output):
+        model = km.Model(input, output, name=self.name)
+        if self.scope:
+            for layer in model.layers:
+                if layer not in model.input_layers:
+                    layer.name = '%s/%s' % (self.scope, layer.name)
+        return model
 
     def __call__(self, inputs=None):
         pass

@@ -8,6 +8,10 @@ from ..utils import get_from_module
 
 class CpgModel(Model):
 
+    def __init__(self, *args, **kwargs):
+        super(CpgModel, self).__init__(*args, **kwargs)
+        self.scope = 'cpg'
+
     def inputs(self, cpg_wlen, replicate_names):
         inputs = []
         shape = (len(replicate_names), cpg_wlen)
@@ -30,7 +34,7 @@ class CpgAvg(CpgModel):
         x = kl.Dense(512, init=self.init, W_regularizer=w_reg)(input)
         x = kl.Activation('relu')(x)
 
-        return km.Model(input=input, output=x)
+        return km.Model(input, x)
 
     def __call__(self, inputs):
         x = self._merge_inputs(inputs)
@@ -41,7 +45,7 @@ class CpgAvg(CpgModel):
         x = kl.GlobalAveragePooling1D()(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class CpgRnn01(CpgModel):
@@ -56,7 +60,7 @@ class CpgRnn01(CpgModel):
         x = kl.Dense(256, init=self.init, W_regularizer=w_reg)(input)
         x = kl.Activation(self.act_replicate)(x)
 
-        return km.Model(input=input, output=x)
+        return km.Model(input, x)
 
     def __call__(self, inputs):
         x = self._merge_inputs(inputs)
@@ -69,7 +73,7 @@ class CpgRnn01(CpgModel):
         x = kl.Bidirectional(kl.GRU(256, W_regularizer=w_reg))(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class CpgRnn02(CpgRnn01):
@@ -98,7 +102,7 @@ class CpgRnn03(CpgRnn01):
         x = kl.Bidirectional(kl.GRU(256, W_regularizer=w_reg))(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class CpgRnn04(CpgRnn01):
@@ -106,9 +110,6 @@ class CpgRnn04(CpgRnn01):
 
     def __init__(self, *args, **kwargs):
         super(CpgRnn04, self).__init__(act_replicate='tanh', *args, **kwargs)
-
-
-
 
 
 def get(name):
