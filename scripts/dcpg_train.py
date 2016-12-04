@@ -31,6 +31,22 @@ CLA_METRICS = [met.acc]
 REG_METRICS = [met.mse, met.mae]
 
 
+def remove_outputs(model):
+    while model.layers[-1] in model.output_layers:
+        model.layers.pop()
+    model.outputs = [model.layers[-1].output]
+    model.layers[-1].outbound_nodes = []
+
+
+def rename_layers(model, scope=None):
+    if not scope:
+        scope = model.scope
+    for layer in model.layers:
+        if layer in model.input_layers or layer.name.startswith(scope):
+            continue
+        layer.name = '%s/%s' % (scope, layer.name)
+
+
 def get_output_stats(output):
     stats = OrderedDict()
     output = np.ma.masked_values(output, dat.CPG_NAN)
@@ -159,14 +175,20 @@ class App(object):
             help='Maximum number of replicates')
         p.add_argument(
             '--dna_model',
-            help='Name of DNA model')
+            help='Name of DNA model or files of existing model',
+            nargs='+')
         p.add_argument(
             '--cpg_model',
-            help='Name of Cpg model')
+            help='Name of Cpg model or files of existing model',
+            nargs='+')
         p.add_argument(
             '--joint_model',
             help='Name of joint model',
             default='joint01')
+        p.add_argument(
+            '--model_files',
+            help='Continue training an existing model',
+            nargs='+')
         p.add_argument(
             '--nb_epoch',
             help='Maximum # training epochs',
@@ -200,6 +222,25 @@ class App(object):
             '--nb_val_sample',
             help='Maximum # validation samples',
             type=int)
+
+        p.add_argument(
+            '--trainable',
+            help='Regex of layers that should be trained',
+            nargs='+')
+        p.add_argument(
+            '--not_trainable',
+            help='Regex of layers that should not be trained',
+            nargs='+')
+        p.add_argument(
+            '--train_models',
+            help='Only train the specified models',
+            choices=['dna', 'cpg', 'joint'],
+            nargs='+')
+        p.add_argument(
+            '--freeze_filter',
+            help='Do not train filter weights',
+            action='store_true')
+
         p.add_argument(
             '--max_time',
             help='Maximum training time in hours',
@@ -359,6 +400,126 @@ class App(object):
             print(format_table(table))
             print()
 
+    def build_dna_model(self):
+        opts = self.opts
+        log = self.log
+        if os.path.isfile(opts.dna_model[0]):
+            log.info('Loading existing DNA model ...')
+            dna_model = mod.load_model(opts.dna_model)
+            remove_outputs(dna_model)
+            rename_layers(dna_model, 'dna')
+        else:
+            log.info('Building DNA model ...')
+            dna_model_builder = mod.dna.get(opts.dna_model[0])(
+                l1_decay=opts.l1_decay,
+                l2_decay=opts.l2_decay,
+                dropout=opts.dropout)
+            dna_wlen = dat.get_dna_wlen(opts.train_files[0], opts.dna_wlen)
+            dna_inputs = dna_model_builder.inputs(dna_wlen)
+            dna_model = dna_model_builder(dna_inputs)
+        return dna_model
+
+    def build_cpg_model(self):
+        opts = self.opts
+        log = self.log
+        if os.path.isfile(opts.cpg_model[0]):
+            log.info('Loading existing CpG model ...')
+            cpg_model = mod.load_model(opts.cpg_model)
+            remove_outputs(cpg_model)
+            rename_layers(cpg_model, 'cpg')
+        else:
+            log.info('Building CpG model ...')
+            cpg_model_builder = mod.cpg.get(opts.cpg_model[0])(
+                l1_decay=opts.l1_decay,
+                l2_decay=opts.l2_decay,
+                dropout=opts.dropout)
+
+            cpg_wlen = dat.get_cpg_wlen(opts.train_files[0], opts.cpg_wlen)
+            replicate_names = dat.get_replicate_names(
+                opts.train_files[0],
+                regex=opts.replicate_names,
+                nb_key=opts.nb_replicate)
+            if not replicate_names:
+                raise ValueError('Not replicates found!')
+            print('Replicate names:')
+            print(', '.join(replicate_names))
+            print()
+            cpg_inputs = cpg_model_builder.inputs(cpg_wlen, replicate_names)
+            cpg_model = cpg_model_builder(cpg_inputs)
+        return cpg_model
+
+    def build_model(self):
+        opts = self.opts
+        log = self.log
+
+        dna_model = None
+        if opts.dna_model:
+            dna_model = self.build_dna_model()
+
+        cpg_model = None
+        if opts.cpg_model:
+            cpg_model = self.build_cpg_model()
+
+        if dna_model is not None and cpg_model is not None:
+            log.info('Joining models ...')
+            joint_model_builder = mod.joint.get(opts.joint_model)(
+                l1_decay=opts.l1_decay,
+                l2_decay=opts.l2_decay,
+                dropout=opts.dropout)
+            stem = joint_model_builder([dna_model, cpg_model])
+            stem.name = '_'.join([stem.name, dna_model.name, cpg_model.name])
+        elif dna_model is not None:
+            stem = dna_model
+        else:
+            stem = cpg_model
+
+        output_names = dat.get_output_names(opts.train_files[0],
+                                            regex=opts.output_names,
+                                            nb_key=opts.nb_output)
+        if not output_names:
+            raise ValueError('No outputs found!')
+
+        outputs = mod.add_output_layers(stem.outputs, output_names)
+        model = Model(input=stem.inputs, output=outputs, name=stem.name)
+        return model
+
+    def set_trainability(self, model):
+        opts = self.opts
+        trainable = []
+        not_trainable = []
+        if opts.train_models:
+            not_trainable.append('.*')
+            for name in opts.train_models:
+                trainable.append('%s/' % name)
+        if opts.freeze_filter:
+            not_trainable.append(mod.get_first_conv_layer(model.layers).name)
+        if not trainable and opts.trainable:
+            trainable = opts.trainable
+        if not not_trainable and opts.not_trainable:
+            not_trainable = opts.not_trainable
+
+        if not trainable and not not_trainable:
+            return
+
+        table = OrderedDict()
+        table['layer'] = []
+        table['trainable'] = []
+        for layer in model.layers:
+            if layer not in model.input_layers + model.output_layers:
+                if not hasattr(layer, 'trainable'):
+                    continue
+                for regex in not_trainable:
+                    if re.match(regex, layer.name):
+                        layer.trainable = False
+                for regex in trainable:
+                    if re.match(regex, layer.name):
+                        layer.trainable = True
+                table['layer'].append(layer.name)
+                table['trainable'].append(layer.trainable)
+        print('Layer trainability:')
+        print(format_table(table))
+        print()
+
     def main(self, name, opts):
         logging.basicConfig(filename=opts.log_file,
                             format='%(levelname)s (%(asctime)s): %(message)s')
@@ -379,14 +540,23 @@ class App(object):
         if not os.path.exists(opts.out_dir):
             os.makedirs(opts.out_dir, exist_ok=True)
 
+        if opts.model_files:
+            log.info('Loading existing model ...')
+            model = mod.load_model(opts.model_files)
+        else:
+            log.info('Building model ...')
+            model = self.build_model()
+        model.summary()
+        self.set_trainability(model)
+        mod.save_model(model, os.path.join(opts.out_dir, 'model.json'))
+
         log.info('Computing output statistics ...')
-        output_names = dat.get_output_names(opts.train_files[0],
-                                            regex=opts.output_names,
-                                            nb_key=opts.nb_output)
-        if not output_names:
-            raise ValueError('No outputs found!')
+        output_names = []
+        for output_layer in model.output_layers:
+            output_names.append(output_layer.name)
 
         output_stats = OrderedDict()
+
         if opts.no_class_weights:
             class_weights = None
         else:
@@ -415,59 +585,6 @@ class App(object):
                     print('%s: %.2f' % (output_name,
                                         output_weights[output_name]))
             print()
-
-        log.info('Building model ...')
-        if opts.dna_model:
-            dna_model_builder = mod.dna.get(opts.dna_model)(
-                l1_decay=opts.l1_decay,
-                l2_decay=opts.l2_decay,
-                dropout=opts.dropout)
-            dna_wlen = dat.get_dna_wlen(opts.train_files[0], opts.dna_wlen)
-            dna_inputs = dna_model_builder.inputs(dna_wlen)
-            dna_model = dna_model_builder(dna_inputs)
-        else:
-            dna_model = None
-
-        if opts.cpg_model:
-            cpg_model_builder = mod.cpg.get(opts.cpg_model)(
-                l1_decay=opts.l1_decay,
-                l2_decay=opts.l2_decay,
-                dropout=opts.dropout)
-
-            cpg_wlen = dat.get_cpg_wlen(opts.train_files[0], opts.cpg_wlen)
-            replicate_names = dat.get_replicate_names(
-                opts.train_files[0],
-                regex=opts.replicate_names,
-                nb_key=opts.nb_replicate)
-            if not replicate_names:
-                raise ValueError('Not replicates found!')
-            print('Replicate names:')
-            for replicate_name in replicate_names:
-                print(replicate_name)
-            print()
-
-            cpg_inputs = cpg_model_builder.inputs(cpg_wlen, replicate_names)
-            cpg_model = cpg_model_builder(cpg_inputs)
-        else:
-            cpg_model = None
-
-        if dna_model is not None and cpg_model is not None:
-            joint_model_builder = mod.joint.get(opts.joint_model)(
-                l1_decay=opts.l1_decay,
-                l2_decay=opts.l2_decay,
-                dropout=opts.dropout)
-            stem = joint_model_builder([dna_model, cpg_model])
-            stem.name = '_'.join([stem.name, dna_model.name, cpg_model.name])
-        elif dna_model is not None:
-            stem = dna_model
-        else:
-            stem = cpg_model
-
-        outputs = mod.add_output_layers(stem.outputs, output_names)
-        model = Model(input=stem.inputs, output=outputs, name=stem.name)
-        model.summary()
-
-        mod.save_model(model, os.path.join(opts.out_dir, 'model.json'))
 
         self.metrics = dict()
         for output_name in output_names:

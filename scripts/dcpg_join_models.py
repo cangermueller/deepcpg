@@ -17,11 +17,13 @@ def remove_outputs(model):
     model.layers[-1].outbound_nodes = []
 
 
-def rename_layers(model):
+def rename_layers(model, scope=None):
+    if not scope:
+        scope = model.scope
     for layer in model.layers:
-        if layer in model.input_layers or layer.name.startswith(model.name):
+        if layer in model.input_layers or layer.name.startswith(scope):
             continue
-        layer.name = '%s/%s' % (model.name, layer.name)
+        layer.name = '%s/%s' % (scope, layer.name)
 
 
 class App(object):
@@ -108,6 +110,7 @@ class App(object):
             if not output_names:
                 output_names = dna_model.output_names
             remove_outputs(dna_model)
+            rename_layers(dna_model, 'dna')
 
         if opts.cpg_model:
             log.info('Loading CpG model ...')
@@ -115,11 +118,10 @@ class App(object):
             if not output_names:
                 output_names = cpg_model.output_names
             remove_outputs(cpg_model)
+            rename_layers(cpg_model, 'cpg')
 
         if dna_model is not None and cpg_model is not None:
             log.info('Building joint model ...')
-            rename_layers(dna_model)
-            rename_layers(cpg_model)
             joint_model_builder = mod.joint.get(opts.joint_model)(
                 l1_decay=opts.l1_decay,
                 l2_decay=opts.l2_decay,

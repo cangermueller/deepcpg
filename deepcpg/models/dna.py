@@ -8,6 +8,10 @@ from ..utils import get_from_module
 
 class DnaModel(Model):
 
+    def __init__(self, *args, **kwargs):
+        super(DnaModel, self).__init__(*args, **kwargs)
+        self.scope = 'dna'
+
     def inputs(self, dna_wlen):
         return [kl.Input(shape=(dna_wlen, 4), name='dna')]
 
@@ -31,7 +35,7 @@ class DnaLegacy(DnaModel):
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class DnaL1_01(DnaModel):
@@ -52,7 +56,7 @@ class DnaL1_01(DnaModel):
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class DnaL1_02(DnaModel):
@@ -73,7 +77,7 @@ class DnaL1_02(DnaModel):
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class DnaL1_03(DnaModel):
@@ -98,7 +102,7 @@ class DnaL1_03(DnaModel):
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class DnaL1_04(DnaModel):
@@ -123,7 +127,7 @@ class DnaL1_04(DnaModel):
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class DnaL1_05(DnaModel):
@@ -144,7 +148,7 @@ class DnaL1_05(DnaModel):
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class DnaL1_06(DnaModel):
@@ -167,7 +171,7 @@ class DnaL1_06(DnaModel):
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class DnaL2_01(DnaModel):
@@ -197,7 +201,7 @@ class DnaL2_01(DnaModel):
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class DnaL2_02(DnaModel):
@@ -230,7 +234,7 @@ class DnaL2_02(DnaModel):
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 
@@ -263,7 +267,7 @@ class Dna01(DnaModel):
         x = kl.GlobalAveragePooling1D()(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class CnnRnn01(DnaModel):
@@ -306,7 +310,7 @@ class CnnRnn01(DnaModel):
                                               W_regularizer=w_reg))(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class ResNet01(DnaModel):
@@ -394,7 +398,7 @@ class ResNet01(DnaModel):
         x = kl.GlobalAveragePooling1D()(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class ResNet02(ResNet01):
@@ -433,7 +437,7 @@ class ResNet02(ResNet01):
         x = kl.GlobalAveragePooling1D()(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class ResNet03(ResNet01):
@@ -467,7 +471,7 @@ class ResNet03(ResNet01):
         x = kl.GlobalAveragePooling1D()(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class ResNet04(ResNet01):
@@ -501,7 +505,7 @@ class ResNet04(ResNet01):
         x = kl.GlobalAveragePooling1D()(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class ResConv01(ResNet01):
@@ -577,7 +581,7 @@ class ResConv01(ResNet01):
         x = kl.GlobalAveragePooling1D()(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 class ResAtrous01(DnaModel):
@@ -669,7 +673,7 @@ class ResAtrous01(DnaModel):
         x = kl.GlobalAveragePooling1D()(x)
         x = kl.Dropout(self.dropout)(x)
 
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(inputs, x)
 
 
 def get(name):
