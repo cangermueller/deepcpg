@@ -90,14 +90,14 @@ def add_output_layers(stem, output_names):
     outputs = []
     for output_name in output_names:
         if output_name == 'stats/var':
-            x = kl.Dense(1, init='he_uniform')(stem)
+            x = kl.Dense(1, init='glorot_uniform')(stem)
             x = ScaledSigmoid(0.25, name=output_name)(x)
         elif output_name == 'stats/cat_var':
-            x = kl.Dense(3, init='he_uniform',
+            x = kl.Dense(3, init='glorot_uniform',
                          activation='softmax',
                          name=output_name)(stem)
         else:
-            x = kl.Dense(1, init='he_uniform',
+            x = kl.Dense(1, init='glorot_uniform',
                          activation='sigmoid',
                          name=output_name)(stem)
         outputs.append(x)
@@ -178,7 +178,7 @@ def read_from(reader, nb_sample=None):
 class Model(object):
 
     def __init__(self, dropout=0.0, l1_decay=0.0, l2_decay=0.0,
-                 init='he_uniform'):
+                 init='glorot_uniform'):
         self.dropout = dropout
         self.l1_decay = l1_decay
         self.l2_decay = l2_decay
