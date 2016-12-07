@@ -17,8 +17,9 @@ from deepcpg.data import hdf
 def get_output_stats(output):
     stats = OrderedDict()
     output = np.ma.masked_values(output, dat.CPG_NAN)
-    stats['nb_tot'] = np.sum(output != dat.CPG_NAN)
-    stats['frac_obs'] = stats['nb_tot'] / len(output)
+    stats['nb_tot'] = len(output)
+    stats['nb_obs'] = np.sum(output != dat.CPG_NAN)
+    stats['frac_obs'] = stats['nb_obs'] / stats['nb_tot']
     stats['mean'] = float(np.mean(output))
     stats['var'] = float(np.var(output))
     return stats
