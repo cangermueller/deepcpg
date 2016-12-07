@@ -105,5 +105,12 @@ class CpgRnn03(CpgRnn01):
         return self._build(inputs, x)
 
 
+class CpgRnn04(CpgRnn01):
+    """810000 parameters"""
+
+    def __init__(self, *args, **kwargs):
+        super(CpgRnn04, self).__init__(act_replicate='tanh', *args, **kwargs)
+
+
 def get(name):
     return get_from_module(name, globals())

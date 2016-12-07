@@ -590,6 +590,7 @@ class App(object):
             report_top = report.groupby('idx').first().reset_index()
             report_top.sort_values(['q-value', 'act_mean'],
                                    ascending=[True, False], inplace=True)
+            report_top.index = range(len(report_top))
             report_top.to_csv(pt.join(opts.out_dir,
                                       'report_top.csv'), index=False,
                               sep='\t', float_format='%.3f')

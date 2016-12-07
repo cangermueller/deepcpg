@@ -7,6 +7,7 @@ import re
 import sys
 
 import argparse
+import h5py as h5
 import logging
 import numpy as np
 import pandas as pd
@@ -240,7 +241,10 @@ class App(object):
             '--freeze_filter',
             help='Do not train filter weights',
             action='store_true')
-
+        p.add_argument(
+            '--filter_weights',
+            help='HDF5 file with weights to be used for initializing filters',
+            nargs='+')
         p.add_argument(
             '--max_time',
             help='Maximum training time in hours',
@@ -520,6 +524,43 @@ class App(object):
         print(format_table(table))
         print()
 
+    def init_filter_weights(self, filename, conv_layer):
+        h5_file = h5.File(filename[0], 'r')
+        if len(filename) > 1:
+            weights = h5_file[filename[1]].value
+        else:
+            weights = h5_file['/weights'].value
+        h5_file.close()
+        assert weights.ndim == 4
+        if weights.shape[1] != 1:
+            weights = weights[:, :, :, 0]
+            weights = np.swapaxes(weights, 0, 2)
+            weights = np.expand_dims(weights, 1)
+
+        # filter_size x 1 x 4 x nb_filter
+        cur_weights, cur_biases = conv_layer.get_weights()
+
+        # Adapt number of filters
+        tmp = min(weights.shape[-1], cur_weights.shape[-1])
+        weights = weights[:, :, :, :tmp]
+
+        # Adapt filter size
+        if len(weights) > len(cur_weights):
+            # Truncate weights
+            idx = (len(weights) - len(cur_weights)) // 2
+            weights = weights[idx:(idx + len(cur_weights))]
+        elif len(weights) < len(cur_weights):
+            # Pad weights
+            shape = [len(cur_weights)] + list(weights.shape[1:])
+            pad_weights = np.random.uniform(0, 1, shape) * 1e-2
+            idx = (len(cur_weights) - len(weights)) // 2
+            pad_weights[idx:(idx + len(weights))] = weights
+            weights = pad_weights
+        assert np.all(weights.shape[:-1] == cur_weights.shape[:-1])
+        cur_weights[:, :, :, :weights.shape[-1]] = weights
+        conv_layer.set_weights((cur_weights, cur_biases))
+        print('%d filters initialized' % weights.shape[-1])
+
     def main(self, name, opts):
         logging.basicConfig(filename=opts.log_file,
                             format='%(levelname)s (%(asctime)s): %(message)s')
@@ -548,6 +589,10 @@ class App(object):
             model = self.build_model()
         model.summary()
         self.set_trainability(model)
+        if opts.filter_weights:
+            conv_layer = mod.get_first_conv_layer(model.layers)
+            log.info('Initializing filters of %s ...' % conv_layer.name)
+            self.init_filter_weights(opts.filter_weights, conv_layer)
         mod.save_model(model, os.path.join(opts.out_dir, 'model.json'))
 
         log.info('Computing output statistics ...')
