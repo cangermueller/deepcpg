@@ -44,7 +44,11 @@ def get_first_conv_layer(layers, get_act=False):
         elif conv_layer and isinstance(layer, kl.Activation):
             act_layer = layer
             break
+    if not conv_layer:
+        raise ValueError('Convolutional layer not found')
     if get_act:
+        if not act_layer:
+            raise ValueError('Activation layer not found')
         return (conv_layer, act_layer)
     else:
         return conv_layer

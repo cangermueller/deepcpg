@@ -374,6 +374,10 @@ class App(object):
             default=0.05,
             type=float)
         p.add_argument(
+            '--delete_fasta',
+            help='Delete fasta files to reduce disk storage',
+            action='store_true')
+        p.add_argument(
             '--nb_sample',
             help='Maximum # samples',
             type=int)
@@ -535,6 +539,8 @@ class App(object):
             write_kmers(act_kmers, logo_file)
             plot_logo(logo_file, pt.join(sub_dirs['logos'], '%03d.pdf' % idx),
                       options=WEBLOGO_OPTS)
+            if opts.delete_fasta:
+                os.remove(logo_file)
 
             log.info('Computing PWM')
             pwm = get_pwm(act_kmers)
