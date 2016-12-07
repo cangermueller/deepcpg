@@ -26,7 +26,7 @@ class CpgModel(Model):
         return kl.merge(inputs, mode='concat', concat_axis=2)
 
 
-class CpgAvg(CpgModel):
+class DenseAvg(CpgModel):
     """54000 params"""
 
     def _replicate_model(self, input):
@@ -48,11 +48,11 @@ class CpgAvg(CpgModel):
         return self._build(inputs, x)
 
 
-class CpgRnn01(CpgModel):
+class RnnL1(CpgModel):
     """810000 parameters"""
 
     def __init__(self, act_replicate='relu', *args, **kwargs):
-        super(CpgRnn01, self).__init__(*args, **kwargs)
+        super(RnnL1, self).__init__(*args, **kwargs)
         self.act_replicate = act_replicate
 
     def _replicate_model(self, input):
@@ -76,14 +76,7 @@ class CpgRnn01(CpgModel):
         return self._build(inputs, x)
 
 
-class CpgRnn02(CpgRnn01):
-    """810000 parameters"""
-
-    def __init__(self, *args, **kwargs):
-        super(CpgRnn02, self).__init__(act_replicate='linear', *args, **kwargs)
-
-
-class CpgRnn03(CpgRnn01):
+class RnnL2(RnnL1):
     """1112069 params"""
 
     def __call__(self, inputs):
@@ -103,13 +96,6 @@ class CpgRnn03(CpgRnn01):
         x = kl.Dropout(self.dropout)(x)
 
         return self._build(inputs, x)
-
-
-class CpgRnn04(CpgRnn01):
-    """810000 parameters"""
-
-    def __init__(self, *args, **kwargs):
-        super(CpgRnn04, self).__init__(act_replicate='tanh', *args, **kwargs)
 
 
 def get(name):
