@@ -16,7 +16,7 @@ class DnaModel(Model):
 
 
 class CnnL1h128(DnaModel):
-    """default"""
+    """4.100.000"""
 
     def __init__(self, nb_hidden=128, *args, **kwargs):
         super(CnnL1h128, self).__init__(*args, **kwargs)
@@ -41,6 +41,7 @@ class CnnL1h128(DnaModel):
 
 
 class CnnL1h256(CnnL1h128):
+    """8.100.000"""
 
     def __init__(self,  *args, **kwargs):
         super(CnnL1h256, self).__init__(*args, **kwargs)
@@ -77,7 +78,8 @@ class CnnL2h128(DnaModel):
         return self._build(inputs, x)
 
 
-class CnnL2h256(DnaModel):
+class CnnL2h256(CnnL2h128):
+    """8.100.000"""
 
     def __init__(self,  *args, **kwargs):
         super(CnnL2h256, self).__init__(*args, **kwargs)
@@ -85,6 +87,7 @@ class CnnL2h256(DnaModel):
 
 
 class CnnL3h128(DnaModel):
+    """4.400.000"""
 
     def __init__(self, nb_hidden=128, *args, **kwargs):
         super(CnnL3h128, self).__init__(*args, **kwargs)
@@ -118,10 +121,11 @@ class CnnL3h128(DnaModel):
         return self._build(inputs, x)
 
 
-class CnnL2n256(DnaModel):
+class CnnL3h256(CnnL3h128):
+    """8.300.000"""
 
     def __init__(self,  *args, **kwargs):
-        super(CnnL2h256, self).__init__(*args, **kwargs)
+        super(CnnL3h256, self).__init__(*args, **kwargs)
         self.nb_hidden = 256
 
 

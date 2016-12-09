@@ -51,8 +51,9 @@ def rename_layers(model, scope=None):
 def get_output_stats(output):
     stats = OrderedDict()
     output = np.ma.masked_values(output, dat.CPG_NAN)
-    stats['nb_tot'] = np.sum(output != dat.CPG_NAN)
-    stats['frac_obs'] = stats['nb_tot'] / len(output)
+    stats['nb_tot'] = len(output)
+    stats['nb_obs'] = np.sum(output != dat.CPG_NAN)
+    stats['frac_obs'] = stats['nb_obs'] / stats['nb_tot']
     stats['mean'] = float(np.mean(output))
     stats['var'] = float(np.var(output))
     return stats
@@ -384,7 +385,7 @@ class App(object):
         table = OrderedDict()
         for name, stats in output_stats.items():
             table.setdefault('name', []).append(name)
-            for key in ['nb_tot', 'frac_obs', 'mean', 'var']:
+            for key in stats.keys():
                 table.setdefault(key, []).append(stats[key])
         print('Output statistics:')
         print(format_table(table))
@@ -526,11 +527,15 @@ class App(object):
 
     def init_filter_weights(self, filename, conv_layer):
         h5_file = h5.File(filename[0], 'r')
+        group = h5_file
         if len(filename) > 1:
-            weights = h5_file[filename[1]].value
-        else:
-            weights = h5_file['/weights'].value
+            group = h5_file[filename[1]]
+        weights = group['weights'].value
+        bias = None
+        if 'bias' in group:
+            bias = group['bias'].value
         h5_file.close()
+
         assert weights.ndim == 4
         if weights.shape[1] != 1:
             weights = weights[:, :, :, 0]
@@ -538,7 +543,7 @@ class App(object):
             weights = np.expand_dims(weights, 1)
 
         # filter_size x 1 x 4 x nb_filter
-        cur_weights, cur_biases = conv_layer.get_weights()
+        cur_weights, cur_bias = conv_layer.get_weights()
 
         # Adapt number of filters
         tmp = min(weights.shape[-1], cur_weights.shape[-1])
@@ -556,9 +561,14 @@ class App(object):
             idx = (len(cur_weights) - len(weights)) // 2
             pad_weights[idx:(idx + len(weights))] = weights
             weights = pad_weights
+
         assert np.all(weights.shape[:-1] == cur_weights.shape[:-1])
         cur_weights[:, :, :, :weights.shape[-1]] = weights
-        conv_layer.set_weights((cur_weights, cur_biases))
+        if bias is not None:
+            bias = bias[:len(cur_bias)]
+            cur_bias[:len(bias)] = bias
+
+        conv_layer.set_weights((cur_weights, cur_bias))
         print('%d filters initialized' % weights.shape[-1])
 
     def main(self, name, opts):

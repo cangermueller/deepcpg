@@ -16,17 +16,6 @@ from deepcpg.data import hdf, dna
 from deepcpg.utils import ProgressBar, to_list, linear_weights
 
 
-def get_layer_by_depth(layers, depth=1, layer_class=kl.Activation):
-    idx = 1
-    for layer in layers:
-        if isinstance(layer, layer_class):
-            if idx == depth:
-                return layer
-            else:
-                idx += 1
-    return None
-
-
 class App(object):
 
     def run(self, args):
