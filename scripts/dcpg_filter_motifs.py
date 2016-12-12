@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 from collections import OrderedDict
-import re
 import sys
 import os
 import os.path as pt
@@ -22,6 +21,7 @@ import seaborn as sns
 
 from deepcpg.utils import EPS, linear_weights
 from deepcpg.data import dna
+from deepcpg.motifs import read_meme_db, get_report
 
 
 sns.set_style('darkgrid')
@@ -251,52 +251,6 @@ def info_content(pwm):
     return np.sum(pwm * np.log2(pwm + EPS) + 0.5)
 
 
-def read_tomtom(path):
-    d = pd.read_table(path)
-    d.rename(columns={'#Query ID': 'Query ID'}, inplace=True)
-    d.columns = [x.lower() for x in d.columns]
-    d['idx'] = [int(x) for x in d['query id'].str.replace('filter', '')]
-    return d
-
-
-def read_meme_db(meme_db_file):
-    motifs = []
-    motif = None
-    for line in open(meme_db_file):
-        if line.startswith('MOTIF'):
-            if motif:
-                motifs.append(motif)
-                motif = None
-            tmp = line.split()[1:]
-            if len(tmp) < 2:
-                continue
-            motif = OrderedDict()
-            motif['id'] = tmp[0]
-            protein = re.sub(r'\(([^)]+)\)', r'\1', tmp[1])
-            motif['protein'] = protein.split('_')[0]
-            motif['url'] = ''
-        elif motif and line.startswith('URL'):
-            motif['url'] = line.split()[1]
-    if motif:
-        motifs.append(motif)
-    for i, motif in enumerate(motifs):
-        motifs[i] = pd.DataFrame(motif, index=[0])
-    motifs = pd.concat(motifs)
-    return motifs
-
-
-def get_report(filter_stats_file, tomtom_file, meme_motifs):
-    filter_stats = pd.read_table(filter_stats_file)
-    tomtom = read_tomtom(tomtom_file)
-    tomtom = tomtom.sort_values(['idx', 'q-value', 'e-value'])
-    tomtom = tomtom.loc[:, ~tomtom.columns.isin(['query id', 'optimal offset'])]
-    d = pd.merge(filter_stats, tomtom, on='idx', how='outer')
-    meme_motifs = meme_motifs.rename(columns={'id': 'target id'})
-    d = pd.merge(d, meme_motifs, on='target id', how='left')
-    d.index.name = None
-    return d
-
-
 def plot_logo(fasta_file, out_file, format='pdf', options=''):
     cmd = 'weblogo {opts} -s large < {inp} > {out} -F {f} 2> /dev/null'
     cmd = cmd.format(opts=options, inp=fasta_file, out=out_file, f=format)
@@ -331,8 +285,13 @@ class App(object):
             default='.')
         p.add_argument(
             '-m', '--motif_dbs',
-            help='MEME databases for matching motifs',
+            help='MEME databases for motif search',
             nargs='+')
+        p.add_argument(
+            '--fdr',
+            help='FDR for motif search',
+            default=0.05,
+            type=float)
         p.add_argument(
             '--act_thr_per',
             help='Percentage of maximum activation for selecting sites',
@@ -368,11 +327,6 @@ class App(object):
             help='Number of samples for PCA',
             type=int,
             default=1000)
-        p.add_argument(
-            '--fdr',
-            help='FDR for motif matching',
-            default=0.05,
-            type=float)
         p.add_argument(
             '--delete_fasta',
             help='Delete fasta files to reduce disk storage',

@@ -11,6 +11,7 @@ class JointModel(Model):
 
     def __init__(self, *args, **kwargs):
         super(JointModel, self).__init__(*args, **kwargs)
+        self.mode = 'concat'
         self.scope = 'joint'
 
     def _get_inputs_outputs(self, models):
@@ -34,40 +35,44 @@ class JointModel(Model):
         return model
 
 
-class Joint01(JointModel):
-
-    def __init__(self, mode='concat', *args, **kwargs):
-        super(Joint01, self).__init__(*args, **kwargs)
-        self.mode = mode
+class JointL0(JointModel):
 
     def __call__(self, models):
         return self._build(models)
 
 
-class Joint02(JointModel):
+class JointL1h512(JointModel):
 
-    def __init__(self, mode='concat', nb_hidden=256, *args, **kwargs):
-        super(Joint02, self).__init__(*args, **kwargs)
-        self.mode = mode
+    def __init__(self, nb_layer=1, nb_hidden=512, *args, **kwargs):
+        super(JointL1h512, self).__init__(*args, **kwargs)
+        self.nb_layer = nb_layer
         self.nb_hidden = nb_hidden
 
     def __call__(self, models):
         layers = []
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        layers.append(kl.Dense(self.nb_hidden, init=self.init,
-                               W_regularizer=w_reg))
-        layers.append(kl.BatchNormalization())
-        layers.append(kl.Activation('relu'))
-        layers.append(kl.Dropout(self.dropout))
+        for layer in range(self.nb_layer):
+            w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+            layers.append(kl.Dense(self.nb_hidden, init=self.init,
+                                   W_regularizer=w_reg))
+            layers.append(kl.Activation('relu'))
+            layers.append(kl.Dropout(self.dropout))
 
         return self._build(models, layers)
 
 
-class Joint03(Joint02):
+class JointL2h512(JointL1h512):
 
     def __init__(self, *args, **kwargs):
-        super(Joint03, self).__init__(*args, **kwargs)
-        self.nb_hidden = 512
+        super(JointL2h512, self).__init__(*args, **kwargs)
+        self.nb_layer = 2
+
+
+class JointL3h512(JointL1h512):
+
+    def __init__(self, *args, **kwargs):
+        super(JointL3h512, self).__init__(*args, **kwargs)
+        self.nb_layer = 3
+
 
 def get(name):
     return get_from_module(name, globals())
