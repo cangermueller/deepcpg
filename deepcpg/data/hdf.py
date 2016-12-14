@@ -30,7 +30,7 @@ def ls(filename, group='/', recursive=False, groups=False,
     h5_file.close()
     if regex:
         keys = filter_regex(keys, regex)
-    if nb_key:
+    if nb_key is not None:
         keys = keys[:nb_key]
     return keys
 
