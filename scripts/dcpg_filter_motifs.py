@@ -27,6 +27,7 @@ from deepcpg.motifs import read_meme_db, get_report
 sns.set_style('darkgrid')
 
 WEBLOGO_OPTS = '-X NO -Y NO --errorbars NO --fineprint ""'
+weblogo_opts += ' --logo-font Arial-BoldMT'
 WEBLOGO_OPTS += ' -C "#CB2026" A A'
 WEBLOGO_OPTS += ' -C "#34459C" C C'
 WEBLOGO_OPTS += ' -C "#FBB116" G G'
