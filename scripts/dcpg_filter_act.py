@@ -42,6 +42,10 @@ class App(object):
             '-o', '--out_file',
             help='Output file')
         p.add_argument(
+            '--input_layer',
+            help='Compute effect wrt. inputs layer',
+            action='store_true')
+        p.add_argument(
             '--act_fun',
             help='Function applied to reduce sequence window activations',
             choices=['mean', 'wmean', 'max'])
