@@ -111,11 +111,8 @@ def add_output_layers(stem, output_names):
         if _output_name[-1] in ['entropy']:
             x = kl.Dense(1, init='glorot_uniform', activation='relu')(stem)
         elif _output_name[-1] in ['var']:
-            #  x = kl.Dense(1, init='glorot_uniform')(stem)
-            #  x = ScaledSigmoid(0.251, name=output_name)(x)
-            x = kl.Dense(1, init='glorot_uniform',
-                         activation='sigmoid',
-                         name=output_name)(stem)
+            x = kl.Dense(1, init='glorot_uniform')(stem)
+            x = ScaledSigmoid(0.251, name=output_name)(x)
         elif _output_name[-1] in ['cat_var']:
             x = kl.Dense(3, init='glorot_uniform',
                          activation='softmax',
