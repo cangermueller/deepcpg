@@ -21,7 +21,7 @@ from deepcpg import callbacks as cbk
 from deepcpg import data as dat
 from deepcpg import metrics as met
 from deepcpg import models as mod
-from deepcpg.data import hdf
+from deepcpg.data import hdf, OUTPUT_SEP
 from deepcpg.utils import format_table, EPS
 
 
@@ -94,11 +94,12 @@ def get_class_weights(labels, nb_class=None):
 
 def get_output_class_weights(output_name, output):
     output = output[output != dat.CPG_NAN]
-    if output_name.startswith('cpg'):
+    _output_name = output_name.split(OUTPUT_SEP)
+    if _output_name[0] == 'cpg':
         weights = get_class_weights(output, 2)
-    elif output_name == 'stats/cat_var':
+    elif _output_name[-1] == 'cat_var':
         weights = get_class_weights(output, 3)
-    elif output_name in ['stats/cat2_var', 'stats/diff', 'stats/mode']:
+    elif _output_name[-1] in ['cat2_var', 'diff', 'mode']:
         weights = get_class_weights(output, 2)
     else:
         return None
@@ -112,17 +113,18 @@ def perf_logs_str(logs):
 
 
 def get_metrics(output_name):
-    if output_name.startswith('cpg'):
+    _output_name = output_name.split(OUTPUT_SEP)
+    if _output_name[0] == 'cpg':
         metrics = CLA_METRICS
-    elif output_name.startswith('bulk'):
+    elif _output_name[0] == 'bulk':
         metrics = REG_METRICS + CLA_METRICS
-    elif output_name in ['stats/diff', 'stats/mode', 'stats/cat2_var']:
+    elif _output_name[-1] in ['diff', 'mode', 'cat2_var']:
         metrics = CLA_METRICS
-    elif output_name == 'stats/mean':
+    elif _output_name[-1] == 'mean':
         metrics = REG_METRICS + CLA_METRICS
-    elif output_name == 'stats/var':
+    elif _output_name[-1] == 'var':
         metrics = REG_METRICS
-    elif output_name == 'stats/cat_var':
+    elif _output_name[-1] == 'cat_var':
         metrics = [met.cat_acc]
     else:
         raise ValueError('Invalid output name "%s"!' % output_name)

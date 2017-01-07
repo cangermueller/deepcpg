@@ -12,10 +12,10 @@ import pandas as pd
 
 from deepcpg import data as dat
 from deepcpg.data import annotations as an
+from deepcpg.data import stats
 from deepcpg.data import dna
 from deepcpg.data import fasta
 from deepcpg.data import feature_extractor as fext
-from deepcpg.utils import EPS
 
 
 def prepro_pos_table(pos_tables):
@@ -131,63 +131,15 @@ def format_out_of(out, of):
     return '%d / %d (%.1f%%)' % (out, of, out / of * 100)
 
 
-def mean(x, axis=1):
-    return np.mean(x, axis)
-
-
-def mode(x, axis=1):
-    return x.mean(axis=axis).round().astype(np.int8)
-
-
-def var(x, *args, **kwargs):
-    m = mean(x, *args, **kwargs)
-    return m * (1 - m)
-
-
-def cat_var(x, nb_bin=3, *args, **kwargs):
-    v = var(x, *args, **kwargs)
-    bins = np.linspace(-EPS, 0.25, nb_bin + 1)
-    cv = np.digitize(v, bins, right=True) - 1
-    return np.ma.masked_array(cv, v.mask)
-
-
-def cat2_var(*args, **kwargs):
-    cv = cat_var(*args, **kwargs)
-    cv[cv > 0] = 1
-    return cv
-
-
-def entropy(x, axis=1):
-    p1 = x.mean(axis=axis)
-    p1 = np.minimum(1 - EPS, np.maximum(EPS, p1))
-    p0 = 1 - p1
-    return -(p1 * np.log(p1) + p0 * np.log(p0))
-
-
-def diff(x, axis=1):
-    return x.min(axis=axis) != x.max(axis=axis).astype(np.int8)
-
-
-def output_stats_meta_by_name(names):
-    funs = dict()
+def get_stats_meta(names):
+    funs = OrderedDict()
     for name in names:
-        if name == 'mean':
-            fun = (mean, np.float32)
-        elif name == 'mode':
-            fun = (mode, np.int8)
-        elif name == 'var':
-            fun = (var, np.float32)
-        elif name == 'cat_var':
-            fun = (cat_var, np.int8)
-        elif name == 'cat2_var':
-            fun = (cat2_var, np.int8)
-        elif name == 'entropy':
-            fun = (entropy, np.float32)
-        elif name == 'diff':
-            fun = (diff, np.int8)
+        fun = stats.get(name)
+        if name in ['mode', 'cat_var', 'cat2_var', 'diff']:
+            dtype = np.int8
         else:
-            raise ValueError('Invalid statistic "%s"!' % name)
-        funs[name] = fun
+            dtype = np.float32
+        funs[name] = (fun, dtype)
     return funs
 
 
@@ -261,16 +213,29 @@ class App(object):
             type=int,
             default=1)
         p.add_argument(
-            '--cpg_stats',
-            help='Output statistics derived from single-cell profiles',
+            '--stats',
+            help='Per CpG statistics derived from single-cell profiles',
             nargs='+',
             choices=['mean', 'mode', 'var', 'cat_var', 'cat2_var', 'entropy',
-                     'diff'])
+                     'diff', 'cov'])
         p.add_argument(
-            '--cpg_stats_cov',
-            help='Minimum CpG coverage for computing statistics',
+            '--stats_cov',
+            help='Minimum coverage for computing per CpG  statistics',
             type=int,
             default=1)
+        p.add_argument(
+            '--win_stats',
+            help='Window-based output statistics derived from single-cell ' +
+                 'profiles',
+            nargs='+',
+            choices=['mean', 'mode', 'var', 'cat_var', 'cat2_var', 'entropy',
+                     'diff', 'cov'])
+        p.add_argument(
+            '--win_stats_wlen',
+            help='Window lengths for computing statistics',
+            type=int,
+            nargs='+',
+            default=[3001])
         p.add_argument(
             '--chromos',
             nargs='+',
@@ -318,10 +283,12 @@ class App(object):
             raise '--cpg_wlen must be even!'
 
         # Parse functions for computing output statistics
-        if opts.cpg_stats:
-            cpg_stats_meta = output_stats_meta_by_name(opts.cpg_stats)
-        else:
-            cpg_stats_meta = None
+        cpg_stats_meta = None
+        win_stats_meta = None
+        if opts.stats:
+            cpg_stats_meta = get_stats_meta(opts.stats)
+        if opts.win_stats:
+            win_stats_meta = get_stats_meta(opts.win_stats)
 
         outputs = OrderedDict()
 
@@ -444,10 +411,11 @@ class App(object):
                                                  compression='gzip')
                     # Compute and write statistics
                     if cpg_stats_meta is not None:
+                        log.info('Computing per CpG statistics ...')
                         cpg_mat = np.ma.masked_values(chunk_outputs['cpg_mat'],
                                                       dat.CPG_NAN)
                         mask = np.sum(~cpg_mat.mask, axis=1)
-                        mask = mask < opts.cpg_stats_cov
+                        mask = mask < opts.stats_cov
                         for name, fun in cpg_stats_meta.items():
                             stat = fun[0](cpg_mat).data.astype(fun[1])
                             stat[mask] = dat.CPG_NAN
@@ -508,7 +476,43 @@ class App(object):
                         group.create_dataset('dist', data=dist,
                                              compression='gzip')
 
+                if win_stats_meta is not None and opts.cpg_wlen:
+                    log.info('Computing window-based statistics ...')
+                    states = []
+                    dists = []
+                    cpg_states = []
+                    cpg_group = out_group['cpg']
+                    context_group = in_group['cpg']
+                    for output_name in cpg_group.keys():
+                        state = context_group[output_name]['state'].value
+                        states.append(np.expand_dims(state, 2))
+                        dist = context_group[output_name]['dist'].value
+                        dists.append(np.expand_dims(dist, 2))
+                        cpg_states.append(cpg_group[output_name].value)
+                    # samples x outputs x cpg_wlen
+                    states = np.swapaxes(np.concatenate(states, axis=2), 1, 2)
+                    dists = np.swapaxes(np.concatenate(dists, axis=2), 1, 2)
+                    cpg_states = np.expand_dims(np.vstack(cpg_states).T, 2)
+                    cpg_dists = np.zeros_like(cpg_states)
+                    states = np.concatenate([states, cpg_states], axis=2)
+                    dists = np.concatenate([dists, cpg_dists], axis=2)
+
+                    for wlen in opts.win_stats_wlen:
+                        idx = (states == dat.CPG_NAN) | (dists > wlen // 2)
+                        states_wlen = np.ma.masked_array(states, idx)
+                        group = out_group.create_group('win_stats/%d' % wlen)
+                        for name, fun in win_stats_meta.items():
+                            stat = fun[0](states_wlen)
+                            if hasattr(stat, 'mask'):
+                                idx = stat.mask
+                                stat = stat.data
+                                if np.sum(idx):
+                                    stat[idx] = dat.CPG_NAN
+                            group.create_dataset(name, data=stat, dtype=fun[1],
+                                                 compression='gzip')
+
                 if annos:
+                    log.info('Adding annotations ...')
                     group = in_group.create_group('annos')
                     for name, anno in annos.items():
                         group.create_dataset(name, data=anno[chunk_idx],

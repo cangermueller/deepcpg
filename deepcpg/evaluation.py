@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import sklearn.metrics as skm
 
-from .data import CPG_NAN
+from .data import CPG_NAN, OUTPUT_SEP
 from .utils import get_from_module
 
 
@@ -117,15 +117,16 @@ def evaluate_cat(y, z, metrics=CAT_METRICS,
 
 
 def get_output_metrics(output_name):
-    if output_name.startswith('cpg'):
+    _output_name = output_name.split(OUTPUT_SEP)
+    if _output_name[0] == 'cpg':
         metrics = CLA_METRICS
-    elif output_name.startswith('bulk'):
+    elif _output_name[0] == 'bulk':
         metrics = REG_METRICS + CLA_METRICS
-    elif output_name in ['stats/diff', 'stats/mode', 'stats/cat2_var']:
+    elif _output_name[-1] in ['diff', 'mode', 'cat2_var']:
         metrics = CLA_METRICS
-    elif output_name == 'stats/mean':
+    elif _output_name[-1] == 'mean':
         metrics = REG_METRICS + CLA_METRICS
-    elif output_name == 'stats/var':
+    elif _output_name[-1] == 'var':
         metrics = REG_METRICS
     else:
         raise ValueError('Invalid output name "%s"!' % output_name)
@@ -135,7 +136,8 @@ def get_output_metrics(output_name):
 def evaluate_outputs(outputs, preds):
     perf = []
     for output_name in outputs.keys():
-        if output_name in ['stats/cat_var']:
+        _output_name = output_name.split(OUTPUT_SEP)
+        if _output_name[-1] in ['cat_var']:
             tmp = evaluate_cat(outputs[output_name],
                                preds[output_name],
                                binary_metrics=[auc])
