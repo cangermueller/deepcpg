@@ -3,6 +3,7 @@ from collections import OrderedDict
 import numpy as np
 import pandas as pd
 import sklearn.metrics as skm
+from scipy.stats import kendalltau
 
 from .data import CPG_NAN, OUTPUT_SEP
 from .utils import get_from_module
@@ -10,6 +11,16 @@ from .utils import get_from_module
 
 def cor(y, z):
     return np.corrcoef(y, z)[0, 1]
+
+
+def kendall(y, z, nb_sample=100000):
+    if len(y) > nb_sample:
+        idx = np.arange(len(y))
+        np.random.shuffle(idx)
+        idx = idx[:nb_sample]
+        y = y[idx]
+        z = z[idx]
+    return kendalltau(y, z)[0]
 
 
 def mad(y, z):
@@ -127,7 +138,7 @@ def get_output_metrics(output_name):
     elif _output_name[-1] == 'mean':
         metrics = REG_METRICS + CLA_METRICS
     elif _output_name[-1] == 'var':
-        metrics = REG_METRICS
+        metrics = REG_METRICS + [kendall]
     else:
         raise ValueError('Invalid output name "%s"!' % output_name)
     return metrics
