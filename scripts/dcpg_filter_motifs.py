@@ -21,11 +21,13 @@ import seaborn as sns
 
 from deepcpg.utils import EPS, linear_weights
 from deepcpg.data import dna
+from deepcpg.motifs import read_meme_db, get_report
 
 
 sns.set_style('darkgrid')
 
 WEBLOGO_OPTS = '-X NO -Y NO --errorbars NO --fineprint ""'
+WEBLOGO_OPTS += ' --logo-font Arial-BoldMT'
 WEBLOGO_OPTS += ' -C "#CB2026" A A'
 WEBLOGO_OPTS += ' -C "#34459C" C C'
 WEBLOGO_OPTS += ' -C "#FBB116" G G'
@@ -70,15 +72,20 @@ def format_out_of(out, of):
 
 
 def get_act_kmers(filter_act, filter_len, seqs, thr_per=0.5, thr_max=25000,
-                  log=None):
+                  log=None, thr_per_norm=True):
     assert filter_act.shape[0] == seqs.shape[0]
     assert filter_act.shape[1] == seqs.shape[1]
 
     _thr_per = 0
     if thr_per:
-        filter_act_mean = filter_act.mean()
-        filter_act_norm = filter_act - filter_act_mean
-        _thr_per = thr_per * filter_act_norm.max() + filter_act_mean
+        if thr_per_norm:
+            filter_act_mean = filter_act.mean()
+            filter_act_norm = filter_act - filter_act_mean
+            _thr_per = thr_per * filter_act_norm.max() + filter_act_mean
+        else:
+            _thr_per = thr_per * filter_act.max() + \
+                (1 - thr_per) * filter_act.min()
+
         if log:
             tmp = format_out_of(np.sum(filter_act >= _thr_per), filter_act.size)
             log('%s passed percentage threshold' % tmp)
@@ -178,12 +185,9 @@ def map_alphabets(values, src_alphabet, dst_alphabet):
 
 
 def open_meme(filename, seqs):
-    nt_chars = list(ALPHABET.keys())
-
-    nt_freq = []
+    nt_freq = np.zeros(len(ALPHABET))
     for nt_int in ALPHABET.values():
-        nt_freq.append(np.sum(seqs == nt_int) + 1)
-    nt_freq = np.array(nt_freq, dtype=np.float32)
+        nt_freq[nt_int] = np.sum(seqs == nt_int) + 1
     nt_freq = nt_freq / nt_freq.sum()
     nt_freq = map_alphabets(nt_freq, ALPHABET, MEME_ALPHABET)
 
@@ -197,8 +201,8 @@ def open_meme(filename, seqs):
     print('', file=meme_file)
     print('Background letter frequencies:', file=meme_file)
     nt_freq_str = []
-    for i, nt_char in enumerate(nt_chars):
-        nt_freq_str.append('%s %.4f' % (nt_char, nt_freq[i]))
+    for nt_char, nt_int in MEME_ALPHABET.items():
+        nt_freq_str.append('%s %.4f' % (nt_char, nt_freq[nt_int]))
     print(' '.join(nt_freq_str), file=meme_file)
     print('', file=meme_file)
 
@@ -248,40 +252,6 @@ def info_content(pwm):
     return np.sum(pwm * np.log2(pwm + EPS) + 0.5)
 
 
-def read_tomtom(path):
-    d = pd.read_table(path)
-    d.rename(columns={'#Query ID': 'Query ID'}, inplace=True)
-    d.columns = [x.lower() for x in d.columns]
-    d['idx'] = [int(x) for x in d['query id'].str.replace('filter', '')]
-    return d
-
-
-def read_motif_proteins(meme_db_file):
-    motif_proteins = {}
-    for line in open(meme_db_file):
-        a = line.split()
-        if len(a) > 0 and a[0] == 'MOTIF':
-            if a[2][0] == '(':
-                motif_proteins[a[1]] = a[2][1:a[2].find(')')]
-            else:
-                motif_proteins[a[1]] = a[2]
-    motif_proteins = {'target id': list(motif_proteins.keys()),
-                      'protein': list(motif_proteins.values())}
-    motif_proteins = pd.DataFrame(motif_proteins, columns=motif_proteins)
-    return motif_proteins
-
-
-def get_report(filter_stats_file, tomtom_file, motif_proteins):
-    filter_stats = pd.read_table(filter_stats_file)
-    tomtom = read_tomtom(tomtom_file)
-    tomtom = tomtom.sort_values(['idx', 'q-value', 'e-value'])
-    tomtom = tomtom.loc[:, ~tomtom.columns.isin(['query id', 'optimal offset'])]
-    d = pd.merge(filter_stats, tomtom, on='idx', how='outer')
-    d = pd.merge(d, motif_proteins, on='target id', how='left')
-    d.index.name = None
-    return d
-
-
 def plot_logo(fasta_file, out_file, format='pdf', options=''):
     cmd = 'weblogo {opts} -s large < {inp} > {out} -F {f} 2> /dev/null'
     cmd = cmd.format(opts=options, inp=fasta_file, out=out_file, f=format)
@@ -315,13 +285,23 @@ class App(object):
             help='Output directory',
             default='.')
         p.add_argument(
-            '-m', '--motif_db',
-            help='MEME database for matching motifs')
+            '-m', '--motif_dbs',
+            help='MEME databases for motif search',
+            nargs='+')
         p.add_argument(
-            '-a', '--act_thr_per',
+            '--fdr',
+            help='FDR for motif search',
+            default=0.05,
+            type=float)
+        p.add_argument(
+            '--act_thr_per',
             help='Percentage of maximum activation for selecting sites',
             default=0.5,
             type=float)
+        p.add_argument(
+            '--act_thr_per_nonorm',
+            help='Do not normalize',
+            action='store_true')
         p.add_argument(
             '--act_thr_max',
             help='Max number of sites to be selected',
@@ -349,10 +329,9 @@ class App(object):
             type=int,
             default=1000)
         p.add_argument(
-            '--fdr',
-            help='FDR for motif matching',
-            default=0.05,
-            type=float)
+            '--delete_fasta',
+            help='Delete fasta files to reduce disk storage',
+            action='store_true')
         p.add_argument(
             '--nb_sample',
             help='Maximum # samples',
@@ -502,7 +481,8 @@ class App(object):
             log.info('Extracting activating kmers')
             act_kmers = get_act_kmers(filter_act, filter_len, seqs,
                                       thr_per=opts.act_thr_per,
-                                      thr_max=opts.act_thr_max)
+                                      thr_max=opts.act_thr_max,
+                                      thr_per_norm=not opts.act_thr_per_nonorm)
             stats.nb_site = len(act_kmers)
 
             if len(act_kmers) < 10:
@@ -514,6 +494,8 @@ class App(object):
             write_kmers(act_kmers, logo_file)
             plot_logo(logo_file, pt.join(sub_dirs['logos'], '%03d.pdf' % idx),
                       options=WEBLOGO_OPTS)
+            if opts.delete_fasta:
+                os.remove(logo_file)
 
             log.info('Computing PWM')
             pwm = get_pwm(act_kmers)
@@ -533,25 +515,28 @@ class App(object):
                             float_format='%.4f',
                             sep='\t', index=False)
 
-        if opts.motif_db:
+        if opts.motif_dbs:
             log.info('Running tomtom')
             cmd = 'tomtom -dist pearson -thresh {thr} -oc {out_dir} ' + \
-                '{meme_file} {motif_db}'
+                '{meme_file} {motif_dbs}'
             cmd = cmd.format(thr=opts.fdr,
                              out_dir=pt.join(opts.out_dir, 'tomtom'),
                              meme_file=meme_filename,
-                             motif_db=opts.motif_db)
+                             motif_dbs=' '.join(opts.motif_dbs))
             print('\n', cmd)
             subprocess.call(cmd, shell=True)
 
-            motif_proteins = read_motif_proteins(opts.motif_db)
-            tmp = pt.join(opts.out_dir, 'tomtom', 'motif_proteins.csv')
-            motif_proteins.to_csv(tmp, sep='\t', index=False)
+            meme_motifs = []
+            for motif_db in opts.motif_dbs:
+                meme_motifs.append(read_meme_db(motif_db))
+            meme_motifs = pd.concat(meme_motifs)
+            tmp = pt.join(opts.out_dir, 'tomtom', 'meme_motifs.csv')
+            meme_motifs.to_csv(tmp, sep='\t', index=False)
 
             report = get_report(
                 pt.join(opts.out_dir, 'stats.csv'),
                 pt.join(opts.out_dir, 'tomtom', 'tomtom.txt'),
-                motif_proteins)
+                meme_motifs)
             report.sort_values(['idx', 'q-value', 'act_mean'],
                                ascending=[True, True, False], inplace=True)
             report.to_csv(pt.join(opts.out_dir, 'report.csv'), index=False,
@@ -560,6 +545,7 @@ class App(object):
             report_top = report.groupby('idx').first().reset_index()
             report_top.sort_values(['q-value', 'act_mean'],
                                    ascending=[True, False], inplace=True)
+            report_top.index = range(len(report_top))
             report_top.to_csv(pt.join(opts.out_dir,
                                       'report_top.csv'), index=False,
                               sep='\t', float_format='%.3f')

@@ -1,9 +1,18 @@
 from collections import OrderedDict
+import os
 import re
 
 import numpy as np
 
 EPS = 10e-8
+
+
+def make_dir(dirname):
+    if os.path.exists(dirname):
+        return False
+    else:
+        os.makedirs(dirname, exist_ok=True)
+        return True
 
 
 def slice_dict(data, idx):

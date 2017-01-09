@@ -3,13 +3,24 @@ from collections import OrderedDict
 import numpy as np
 import pandas as pd
 import sklearn.metrics as skm
+from scipy.stats import kendalltau
 
-from .data import CPG_NAN
+from .data import CPG_NAN, OUTPUT_SEP
 from .utils import get_from_module
 
 
 def cor(y, z):
     return np.corrcoef(y, z)[0, 1]
+
+
+def kendall(y, z, nb_sample=100000):
+    if len(y) > nb_sample:
+        idx = np.arange(len(y))
+        np.random.shuffle(idx)
+        idx = idx[:nb_sample]
+        y = y[idx]
+        z = z[idx]
+    return kendalltau(y, z)[0]
 
 
 def mad(y, z):
@@ -92,7 +103,10 @@ def evaluate(y, z, mask=CPG_NAN, metrics=CLA_METRICS):
         z = z[t]
     p = OrderedDict()
     for metric in metrics:
-        p[metric.__name__] = metric(y, z)
+        if len(y):
+            p[metric.__name__] = metric(y, z)
+        else:
+            p[metric.__name__] = np.nan
     p['n'] = len(y)
     return p
 
@@ -114,16 +128,17 @@ def evaluate_cat(y, z, metrics=CAT_METRICS,
 
 
 def get_output_metrics(output_name):
-    if output_name.startswith('cpg'):
+    _output_name = output_name.split(OUTPUT_SEP)
+    if _output_name[0] == 'cpg':
         metrics = CLA_METRICS
-    elif output_name.startswith('bulk'):
+    elif _output_name[0] == 'bulk':
         metrics = REG_METRICS + CLA_METRICS
-    elif output_name in ['stats/diff', 'stats/mode', 'stats/cat2_var']:
+    elif _output_name[-1] in ['diff', 'mode', 'cat2_var']:
         metrics = CLA_METRICS
-    elif output_name == 'stats/mean':
+    elif _output_name[-1] == 'mean':
         metrics = REG_METRICS + CLA_METRICS
-    elif output_name == 'stats/var':
-        metrics = REG_METRICS
+    elif _output_name[-1] == 'var':
+        metrics = REG_METRICS + [kendall]
     else:
         raise ValueError('Invalid output name "%s"!' % output_name)
     return metrics
@@ -132,7 +147,8 @@ def get_output_metrics(output_name):
 def evaluate_outputs(outputs, preds):
     perf = []
     for output_name in outputs.keys():
-        if output_name in ['stats/cat_var']:
+        _output_name = output_name.split(OUTPUT_SEP)
+        if _output_name[-1] in ['cat_var']:
             tmp = evaluate_cat(outputs[output_name],
                                preds[output_name],
                                binary_metrics=[auc])

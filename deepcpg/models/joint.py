@@ -9,6 +9,11 @@ from ..utils import get_from_module
 
 class JointModel(Model):
 
+    def __init__(self, *args, **kwargs):
+        super(JointModel, self).__init__(*args, **kwargs)
+        self.mode = 'concat'
+        self.scope = 'joint'
+
     def _get_inputs_outputs(self, models):
         inputs = []
         outputs = []
@@ -17,37 +22,56 @@ class JointModel(Model):
             outputs.extend(model.outputs)
         return (inputs, outputs)
 
+    def _build(self, models, layers=[]):
+        for layer in layers:
+            layer.name = '%s/%s' % (self.scope, layer.name)
 
-class Joint01(JointModel):
+        inputs, outputs = self._get_inputs_outputs(models)
+        x = kl.merge(outputs, mode=self.mode)
+        for layer in layers:
+            x = layer(x)
 
-    def __init__(self, mode='concat', nb_hidden=1024, *args, **kwargs):
-        super(JointModel, self).__init__(*args, **kwargs)
-        self.mode = mode
+        model = km.Model(inputs, x, name=self.name)
+        return model
+
+
+class JointL0(JointModel):
+
+    def __call__(self, models):
+        return self._build(models)
+
+
+class JointL1h512(JointModel):
+
+    def __init__(self, nb_layer=1, nb_hidden=512, *args, **kwargs):
+        super(JointL1h512, self).__init__(*args, **kwargs)
+        self.nb_layer = nb_layer
         self.nb_hidden = nb_hidden
 
     def __call__(self, models):
-        inputs, outputs = self._get_inputs_outputs(models)
+        layers = []
+        for layer in range(self.nb_layer):
+            w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+            layers.append(kl.Dense(self.nb_hidden, init=self.init,
+                                   W_regularizer=w_reg))
+            layers.append(kl.Activation('relu'))
+            layers.append(kl.Dropout(self.dropout))
 
-        x = kl.merge(outputs, mode=self.mode)
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Dense(self.nb_hidden, init=self.init, W_regularizer=w_reg)(x)
-        x = kl.BatchNormalization()(x)
-        x = kl.Activation('relu')(x)
-        x = kl.Dropout(self.dropout)(x)
-
-        return km.Model(input=inputs, output=x, name=self.name)
+        return self._build(models, layers)
 
 
-class Joint02(JointModel):
+class JointL2h512(JointL1h512):
 
-    def __init__(self, mode='concat', *args, **kwargs):
-        super(JointModel, self).__init__(*args, **kwargs)
-        self.mode = mode
+    def __init__(self, *args, **kwargs):
+        super(JointL2h512, self).__init__(*args, **kwargs)
+        self.nb_layer = 2
 
-    def __call__(self, models):
-        inputs, outputs = self._get_inputs_outputs(models)
-        x = kl.merge(outputs, mode=self.mode)
-        return km.Model(input=inputs, output=x, name=self.name)
+
+class JointL3h512(JointL1h512):
+
+    def __init__(self, *args, **kwargs):
+        super(JointL3h512, self).__init__(*args, **kwargs)
+        self.nb_layer = 3
 
 
 def get(name):

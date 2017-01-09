@@ -30,7 +30,7 @@ def ls(filename, group='/', recursive=False, groups=False,
     h5_file.close()
     if regex:
         keys = filter_regex(keys, regex)
-    if nb_key:
+    if nb_key is not None:
         keys = keys[:nb_key]
     return keys
 
@@ -124,22 +124,20 @@ def reader(data_files, names, batch_size=128, nb_sample=None, shuffle=False,
             _batch_size = batch_end - batch_start
             if _batch_size == 0:
                 break
-            nb_seen += _batch_size
 
             data_batch = dict()
             for name in names:
                 data_batch[name] = data_file[name][batch_start:batch_end]
             yield data_batch
 
+            nb_seen += _batch_size
             if nb_seen >= nb_sample:
                 break
 
         h5_file.close()
         file_idx += 1
         assert nb_seen <= nb_sample
-        if nb_sample == nb_seen:
-            assert file_idx == len(data_files)
-        if file_idx == len(data_files):
+        if nb_sample == nb_seen or file_idx == len(data_files):
             if loop:
                 file_idx = 0
                 nb_seen = 0

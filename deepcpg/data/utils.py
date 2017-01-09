@@ -1,4 +1,3 @@
-from collections import Counter, OrderedDict
 import gzip
 import threading
 
@@ -6,10 +5,10 @@ import h5py as h5
 import numpy as np
 import pandas as pd
 
-from ..utils import EPS
 from . import hdf
 
 CPG_NAN = -1
+OUTPUT_SEP = '/'
 
 
 class threadsafe_iter:

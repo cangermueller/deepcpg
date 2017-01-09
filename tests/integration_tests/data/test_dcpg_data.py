@@ -255,4 +255,8 @@ class TestMake(object):
         self._test_annos('18', 3000023, 'exons', 0)
         self._test_annos('18', 3267095, 'exons', 1)
         self._test_annos('18', 4375924, 'exons', 1)
+        self._test_annos('18', 5592169, 'exons', 1)
+        self._test_annos('18', 5592176, 'exons', 1)
+        self._test_annos('18', 5592182, 'exons', 1)
+        self._test_annos('18', 5592199, 'exons', 1)
         self._test_annos('19', 4438754, 'exons', 0)

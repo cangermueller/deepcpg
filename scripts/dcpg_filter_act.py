@@ -16,17 +16,6 @@ from deepcpg.data import hdf, dna
 from deepcpg.utils import ProgressBar, to_list, linear_weights
 
 
-def get_layer_by_depth(layers, depth=1, layer_class=kl.Activation):
-    idx = 1
-    for layer in layers:
-        if isinstance(layer, layer_class):
-            if idx == depth:
-                return layer
-            else:
-                idx += 1
-    return None
-
-
 class App(object):
 
     def run(self, args):
@@ -53,13 +42,9 @@ class App(object):
             '-o', '--out_file',
             help='Output file')
         p.add_argument(
-            '--act_layer',
-            help='Name or depth of activation layer',
-            default='1')
-        p.add_argument(
-            '--weight_layer',
-            help='Name or depth of weight layer',
-            default='1')
+            '--input_layer',
+            help='Compute effect wrt. inputs layer',
+            action='store_true')
         p.add_argument(
             '--act_fun',
             help='Function applied to reduce sequence window activations',
@@ -123,14 +108,10 @@ class App(object):
         K.set_learning_phase(0)
         model = mod.load_model(opts.model_files)
 
-        if opts.act_layer.isdigit():
-            act_layer = get_layer_by_depth(model.layers, int(opts.act_layer),
-                                           layer_class=kl.Activation)
-        else:
-            act_layer = model.get_layer(opts.act_layer)
-        if not act_layer:
-            raise ValueError('Activation layer not found!')
+        weight_layer, act_layer = mod.get_first_conv_layer(model.layers, True)
         log.info('Using activation layer "%s"' % act_layer.name)
+        log.info('Using weight layer "%s"' % weight_layer.name)
+
         fun_outputs = to_list(act_layer.output)
         if opts.store_preds:
             fun_outputs += to_list(model.output)
@@ -154,19 +135,9 @@ class App(object):
         out_file = h5.File(opts.out_file, 'w')
         out_group = out_file
 
-        if opts.weight_layer:
-            if opts.weight_layer.isdigit():
-                weight_layer = get_layer_by_depth(model.layers,
-                                                  int(opts.weight_layer),
-                                                  layer_class=kl.Conv1D)
-            else:
-                weight_layer = model.get_layer(opts.weight_layer)
-            if not weight_layer:
-                raise ValueError('Weight layer not found!')
-            log.info('Using weight layer "%s"' % weight_layer.name)
-            weights = weight_layer.get_weights()
-            out_group['weights/weights'] = weights[0]
-            out_group['weights/bias'] = weights[1]
+        weights = weight_layer.get_weights()
+        out_group['weights/weights'] = weights[0]
+        out_group['weights/bias'] = weights[1]
 
         def h5_dump(path, data, idx, dtype=None, compression='gzip'):
             if path not in out_group:

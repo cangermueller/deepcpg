@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
+"""Creates DeepCpG input data from incomplete methylation profiles."""
+
 from collections import OrderedDict
 import os
-import re
 import sys
 
 import argparse
@@ -13,10 +14,11 @@ import pandas as pd
 
 from deepcpg import data as dat
 from deepcpg.data import annotations as an
+from deepcpg.data import stats
 from deepcpg.data import dna
 from deepcpg.data import fasta
 from deepcpg.data import feature_extractor as fext
-from deepcpg.utils import EPS
+from deepcpg.utils import make_dir
 
 
 def prepro_pos_table(pos_tables):
@@ -38,20 +40,15 @@ def prepro_pos_table(pos_tables):
     return pos_table
 
 
-def output_name_from_filename(filename):
-    """Parses output name from file name."""
-    name = os.path.splitext(os.path.basename(filename))[0]
-    match = re.match(r'([^.]+)\.?', name)
-    assert match
-    name = match.group(1)
-    return name
+def split_ext(filename):
+    return os.path.basename(filename).split(os.extsep)[0]
 
 
 def read_cpg_profiles(filenames, *args, **kwargs):
     cpg_profiles = OrderedDict()
     for filename in filenames:
         cpg_file = dat.GzipFile(filename, 'r')
-        output_name = output_name_from_filename(filename)
+        output_name = split_ext(filename)
         cpg_profile = dat.read_cpg_table(cpg_file, sort=True, *args, **kwargs)
         cpg_profiles[output_name] = cpg_profile
         cpg_file.close()
@@ -75,15 +72,11 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
     nb_win = len(pos)
     seq = seq.upper()
     seq_wins = np.zeros((nb_win, wlen), dtype='int8')
-    nb_no_cpg = 0
 
     for i in range(nb_win):
         p = pos[i] - seq_index
         if cpg_sites and seq[p:p + 2] != 'CG':
-            nb_no_cpg += 1
-            c = 3
-            print(seq[p-c:p+2+c])
-            #  raise ValueError('No CpG at position %d!' % p)
+            raise ValueError('No CpG at position %d!' % p)
         win = seq[max(0, p - delta): min(len(seq), p + delta + 1)]
         if len(win) < wlen:
             win = max(0, delta - p) * 'N' + win
@@ -94,10 +87,9 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
     idx = seq_wins == dna.CHAR_TO_INT['N']
     seq_wins[idx] = np.random.randint(0, 4, idx.sum())
     assert seq_wins.max() < 4
-    #  if cpg_sites:
-    #      assert np.all(seq_wins[:, delta] == 3)
-    #      assert np.all(seq_wins[:, delta + 1] == 2)
-    print('%d (%.3f) invalid sites!' % (nb_no_cpg, nb_no_cpg / nb_win))
+    if cpg_sites:
+        assert np.all(seq_wins[:, delta] == 3)
+        assert np.all(seq_wins[:, delta + 1] == 2)
     return seq_wins
 
 
@@ -129,7 +121,7 @@ def map_cpg_tables(cpg_tables, chromo, chromo_pos):
     mapped_tables = OrderedDict()
     for name, cpg_table in cpg_tables.items():
         cpg_table = cpg_table.loc[cpg_table.chromo == chromo]
-        cpg_table.sort_values(['chromo', 'pos'], inplace=True)
+        cpg_table = cpg_table.sort_values(['chromo', 'pos'])
         mapped_table = map_values(cpg_table.value.values,
                                   cpg_table.pos.values,
                                   chromo_pos)
@@ -142,63 +134,15 @@ def format_out_of(out, of):
     return '%d / %d (%.1f%%)' % (out, of, out / of * 100)
 
 
-def mean(x, axis=1):
-    return np.mean(x, axis)
-
-
-def mode(x, axis=1):
-    return x.mean(axis=axis).round().astype(np.int8)
-
-
-def var(x, *args, **kwargs):
-    m = mean(x, *args, **kwargs)
-    return m * (1 - m)
-
-
-def cat_var(x, nb_bin=3, *args, **kwargs):
-    v = var(x, *args, **kwargs)
-    bins = np.linspace(-EPS, 0.25, nb_bin + 1)
-    cv = np.digitize(v, bins, right=True) - 1
-    return np.ma.masked_array(cv, v.mask)
-
-
-def cat2_var(*args, **kwargs):
-    cv = cat_var(*args, **kwargs)
-    cv[cv > 0] = 1
-    return cv
-
-
-def entropy(x, axis=1):
-    p1 = x.mean(axis=axis)
-    p1 = np.minimum(1 - EPS, np.maximum(EPS, p1))
-    p0 = 1 - p1
-    return -(p1 * np.log(p1) + p0 * np.log(p0))
-
-
-def diff(x, axis=1):
-    return x.min(axis=axis) != x.max(axis=axis).astype(np.int8)
-
-
-def output_stats_meta_by_name(names):
-    funs = dict()
+def get_stats_meta(names):
+    funs = OrderedDict()
     for name in names:
-        if name == 'mean':
-            fun = (mean, np.float32)
-        elif name == 'mode':
-            fun = (mode, np.int8)
-        elif name == 'var':
-            fun = (var, np.float32)
-        elif name == 'cat_var':
-            fun = (cat_var, np.int8)
-        elif name == 'cat2_var':
-            fun = (cat2_var, np.int8)
-        elif name == 'entropy':
-            fun = (entropy, np.float32)
-        elif name == 'diff':
-            fun = (diff, np.int8)
+        fun = stats.get(name)
+        if name in ['mode', 'cat_var', 'cat2_var', 'diff']:
+            dtype = np.int8
         else:
-            raise ValueError('Invalid statistic "%s"!' % name)
-        funs[name] = fun
+            dtype = np.float32
+        funs[name] = (fun, dtype)
     return funs
 
 
@@ -212,11 +156,13 @@ def select_dict(data, idx):
     return data
 
 
-def read_anno_file(anno_file, chromo, pos):
+def annotate(anno_file, chromo, pos):
+    anno_file = dat.GzipFile(anno_file, 'r')
     anno = pd.read_table(anno_file, header=None, usecols=[0, 1, 2],
                          dtype={0: 'str', 1: 'int32', 2: 'int32'})
+    anno_file.close()
     anno.columns = ['chromo', 'start', 'end']
-    anno.chromo = anno.chromo.str.upper().str.replace('chr', '')
+    anno.chromo = anno.chromo.str.upper().str.replace('CHR', '')
     anno = anno.loc[anno.chromo == chromo]
     anno.sort_values('start', inplace=True)
     start, end = an.join_overlapping(anno.start.values, anno.end.values)
@@ -236,7 +182,11 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Prepares data for training and testing.')
+            description='Creates DeepCpG data for training and testing.')
+        p.add_argument(
+            '-o', '--out_dir',
+            help='Output directory',
+            default='.')
         p.add_argument(
             '--dna_db',
             help='DNA database file')
@@ -244,42 +194,56 @@ class App(object):
             '--dna_wlen',
             help='DNA window length',
             type=int,
-            default=501)
+            default=1001)
         p.add_argument(
             '--cpg_profiles',
             help='BED files with single-cell methylation profiles',
             nargs='+')
         p.add_argument(
-            '--bulk_profiles',
-            help='BED files with bulk methylation profiles',
-            nargs='+')
-        p.add_argument(
-            '--pos_file',
-            help='Position file')
-        p.add_argument(
-            '--anno_files',
-            help='Annotation files',
-            nargs='+')
-        p.add_argument(
             '--cpg_wlen',
             help='CpG window length',
-            type=int)
+            type=int,
+            default=50)
         p.add_argument(
             '--cpg_cov',
             help='Minimum CpG coverage.',
             type=int,
             default=1)
         p.add_argument(
-            '--cpg_stats',
-            help='Output statistics derived from single-cell profiles',
+            '--pos_file',
+            help='Position file')
+        p.add_argument(
+            '--bulk_profiles',
+            help='BED files with bulk methylation profiles',
+            nargs='+')
+        p.add_argument(
+            '--anno_files',
+            help='Annotation files',
+            nargs='+')
+        p.add_argument(
+            '--stats',
+            help='Per CpG statistics derived from single-cell profiles',
             nargs='+',
             choices=['mean', 'mode', 'var', 'cat_var', 'cat2_var', 'entropy',
-                     'diff'])
+                     'diff', 'cov'])
         p.add_argument(
-            '--cpg_stats_cov',
-            help='Minimum CpG coverage for computing statistics',
+            '--stats_cov',
+            help='Minimum coverage for computing per CpG  statistics',
             type=int,
             default=1)
+        p.add_argument(
+            '--win_stats',
+            help='Window-based output statistics derived from single-cell ' +
+                 'profiles',
+            nargs='+',
+            choices=['mean', 'mode', 'var', 'cat_var', 'cat2_var', 'entropy',
+                     'diff', 'cov'])
+        p.add_argument(
+            '--win_stats_wlen',
+            help='Window lengths for computing statistics',
+            type=int,
+            nargs='+',
+            default=[3001])
         p.add_argument(
             '--chromos',
             nargs='+',
@@ -293,10 +257,6 @@ class App(object):
             type=int,
             default=32768,
             help='Chunk size. Should be divisible by batch size')
-        p.add_argument(
-            '-o', '--out_dir',
-            help='Output directory',
-            default='.')
         p.add_argument(
             '--verbose',
             help='More detailed log messages',
@@ -327,11 +287,14 @@ class App(object):
             raise '--cpg_wlen must be even!'
 
         # Parse functions for computing output statistics
-        if opts.cpg_stats:
-            cpg_stats_meta = output_stats_meta_by_name(opts.cpg_stats)
-        else:
-            cpg_stats_meta = None
+        cpg_stats_meta = None
+        win_stats_meta = None
+        if opts.stats:
+            cpg_stats_meta = get_stats_meta(opts.stats)
+        if opts.win_stats:
+            win_stats_meta = get_stats_meta(opts.win_stats)
 
+        make_dir(opts.out_dir)
         outputs = OrderedDict()
 
         # Read single-cell profiles if provided
@@ -369,6 +332,8 @@ class App(object):
             pos_table = pos_table.loc[pos_table.chromo.isin(opts.chromos)]
         if opts.nb_sample:
             pos_table = pos_table.iloc[:opts.nb_sample]
+
+        make_dir(opts.out_dir)
 
         # Iterate over chromosomes
         # ------------------------
@@ -412,10 +377,11 @@ class App(object):
 
             annos = None
             if opts.anno_files:
+                log.info('Annotating CpG sites ...')
                 annos = dict()
                 for anno_file in opts.anno_files:
-                    name = os.path.splitext(os.path.basename(anno_file))[0]
-                    annos[name] = read_anno_file(anno_file, chromo, chromo_pos)
+                    name = split_ext(anno_file)
+                    annos[name] = annotate(anno_file, chromo, chromo_pos)
 
             # Iterate over chunks
             # -------------------
@@ -452,10 +418,11 @@ class App(object):
                                                  compression='gzip')
                     # Compute and write statistics
                     if cpg_stats_meta is not None:
+                        log.info('Computing per CpG statistics ...')
                         cpg_mat = np.ma.masked_values(chunk_outputs['cpg_mat'],
                                                       dat.CPG_NAN)
                         mask = np.sum(~cpg_mat.mask, axis=1)
-                        mask = mask < opts.cpg_stats_cov
+                        mask = mask < opts.stats_cov
                         for name, fun in cpg_stats_meta.items():
                             stat = fun[0](cpg_mat).data.astype(fun[1])
                             stat[mask] = dat.CPG_NAN
@@ -516,7 +483,43 @@ class App(object):
                         group.create_dataset('dist', data=dist,
                                              compression='gzip')
 
+                if win_stats_meta is not None and opts.cpg_wlen:
+                    log.info('Computing window-based statistics ...')
+                    states = []
+                    dists = []
+                    cpg_states = []
+                    cpg_group = out_group['cpg']
+                    context_group = in_group['cpg']
+                    for output_name in cpg_group.keys():
+                        state = context_group[output_name]['state'].value
+                        states.append(np.expand_dims(state, 2))
+                        dist = context_group[output_name]['dist'].value
+                        dists.append(np.expand_dims(dist, 2))
+                        cpg_states.append(cpg_group[output_name].value)
+                    # samples x outputs x cpg_wlen
+                    states = np.swapaxes(np.concatenate(states, axis=2), 1, 2)
+                    dists = np.swapaxes(np.concatenate(dists, axis=2), 1, 2)
+                    cpg_states = np.expand_dims(np.vstack(cpg_states).T, 2)
+                    cpg_dists = np.zeros_like(cpg_states)
+                    states = np.concatenate([states, cpg_states], axis=2)
+                    dists = np.concatenate([dists, cpg_dists], axis=2)
+
+                    for wlen in opts.win_stats_wlen:
+                        idx = (states == dat.CPG_NAN) | (dists > wlen // 2)
+                        states_wlen = np.ma.masked_array(states, idx)
+                        group = out_group.create_group('win_stats/%d' % wlen)
+                        for name, fun in win_stats_meta.items():
+                            stat = fun[0](states_wlen)
+                            if hasattr(stat, 'mask'):
+                                idx = stat.mask
+                                stat = stat.data
+                                if np.sum(idx):
+                                    stat[idx] = dat.CPG_NAN
+                            group.create_dataset(name, data=stat, dtype=fun[1],
+                                                 compression='gzip')
+
                 if annos:
+                    log.info('Adding annotations ...')
                     group = in_group.create_group('annos')
                     for name, anno in annos.items():
                         group.create_dataset(name, data=anno[chunk_idx],

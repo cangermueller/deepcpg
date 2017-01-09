@@ -9,14 +9,14 @@ import pandas as pd
 
 from .. import data as dat
 from .. import evaluation as ev
-from ..data import hdf
+from ..data import hdf, OUTPUT_SEP
 from ..data.dna import int_to_onehot
 from ..utils import to_list
 
 
 class ScaledSigmoid(kl.Layer):
 
-    def __init__(self, scaling, **kwargs):
+    def __init__(self, scaling=1.0, **kwargs):
         self.supports_masking = True
         self.scaling = scaling
         super(ScaledSigmoid, self).__init__(**kwargs)
@@ -31,6 +31,27 @@ class ScaledSigmoid(kl.Layer):
 
 
 CUSTOM_OBJECTS = {'ScaledSigmoid': ScaledSigmoid}
+
+
+def get_first_conv_layer(layers, get_act=False):
+    conv_layer = None
+    act_layer = None
+    for layer in layers:
+        if isinstance(layer, kl.Conv1D) and layer.input_shape[-1] == 4:
+            conv_layer = layer
+            if not get_act:
+                break
+        elif conv_layer and isinstance(layer, kl.Activation):
+            act_layer = layer
+            break
+    if not conv_layer:
+        raise ValueError('Convolutional layer not found')
+    if get_act:
+        if not act_layer:
+            raise ValueError('Activation layer not found')
+        return (conv_layer, act_layer)
+    else:
+        return conv_layer
 
 
 def get_sample_weights(y, class_weights=None):
@@ -70,18 +91,15 @@ def load_model(model_files, custom_objects=CUSTOM_OBJECTS):
 def get_objectives(output_names):
     objectives = dict()
     for output_name in output_names:
-        if output_name.startswith('cpg'):
-            objective = 'binary_crossentropy'
-        elif output_name.startswith('bulk'):
+        _output_name = output_name.split(OUTPUT_SEP)
+        if _output_name[0] in ['bulk']:
             objective = 'mean_squared_error'
-        elif output_name in ['stats/diff', 'stats/mode', 'stats/cat2_var']:
-            objective = 'binary_crossentropy'
-        elif output_name in ['stats/mean', 'stats/var']:
+        elif _output_name[-1] in ['mean', 'var']:
             objective = 'mean_squared_error'
-        elif output_name in ['stats/cat_var']:
+        elif _output_name[-1] in ['cat_var']:
             objective = 'categorical_crossentropy'
         else:
-            raise ValueError('Invalid output name "%s"!')
+            objective = 'binary_crossentropy'
         objectives[output_name] = objective
     return objectives
 
@@ -89,15 +107,18 @@ def get_objectives(output_names):
 def add_output_layers(stem, output_names):
     outputs = []
     for output_name in output_names:
-        if output_name == 'stats/var':
-            x = kl.Dense(1, init='he_uniform')(stem)
-            x = ScaledSigmoid(0.25, name=output_name)(x)
-        elif output_name == 'stats/cat_var':
-            x = kl.Dense(3, init='he_uniform',
+        _output_name = output_name.split(OUTPUT_SEP)
+        if _output_name[-1] in ['entropy']:
+            x = kl.Dense(1, init='glorot_uniform', activation='relu')(stem)
+        elif _output_name[-1] in ['var']:
+            x = kl.Dense(1, init='glorot_uniform')(stem)
+            x = ScaledSigmoid(0.251, name=output_name)(x)
+        elif _output_name[-1] in ['cat_var']:
+            x = kl.Dense(3, init='glorot_uniform',
                          activation='softmax',
                          name=output_name)(stem)
         else:
-            x = kl.Dense(1, init='he_uniform',
+            x = kl.Dense(1, init='glorot_uniform',
                          activation='sigmoid',
                          name=output_name)(stem)
         outputs.append(x)
@@ -178,15 +199,24 @@ def read_from(reader, nb_sample=None):
 class Model(object):
 
     def __init__(self, dropout=0.0, l1_decay=0.0, l2_decay=0.0,
-                 init='he_uniform'):
+                 init='glorot_uniform'):
         self.dropout = dropout
         self.l1_decay = l1_decay
         self.l2_decay = l2_decay
         self.init = init
         self.name = self.__class__.__name__
+        self.scope = None
 
     def inputs(self, *args, **kwargs):
         pass
+
+    def _build(self, input, output):
+        model = km.Model(input, output, name=self.name)
+        if self.scope:
+            for layer in model.layers:
+                if layer not in model.input_layers:
+                    layer.name = '%s/%s' % (self.scope, layer.name)
+        return model
 
     def __call__(self, inputs=None):
         pass
