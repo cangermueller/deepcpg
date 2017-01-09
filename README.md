@@ -52,7 +52,7 @@ Getting started with DeepCpG in 30 seconds
   --out_dir ./data
 ```
 
-`./cpg/cell[123].tsv` store the methylation data from step 1., `dna` contains the DNA database, e.g. [mm10](ftp://ftp.ensembl.org/pub/release-85/fasta/mus_musculus/dna/) for mouse or [hg38](ftp://ftp.ensembl.org/pub/release-86/fasta/homo_sapiens/dna/) for human, and output data files will be stored in `./data`.
+`./cpg/cell[123].tsv` store the methylation data from step 1., `dna` contains the DNA database, e.g. [mm10](http://ftp.ensembl.org/pub/release-85/fasta/mus_musculus/dna/) for mouse or [hg38](http://ftp.ensembl.org/pub/release-86/fasta/homo_sapiens/dna/) for human, and output data files will be stored in `./data`.
 
 3. Fine-tune a pre-trained model or train your own model from scratch using `dcpg_train.py`:
 
@@ -81,7 +81,7 @@ This command uses chromosomes 1-3 for training and 10-13 for validation. `dna_mo
 
 This command predicts missing methylation states of all cells and chromosomes and evaluates prediction performances using known methylation states. Predicted states will be stored in `./eval/data.h5` and performance metrics in `./eval/report.tsv`.
 
-You can find mode examples in the 'examples/' directory, e.g. a [very basic tutorial](https://github.com/cangermueller/deepcpg2/blob/develop/examples/basics/index.ipynb)
+You can find mode examples in the 'examples/' directory, e.g. a [very basic tutorial](examples/basics/index.ipynb)
 
 Content
 -------
