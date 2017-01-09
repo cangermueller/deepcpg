@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+"""Creates DeepCpG input data from incomplete methylation profiles."""
+
 from collections import OrderedDict
 import os
 import sys
@@ -16,6 +18,7 @@ from deepcpg.data import stats
 from deepcpg.data import dna
 from deepcpg.data import fasta
 from deepcpg.data import feature_extractor as fext
+from deepcpg.utils import make_dir
 
 
 def prepro_pos_table(pos_tables):
@@ -179,7 +182,11 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Prepares data for training and testing.')
+            description='Creates DeepCpG data for training and testing.')
+        p.add_argument(
+            '-o', '--out_dir',
+            help='Output directory',
+            default='.')
         p.add_argument(
             '--dna_db',
             help='DNA database file')
@@ -187,31 +194,32 @@ class App(object):
             '--dna_wlen',
             help='DNA window length',
             type=int,
-            default=501)
+            default=1001)
         p.add_argument(
             '--cpg_profiles',
             help='BED files with single-cell methylation profiles',
             nargs='+')
         p.add_argument(
-            '--bulk_profiles',
-            help='BED files with bulk methylation profiles',
-            nargs='+')
-        p.add_argument(
-            '--pos_file',
-            help='Position file')
-        p.add_argument(
-            '--anno_files',
-            help='Annotation files',
-            nargs='+')
-        p.add_argument(
             '--cpg_wlen',
             help='CpG window length',
-            type=int)
+            type=int,
+            default=50)
         p.add_argument(
             '--cpg_cov',
             help='Minimum CpG coverage.',
             type=int,
             default=1)
+        p.add_argument(
+            '--pos_file',
+            help='Position file')
+        p.add_argument(
+            '--bulk_profiles',
+            help='BED files with bulk methylation profiles',
+            nargs='+')
+        p.add_argument(
+            '--anno_files',
+            help='Annotation files',
+            nargs='+')
         p.add_argument(
             '--stats',
             help='Per CpG statistics derived from single-cell profiles',
@@ -250,10 +258,6 @@ class App(object):
             default=32768,
             help='Chunk size. Should be divisible by batch size')
         p.add_argument(
-            '-o', '--out_dir',
-            help='Output directory',
-            default='.')
-        p.add_argument(
             '--verbose',
             help='More detailed log messages',
             action='store_true')
@@ -290,6 +294,7 @@ class App(object):
         if opts.win_stats:
             win_stats_meta = get_stats_meta(opts.win_stats)
 
+        make_dir(opts.out_dir)
         outputs = OrderedDict()
 
         # Read single-cell profiles if provided
@@ -327,6 +332,8 @@ class App(object):
             pos_table = pos_table.loc[pos_table.chromo.isin(opts.chromos)]
         if opts.nb_sample:
             pos_table = pos_table.iloc[:opts.nb_sample]
+
+        make_dir(opts.out_dir)
 
         # Iterate over chromosomes
         # ------------------------

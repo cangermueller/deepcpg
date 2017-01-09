@@ -22,7 +22,7 @@ from deepcpg import data as dat
 from deepcpg import metrics as met
 from deepcpg import models as mod
 from deepcpg.data import hdf, OUTPUT_SEP
-from deepcpg.utils import format_table, EPS
+from deepcpg.utils import format_table, make_dir, EPS
 
 
 LOG_PRECISION = 4
@@ -589,9 +589,7 @@ class App(object):
         self.log = log
         self.opts = opts
 
-        # Create output directory if not existing
-        if not os.path.exists(opts.out_dir):
-            os.makedirs(opts.out_dir, exist_ok=True)
+        make_dir(opts.out_dir)
 
         if opts.model_files:
             log.info('Loading existing model ...')
