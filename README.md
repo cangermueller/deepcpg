@@ -81,6 +81,8 @@ This command uses chromosomes 1-3 for training and 10-13 for validation. `dna_mo
 
 This command predicts missing methylation states of all cells and chromosomes and evaluates prediction performances using known methylation states. Predicted states will be stored in `./eval/data.h5` and performance metrics in `./eval/report.tsv`.
 
+You can find mode examples in the 'examples/' directory, e.g. a [very basic tutorial](https://github.com/cangermueller/deepcpg2/blob/develop/examples/basics/index.ipynb)
+
 Content
 -------
 * `/deepcpg/`: Source code
