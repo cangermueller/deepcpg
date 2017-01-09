@@ -30,6 +30,19 @@ Getting started with DeepCpG in 30 seconds
    * Position of the CpG site on the chromosome
    * Binary methylation state of the CpG sites (0=unmethylation, 1=methylated)
 
+  Example:
+
+  ```
+  1   3000827   1.0
+  1   3001007   0.0
+  1   3001018   1.0
+  ...
+  Y   90829839  1.0
+  Y   90829899  1.0
+  Y   90829918  0.0
+  ```
+
+
 2. Run `dcpg_data.py` to create the input data for DeepCpG:
 
 ```
@@ -39,9 +52,9 @@ Getting started with DeepCpG in 30 seconds
   --out_dir ./data
 ```
 
-`./cpg/cell[123].tsv` stores the methylation data from step 1., `dna` contains the DNA database, e.g. [mm10](ftp://ftp.ensembl.org/pub/release-85/fasta/mus_musculus/dna/) for mice or [hg38](ftp://ftp.ensembl.org/pub/release-86/fasta/homo_sapiens/dna/) for humans, and output data files will be stored in `./data`.
+`./cpg/cell[123].tsv` store the methylation data from step 1., `dna` contains the DNA database, e.g. [mm10](ftp://ftp.ensembl.org/pub/release-85/fasta/mus_musculus/dna/) for mouse or [hg38](ftp://ftp.ensembl.org/pub/release-86/fasta/homo_sapiens/dna/) for human, and output data files will be stored in `./data`.
 
-3. Reuse a pre-trained model or train your own model from scratch using `dcpg_train.py`:
+3. Fine-tune a pre-trained model or train your own model from scratch using `dcpg_train.py`:
 
 ```
   dcpg_train.py
@@ -54,7 +67,7 @@ Getting started with DeepCpG in 30 seconds
     --out_dir ./model
 ```
 
-This command uses chromosome 1-3 for training and 10-13 for validation and early stopping. `dna_model`, `cpg_model`, and `joint_model` specify the architecture of the CpG, DNA, and joint model, respectively. Training will stop after at most 30 epochs and model files be stored in `./model`.
+This command uses chromosomes 1-3 for training and 10-13 for validation. `dna_model`, `cpg_model`, and `joint_model` specify the architecture of the CpG, DNA, and joint model, respectively. Training will stop after at most 30 epochs and model files will be stored in `./model`.
 
 4. Use `dcpg_eval.py` to predict missing methylation states and evaluate prediction performances:
 
@@ -66,7 +79,7 @@ This command uses chromosome 1-3 for training and 10-13 for validation and early
     --out_report ./eval/report.tsv
 ```
 
-This command predicts the missing methylation states for all cells and chromosomes and evaluated prediction performances on partially observed data. Results will be stored in `./eval/data.h5` and performance metrics in `./eval/report.tsv`.
+This command predicts missing methylation states of all cells and chromosomes and evaluates prediction performances using known methylation states. Predicted states will be stored in `./eval/data.h5` and performance metrics in `./eval/report.tsv`.
 
 Content
 -------
