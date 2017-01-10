@@ -1,9 +1,0 @@
-argparse
-h5py
-keras
-matplotlib
-numpy
-pandas
-pytest
-seaborn
-scikit-learn
