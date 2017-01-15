@@ -77,6 +77,10 @@ def save_model(model, model_file, weights_file=None):
 def load_model(model_files, custom_objects=CUSTOM_OBJECTS):
     if not isinstance(model_files, list):
         model_files = [model_files]
+    if os.path.isdir(model_files[0]):
+        dirname = model_files[0]
+        model_files = [os.path.join(dirname, 'model.json'),
+                       os.path.join(dirname, 'model_weights_val.h5')]
     if os.path.splitext(model_files[0])[1] == '.h5':
         model = km.load_model(model_files[0], custom_objects=custom_objects)
     else:

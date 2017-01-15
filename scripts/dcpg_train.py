@@ -37,6 +37,7 @@ def remove_outputs(model):
         model.layers.pop()
     model.outputs = [model.layers[-1].output]
     model.layers[-1].outbound_nodes = []
+    model.output_names = None
 
 
 def rename_layers(model, scope=None):
@@ -144,6 +145,8 @@ class App(object):
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
             description='Train model')
+
+        # IO
         p.add_argument(
             'train_files',
             nargs='+',
@@ -156,58 +159,34 @@ class App(object):
             '-o', '--out_dir',
             default='./train',
             help='Output directory')
-        p.add_argument(
-            '--output_names',
-            help='Regex to select outputs',
-            nargs='+',
-            default=['cpg/.*'])
-        p.add_argument(
-            '--nb_output',
-            type=int,
-            help='Maximum number of outputs')
-        p.add_argument(
-            '--output_weights',
-            help='List of regex=weight patterns',
-            nargs='+')
-        p.add_argument(
-            '--replicate_names',
-            help='Regex to select replicates',
-            nargs='+')
-        p.add_argument(
-            '--nb_replicate',
-            type=int,
-            help='Maximum number of replicates')
+
+        # Model specification
         p.add_argument(
             '--dna_model',
             help='Name of DNA model or files of existing model',
             nargs='+')
         p.add_argument(
+            '--dna_wlen',
+            help='DNA window length',
+            type=int)
+        p.add_argument(
             '--cpg_model',
-            help='Name of Cpg model or files of existing model',
+            help='Name of CpG model or files of existing model',
             nargs='+')
+        p.add_argument(
+            '--cpg_wlen',
+            help='CpG window length',
+            type=int)
         p.add_argument(
             '--joint_model',
             help='Name of joint model',
-            default='joint01')
+            default='JointL1h512')
         p.add_argument(
             '--model_files',
             help='Continue training an existing model',
             nargs='+')
-        p.add_argument(
-            '--nb_epoch',
-            help='Maximum # training epochs',
-            type=int,
-            default=100)
-        p.add_argument(
-            '--batch_size',
-            help='Batch size',
-            type=int,
-            default=128)
-        p.add_argument(
-            '--early_stopping',
-            help='Early stopping patience',
-            type=int,
-            default=3)
+
+        # Learning paramters
         p.add_argument(
             '--learning_rate',
             help='Learning rate',
@@ -219,6 +198,11 @@ class App(object):
             type=float,
             default=0.975)
         p.add_argument(
+            '--nb_epoch',
+            help='Maximum # training epochs',
+            type=int,
+            default=100)
+        p.add_argument(
             '--nb_train_sample',
             help='Maximum # training samples',
             type=int)
@@ -226,7 +210,37 @@ class App(object):
             '--nb_val_sample',
             help='Maximum # validation samples',
             type=int)
+        p.add_argument(
+            '--batch_size',
+            help='Batch size',
+            type=int,
+            default=128)
+        p.add_argument(
+            '--early_stopping',
+            help='Early stopping patience',
+            type=int,
+            default=3)
+        p.add_argument(
+            '--dropout',
+            help='Dropout rate',
+            type=float,
+            default=0.0)
+        p.add_argument(
+            '--l1_decay',
+            help='L1 weight decay',
+            type=float,
+            default=0.0)
+        p.add_argument(
+            '--l2_decay',
+            help='L2 weight decay',
+            type=float,
+            default=0.0)
 
+        # Trainable components
+        p.add_argument(
+            '--fine_tune',
+            help='Only train output layers',
+            action='store_true')
         p.add_argument(
             '--trainable',
             help='Regex of layers that should be trained',
@@ -248,6 +262,35 @@ class App(object):
             '--filter_weights',
             help='HDF5 file with weights to be used for initializing filters',
             nargs='+')
+
+        # Inputs, outputs options
+        p.add_argument(
+            '--output_names',
+            help='Regex to select outputs',
+            nargs='+',
+            default=['cpg/.*'])
+        p.add_argument(
+            '--nb_output',
+            type=int,
+            help='Maximum number of outputs')
+        p.add_argument(
+            '--no_class_weights',
+            help='Do not weight classes',
+            action='store_true')
+        p.add_argument(
+            '--output_weights',
+            help='List of regex=weight patterns',
+            nargs='+')
+        p.add_argument(
+            '--replicate_names',
+            help='Regex to select replicates',
+            nargs='+')
+        p.add_argument(
+            '--nb_replicate',
+            type=int,
+            help='Maximum number of replicates')
+
+        # Misc
         p.add_argument(
             '--max_time',
             help='Maximum training time in hours',
@@ -255,10 +298,6 @@ class App(object):
         p.add_argument(
             '--stop_file',
             help='Stop training if this file exists')
-        p.add_argument(
-            '--no_class_weights',
-            help='Do not weight classes',
-            action='store_true')
         p.add_argument(
             '--seed',
             help='Seed of rng',
@@ -275,33 +314,6 @@ class App(object):
         p.add_argument(
             '--log_file',
             help='Write log messages to file')
-        p.add_argument(
-            '--dna_wlen',
-            help='DNA window length',
-            type=int)
-        p.add_argument(
-            '--cpg_wlen',
-            help='CpG window length',
-            type=int)
-        p.add_argument(
-            '--dropout',
-            help='Dropout rate',
-            type=float,
-            default=0.0)
-        p.add_argument(
-            '--l1_decay',
-            help='L1 weight decay',
-            type=float,
-            default=0.0)
-        p.add_argument(
-            '--l2_decay',
-            help='L2 weight decay',
-            type=float,
-            default=0.0)
-        p.add_argument(
-            '--initialization',
-            help='Parameter initialization',
-            default='he_uniform')
         p.add_argument(
             '--data_q_size',
             help='Size of data generator queue',
@@ -410,7 +422,7 @@ class App(object):
     def build_dna_model(self):
         opts = self.opts
         log = self.log
-        if os.path.isfile(opts.dna_model[0]):
+        if os.path.exists(opts.dna_model[0]):
             log.info('Loading existing DNA model ...')
             dna_model = mod.load_model(opts.dna_model)
             remove_outputs(dna_model)
@@ -429,7 +441,7 @@ class App(object):
     def build_cpg_model(self):
         opts = self.opts
         log = self.log
-        if os.path.isfile(opts.cpg_model[0]):
+        if os.path.exists(opts.cpg_model[0]):
             log.info('Loading existing CpG model ...')
             cpg_model = mod.load_model(opts.cpg_model)
             remove_outputs(cpg_model)
@@ -459,6 +471,12 @@ class App(object):
         opts = self.opts
         log = self.log
 
+        output_names = dat.get_output_names(opts.train_files[0],
+                                            regex=opts.output_names,
+                                            nb_key=opts.nb_output)
+        if not output_names:
+            raise ValueError('No outputs found!')
+
         dna_model = None
         if opts.dna_model:
             dna_model = self.build_dna_model()
@@ -477,14 +495,15 @@ class App(object):
             stem.name = '_'.join([stem.name, dna_model.name, cpg_model.name])
         elif dna_model is not None:
             stem = dna_model
-        else:
+        elif cpg_model is not None:
             stem = cpg_model
-
-        output_names = dat.get_output_names(opts.train_files[0],
-                                            regex=opts.output_names,
-                                            nb_key=opts.nb_output)
-        if not output_names:
-            raise ValueError('No outputs found!')
+        else:
+            log.info('Loading existing model ...')
+            stem = mod.load_model(opts.model_files)
+            if sorted(output_names) == sorted(stem.output_names):
+                return stem
+            log.info('Removing existing output layers ...')
+            remove_outputs(stem)
 
         outputs = mod.add_output_layers(stem.outputs, output_names)
         model = Model(input=stem.inputs, output=outputs, name=stem.name)
@@ -494,7 +513,9 @@ class App(object):
         opts = self.opts
         trainable = []
         not_trainable = []
-        if opts.train_models:
+        if opts.fine_tune:
+            not_trainable.append('.*')
+        elif opts.train_models:
             not_trainable.append('.*')
             for name in opts.train_models:
                 trainable.append('%s/' % name)
@@ -591,12 +612,9 @@ class App(object):
 
         make_dir(opts.out_dir)
 
-        if opts.model_files:
-            log.info('Loading existing model ...')
-            model = mod.load_model(opts.model_files)
-        else:
-            log.info('Building model ...')
-            model = self.build_model()
+        log.info('Building model ...')
+        model = self.build_model()
+
         model.summary()
         self.set_trainability(model)
         if opts.filter_weights:
@@ -680,6 +698,9 @@ class App(object):
 
         log.info('Training model ...')
         print()
+        print('Training samples: %d' % nb_train_sample)
+        if nb_val_sample:
+            print('Validation samples: %d' % nb_val_sample)
         model.fit_generator(
             train_data, nb_train_sample, opts.nb_epoch,
             callbacks=callbacks,
