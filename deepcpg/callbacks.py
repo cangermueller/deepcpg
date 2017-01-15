@@ -103,7 +103,6 @@ class PerformanceLogger(Callback):
         self._time_start = time()
         s = []
         s.append('Epochs: %d' % (self.params['nb_epoch']))
-        s.append('Samples: %d' % (self.params['nb_sample']))
         s = '\n'.join(s)
         self._log(s)
 

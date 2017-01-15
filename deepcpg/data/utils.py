@@ -1,5 +1,6 @@
 import gzip
 import threading
+import re
 
 import h5py as h5
 import numpy as np
@@ -109,15 +110,33 @@ def get_cpg_wlen(data_file, max_len=None):
     return wlen
 
 
+def is_bedgraph(filename):
+    if isinstance(filename, str):
+        with open(filename) as f:
+            line = f.readline()
+    else:
+        pos = filename.tell()
+        line = filename.readline()
+        filename.seek(pos)
+    return re.match(r'track\s+type=bedGraph', line) is not None
+
+
 def read_cpg_table(filename, chromos=None, nrows=None, round=True, sort=True):
-    d = pd.read_table(filename, header=None, usecols=[0, 1, 2], nrows=nrows,
-                      dtype={0: np.str, 1: np.int32, 2: np.float32},
-                      comment='#')
+    if is_bedgraph(filename):
+        usecols = [0, 1, 3]
+        skiprows = 1
+    else:
+        usecols = [0, 1, 2]
+        skiprows = 0
+    dtype = {usecols[0]: np.str, usecols[1]: np.int32, usecols[2]: np.float32}
+    d = pd.read_table(filename, header=None, nrows=nrows, comment='#',
+                      usecols=usecols, dtype=dtype, skiprows=skiprows)
     d.columns = ['chromo', 'pos', 'value']
     if chromos is not None:
         if not isinstance(chromos, list):
             chromos = [str(chromos)]
         d = d.loc[d.chromo.isin(chromos)]
+    d['chromo'] = d['chromo'].str.upper().str.replace('^CHR', '')
     if sort:
         d.sort_values(['chromo', 'pos'], inplace=True)
     if round:
@@ -137,13 +156,30 @@ class GzipFile(object):
             self.fh = open(filename, mode, *args, **kwargs)
 
     def read(self, *args, **kwargs):
-        tmp = self.fh.read(*args, **kwargs)
-        return tmp
+        return self.fh.read(*args, **kwargs)
+
+    def readline(self, *args, **kwargs):
+        return self.fh.readline(*args, **kwargs)
+
+    def readlines(self, *args, **kwargs):
+        return self.fh.readlines(*args, **kwargs)
 
     def write(self, data):
         if self.is_gzip and isinstance(data, str):
             data = data.encode()
         self.fh.write(data)
+
+    def writelines(self, *args, **kwargs):
+        self.fh.writelines(*args, **kwargs)
+
+    def tell(self, *args, **kwargs):
+        return self.fh.tell(*args, **kwargs)
+
+    def seek(self, *args, **kwargs):
+        self.fh.seek(*args, **kwargs)
+
+    def closed(self):
+        return self.fh.closed()
 
     def close(self):
         self.fh.close()
