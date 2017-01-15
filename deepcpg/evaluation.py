@@ -136,7 +136,7 @@ def get_output_metrics(output_name):
     elif _output_name[-1] in ['diff', 'mode', 'cat2_var']:
         metrics = CLA_METRICS
     elif _output_name[-1] == 'mean':
-        metrics = REG_METRICS + CLA_METRICS
+        metrics = REG_METRICS + CLA_METRICS + [kendall]
     elif _output_name[-1] == 'var':
         metrics = REG_METRICS + [kendall]
     else:
