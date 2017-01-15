@@ -208,23 +208,6 @@ class App(object):
             help='Input single-cell methylation profiles in dcpg or bedGraph format that are to be imputed',
             nargs='+')
         p.add_argument(
-            '--bulk_profiles',
-            help='Input bulk methylation profiles in dcpg or bedGraph format that are to be imputed',
-            nargs='+')
-        p.add_argument(
-            '--dna_db',
-            help='DNA database for extracting DNA sequence windows. Directory with one FASTA file per chromosome as downloadable from UCSC.')
-        p.add_argument(
-            '--anno_files',
-            help='Files with genomic annotations that are used as input features. Currently ignored by `dcpg_train.py`.',
-            nargs='+')
-        p.add_argument(
-            '-o', '--out_dir',
-            help='Output directory',
-            default='.')
-
-        # Settings
-        p.add_argument(
             '--cpg_wlen',
             help='CpG window length',
             type=int,
@@ -235,55 +218,70 @@ class App(object):
             type=int,
             default=1)
         p.add_argument(
+            '--bulk_profiles',
+            help='Input bulk methylation profiles in dcpg or bedGraph format that are to be imputed',
+            nargs='+')
+        p.add_argument(
+            '--dna_db',
+            help='DNA database for extracting DNA sequence windows. Directory with one FASTA file per chromosome as downloadable from UCSC.')
+        p.add_argument(
             '--dna_wlen',
             help='DNA window length',
             type=int,
             default=1001)
-
-        # Statistics
         p.add_argument(
+            '--anno_files',
+            help='Files with genomic annotations that are used as input features. Currently ignored by `dcpg_train.py`.',
+            nargs='+')
+        p.add_argument(
+            '-o', '--out_dir',
+            help='Output directory',
+            default='.')
+
+        g = p.add_argument_group('output statistics')
+        g.add_argument(
             '--stats',
             help='Per CpG statistics derived from single-cell profiles. Required, e.g., for predicting mean methylation levels or cell-to-cell variance.',
             nargs='+',
             choices=['mean', 'mode', 'var', 'cat_var', 'cat2_var', 'entropy',
                      'diff', 'cov'])
-        p.add_argument(
+        g.add_argument(
             '--stats_cov',
             help='Minimum coverage for computing per CpG  statistics',
             type=int,
             default=1)
-        p.add_argument(
+        g.add_argument(
             '--win_stats',
             help='Window-based output statistics derived from single-cell rofiles. Required, e.g., for predicting mean methylation levels or cell-to-cell variance.',
             nargs='+',
             choices=['mean', 'mode', 'var', 'cat_var', 'cat2_var', 'entropy',
                      'diff', 'cov'])
-        p.add_argument(
+        g.add_argument(
             '--win_stats_wlen',
             help='Window lengths for computing statistics',
             type=int,
             nargs='+',
             default=[3001])
 
-        # Misc
-        p.add_argument(
+        g = p.add_argument_group('advanced arguments')
+        g.add_argument(
             '--chromos',
             nargs='+',
             help='Chromosomes that are used')
-        p.add_argument(
+        g.add_argument(
             '--nb_sample',
             type=int,
             help='Maximum number of samples')
-        p.add_argument(
+        g.add_argument(
             '--chunk_size',
             type=int,
             default=32768,
             help='Maximum number of samples per output file. Should be divisible by batch size.')
-        p.add_argument(
+        g.add_argument(
             '--verbose',
             help='More detailed log messages',
             action='store_true')
-        p.add_argument(
+        g.add_argument(
             '--log_file',
             help='Write log messages to file')
         return p
