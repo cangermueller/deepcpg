@@ -121,6 +121,10 @@ def is_bedgraph(filename):
     return re.match(r'track\s+type=bedGraph', line) is not None
 
 
+def format_chromo(chromo):
+    return chromo.str.upper().str.replace('^CHR', '')
+
+
 def read_cpg_table(filename, chromos=None, nrows=None, round=True, sort=True):
     if is_bedgraph(filename):
         usecols = [0, 1, 3]
@@ -136,7 +140,7 @@ def read_cpg_table(filename, chromos=None, nrows=None, round=True, sort=True):
         if not isinstance(chromos, list):
             chromos = [str(chromos)]
         d = d.loc[d.chromo.isin(chromos)]
-    d['chromo'] = d['chromo'].str.upper().str.replace('^CHR', '')
+    d['chromo'] = format_chromo(d['chromo'])
     if sort:
         d.sort_values(['chromo', 'pos'], inplace=True)
     if round:

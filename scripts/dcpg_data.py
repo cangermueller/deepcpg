@@ -20,6 +20,7 @@ Examples:
 from collections import OrderedDict
 import os
 import sys
+import warnings
 
 import argparse
 import logging
@@ -70,7 +71,7 @@ def read_cpg_profiles(filenames, *args, **kwargs):
     return cpg_profiles
 
 
-def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
+def extract_seq_windows(seq, pos, wlen, seq_index=1, assert_cpg=False):
     """Extracts DNA sequence windows at positions.
 
     Parameters
@@ -90,8 +91,8 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
 
     for i in range(nb_win):
         p = pos[i] - seq_index
-        if cpg_sites and seq[p:p + 2] != 'CG':
-            raise ValueError('No CpG at position %d!' % p)
+        if seq[p:p + 2] != 'CG':
+            warnings.warn('No CpG at position %d!' % p)
         win = seq[max(0, p - delta): min(len(seq), p + delta + 1)]
         if len(win) < wlen:
             win = max(0, delta - p) * 'N' + win
@@ -102,7 +103,7 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, cpg_sites=True):
     idx = seq_wins == dna.CHAR_TO_INT['N']
     seq_wins[idx] = np.random.randint(0, 4, idx.sum())
     assert seq_wins.max() < 4
-    if cpg_sites:
+    if assert_cpg:
         assert np.all(seq_wins[:, delta] == 3)
         assert np.all(seq_wins[:, delta + 1] == 2)
     return seq_wins
@@ -209,9 +210,8 @@ class App(object):
             nargs='+')
         p.add_argument(
             '--cpg_wlen',
-            help='CpG window length',
-            type=int,
-            default=50)
+            help='If provided, extract `cpg_wlen`//2 neighboring CpG sites',
+            type=int)
         p.add_argument(
             '--cpg_cov',
             help='Minimum CpG coverage. Only use CpG sites for which the true methylation state is known in at least that many cells.',
@@ -339,6 +339,7 @@ class App(object):
                                       dtype={0: str, 1: np.int32},
                                       header=None, comment='#')
             pos_table.columns = ['chromo', 'pos']
+            pos_table['chromo'] = dat.format_chromo(pos_table['chromo'])
             pos_table = prepro_pos_table(pos_table)
         else:
             # Extract positions from profiles

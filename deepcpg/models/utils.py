@@ -327,11 +327,12 @@ class DataReader(object):
                 yield (inputs, outputs, weights)
 
 
-def data_reader_from_model(model):
+def data_reader_from_model(model, outputs=True):
     use_dna = False
     dna_wlen = None
     cpg_wlen = None
     replicate_names = None
+    output_names = None
 
     input_shapes = to_list(model.input_shape)
     for input_name, input_shape in zip(model.input_names, input_shapes):
@@ -344,7 +345,10 @@ def data_reader_from_model(model):
             assert len(replicate_names) == input_shape[1]
             cpg_wlen = input_shape[2]
 
-    return DataReader(output_names=model.output_names,
+    if outputs:
+        output_names = model.output_names
+
+    return DataReader(output_names=output_names,
                       use_dna=use_dna,
                       dna_wlen=dna_wlen,
                       cpg_wlen=cpg_wlen,
