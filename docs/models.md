@@ -9,6 +9,10 @@ Collection of pre-trained DeepCpG models for different datasets, which can be us
 * [Smallwood et al. (2014)](http://www.nature.com/nmeth/journal/v11/n8/full/nmeth.3035.html)
 * Protocol: scBS-Seq
 
+```
+Smallwood, Sébastien A., Heather J. Lee, Christof Angermueller, Felix Krueger, Heba Saadeh, Julian Peat, Simon R. Andrews, Oliver Stegle, Wolf Reik, and Gavin Kelsey. “Single-Cell Genome-Wide Bisulfite Sequencing for Assessing Epigenetic Heterogeneity.” Nature Methods 11, no. 8 (August 2014): 817–20. doi:10.1038/nmeth.3035.
+```
+
 ### Serum mESC
 
 Models trained on 18 serum mouse embryonic stem cells (mESCs)
@@ -31,6 +35,10 @@ Models trained on 12 2i mouse embryonic stem cells (mESCs)
 
 * [Hou et al. (2016)](http://www.nature.com/cr/journal/v26/n3/full/cr201623a.html)
 * Protocol: scRRBS-Seq
+
+```
+Hou, Yu, Huahu Guo, Chen Cao, Xianlong Li, Boqiang Hu, Ping Zhu, Xinglong Wu, et al. “Single-Cell Triple Omics Sequencing Reveals Genetic, Epigenetic, and Transcriptomic Heterogeneity in Hepatocellular Carcinomas.” Cell Research 26, no. 3 (March 2016): 304–19. doi:10.1038/cr.2016.23.
+```
 
 ### HCC
 
