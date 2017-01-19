@@ -1,12 +1,13 @@
-DeepCpG
-=======
+# DeepCpG
 
-Python package for predicting single-cell CpG methylation states from DNA
-sequence and neighboring CpG sites using deep neural networks [1].
+Python package for predicting single-cell CpG methylation states from DNA sequence and neighboring CpG sites using deep neural networks ([Angermueller et al., 2016](http://biorxiv.org/content/early/2016/05/27/055715)).
+
+```
+Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. “Accurate Prediction of Single-Cell DNA Methylation States Using Deep Learning.” bioRxiv, May 27, 2016, 055715. doi:10.1101/055715.
+```
 
 
-Installation
-------------
+## Installation
 
 Clone the DeepCpG repository into you current directory:
 
@@ -21,8 +22,7 @@ python setup.py install
 ```
 
 
-Getting started with DeepCpG in 30 seconds
-------------------------------------------
+## Getting started with DeepCpG in 30 seconds
 
 1. Store known CpG methylation states of each cell into a tab-delimted file with the following columns:
    * Chromosome (without chr)
@@ -82,20 +82,24 @@ This command predicts missing methylation states of all cells and chromosomes an
 
 You can find mode examples in the `examples/` directory, e.g. a [very basic tutorial](examples/basics/index.ipynb)
 
-Content
--------
+
+
+## Models
+
+Pre-trained models can be downloaded from the [DeepCpG model zoo](docs/models.md).
+
+
+
+## Content
 * `/deepcpg/`: Source code
 * `/docs`: Documentation
 * `/examples/`: Examples pipelines for using DeepCpG
 * `/script/`: Executable scripts for data creation, model training, and interpretation
 * `/tests`: Test files for for code
 
-Contact
--------
+
+
+## Contact
 * Christof Angermueller
 * cangermueller@gmail.com
 * https://cangermueller.com
-
-References
-----------
-[1] Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. “Accurate Prediction of Single-Cell DNA Methylation States Using Deep Learning.” bioRxiv, May 27, 2016, 055715. doi:10.1101/055715.
