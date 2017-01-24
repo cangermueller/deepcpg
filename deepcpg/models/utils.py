@@ -200,6 +200,23 @@ def read_from(reader, nb_sample=None):
     return data
 
 
+def copy_weights(src_model, dst_model, must_exist=True):
+    copied = []
+    for dst_layer in dst_model.layers:
+        for src_layer in src_model.layers:
+            if src_layer.name == dst_layer.name:
+                break
+        if not src_layer:
+            if must_exist:
+                tmp = 'Layer "%s" not found!' % (src_layer.name)
+                raise ValueError(tmp)
+            else:
+                continue
+        dst_layer.set_weights(src_layer.get_weights())
+        copied.append(dst_layer.name)
+    return copied
+
+
 class Model(object):
 
     def __init__(self, dropout=0.0, l1_decay=0.0, l2_decay=0.0,
@@ -232,6 +249,13 @@ def encode_replicate_names(replicate_names):
 
 def decode_replicate_names(replicate_names):
     return replicate_names.split('--')
+
+
+def get_replicate_names(model):
+    for input_name in model.input_names:
+        if input_name.startswith('cpg/state/'):
+            return decode_replicate_names(input_name.replace('cpg/state/', ''))
+    raise ValueError('Replicate names not found in model!')
 
 
 class DataReader(object):

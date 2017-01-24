@@ -2,6 +2,8 @@ import os
 from glob import glob
 import gzip as gz
 
+from ..utils import to_list
+
 
 class FastaSeq(object):
 
@@ -41,14 +43,23 @@ def read_file(filename, gzip=None):
     return parse_lines(lines)
 
 
-def read_chromo(dna_db, chromo):
-    filename = glob(os.path.join(dna_db, '*.chromosome.%s.*fa.gz' % chromo))
-    if len(filename) != 1:
-        tmp = 'File for chromosome "%s" not found in "%s"!' % (chromo, dna_db)
-        raise ValueError(tmp)
-    filename = filename[0]
+def select_file_by_chromo(filenames, chromo):
+    filenames = to_list(filenames)
+    if len(filenames) == 1 and os.path.isdir(filenames[0]):
+        filenames = glob(os.path.join(filenames[0],
+                                      '*.dna.chromosome.%s.fa*' % chromo))
+
+    for filename in filenames:
+        if filename.find('chromosome.%s.fa' % chromo) >= 0:
+            return filename
+
+
+def read_chromo(filenames, chromo):
+    filename = select_file_by_chromo(filenames, chromo)
+    if not filename:
+        raise ValueError('DNA file for chromosome "%s" not found!' % chromo)
 
     fasta_seqs = read_file(filename)
     if len(fasta_seqs) != 1:
-        raise 'Single sequence expected in file "%s"!' % filename
+        raise ValueError('Single sequence expected in file "%s"!' % filename)
     return fasta_seqs[0].seq

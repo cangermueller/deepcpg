@@ -441,30 +441,46 @@ class App(object):
     def build_cpg_model(self):
         opts = self.opts
         log = self.log
+
+        replicate_names = dat.get_replicate_names(
+            opts.train_files[0],
+            regex=opts.replicate_names,
+            nb_key=opts.nb_replicate)
+        if not replicate_names:
+            raise ValueError('Not replicates found!')
+        print('Replicate names:')
+        print(', '.join(replicate_names))
+        print()
+
+        cpg_wlen = dat.get_cpg_wlen(opts.train_files[0], opts.cpg_wlen)
+
         if os.path.exists(opts.cpg_model[0]):
             log.info('Loading existing CpG model ...')
-            cpg_model = mod.load_model(opts.cpg_model)
-            remove_outputs(cpg_model)
-            rename_layers(cpg_model, 'cpg')
+            src_cpg_model = mod.load_model(opts.cpg_model)
+            remove_outputs(src_cpg_model)
+            rename_layers(src_cpg_model, 'cpg')
+            src_replicate_names = mod.get_replicate_names(src_cpg_model)
+            if src_replicate_names != replicate_names:
+                log.info('Replicate names differ: '
+                         'Copying weights to new model ...')
+                cpg_model_builder = mod.cpg.get(src_cpg_model.name)(
+                    l1_decay=opts.l1_decay,
+                    l2_decay=opts.l2_decay,
+                    dropout=opts.dropout)
+                cpg_inputs = cpg_model_builder.inputs(cpg_wlen, replicate_names)
+                cpg_model = cpg_model_builder(cpg_inputs)
+                mod.copy_weights(src_cpg_model, cpg_model)
+            else:
+                cpg_model = src_cpg_model
         else:
             log.info('Building CpG model ...')
             cpg_model_builder = mod.cpg.get(opts.cpg_model[0])(
                 l1_decay=opts.l1_decay,
                 l2_decay=opts.l2_decay,
                 dropout=opts.dropout)
-
-            cpg_wlen = dat.get_cpg_wlen(opts.train_files[0], opts.cpg_wlen)
-            replicate_names = dat.get_replicate_names(
-                opts.train_files[0],
-                regex=opts.replicate_names,
-                nb_key=opts.nb_replicate)
-            if not replicate_names:
-                raise ValueError('Not replicates found!')
-            print('Replicate names:')
-            print(', '.join(replicate_names))
-            print()
             cpg_inputs = cpg_model_builder.inputs(cpg_wlen, replicate_names)
             cpg_model = cpg_model_builder(cpg_inputs)
+
         return cpg_model
 
     def build_model(self):

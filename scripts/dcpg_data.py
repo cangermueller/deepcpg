@@ -12,7 +12,7 @@ Examples:
     dcpg_data.py \
         --cpg_profiles cell1.dcpg cell2.dcpg cell3.dcpg \
         --cpg_wlen 50 \
-        --dna_db ./mm10/ \
+        --dna_files ./mm10/ \
         --dna_wlen 1001 \
         --out_dir ./data
 """
@@ -222,8 +222,9 @@ class App(object):
             help='Input bulk methylation profiles in dcpg or bedGraph format that are to be imputed',
             nargs='+')
         p.add_argument(
-            '--dna_db',
-            help='DNA database for extracting DNA sequence windows. Directory with one FASTA file per chromosome as downloadable from UCSC.')
+            '--dna_files',
+            help='Directory or FASTA files named "*.chromosome.`chromo`.fa*" with the DNA sequences for chromosome `chromo`.',
+            nargs='+')
         p.add_argument(
             '--dna_wlen',
             help='DNA window length',
@@ -298,7 +299,7 @@ class App(object):
 
         # Check input arguments
         if not (opts.cpg_profiles or opts.bulk_profiles):
-            if not (opts.pos_file or opts.dna_db):
+            if not (opts.pos_file or opts.dna_files):
                 raise ValueError('Position table and DNA database expected!')
 
         if opts.dna_wlen and opts.dna_wlen % 2 == 0:
@@ -393,8 +394,8 @@ class App(object):
 
             # Read DNA of chromosome
             chromo_dna = None
-            if opts.dna_db:
-                chromo_dna = fasta.read_chromo(opts.dna_db, chromo)
+            if opts.dna_files:
+                chromo_dna = fasta.read_chromo(opts.dna_files, chromo)
 
             annos = None
             if opts.anno_files:
