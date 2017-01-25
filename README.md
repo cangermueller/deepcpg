@@ -84,7 +84,7 @@ This command predicts missing methylation states of all cells and chromosomes an
 
 ## Examples
 
-Interactive examples on how to use DeepCpG can be found [here](./examples/index.md).
+Interactive examples on how to use DeepCpG can be found [here](./examples/README.md).
 
 
 
