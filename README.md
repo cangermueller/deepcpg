@@ -47,13 +47,13 @@ python setup.py install
 ```
   dcpg_data.py
   --cpg_profiles ./cpg/cell1.tsv ./cpg/cell2.tsv ./cpg/cell3.tsv
-  --dna_db ./dna
+  --dna_files ./dna/*.dna.chromosome.*.fa*
   --out_dir ./data
 ```
 
 `./cpg/cell[123].tsv` store the methylation data from step 1., `dna` contains the DNA database, e.g. [mm10](http://ftp.ensembl.org/pub/release-85/fasta/mus_musculus/dna/) for mouse or [hg38](http://ftp.ensembl.org/pub/release-86/fasta/homo_sapiens/dna/) for human, and output data files will be stored in `./data`.
 
-3. Fine-tune a pre-trained model or train your own model from scratch using `dcpg_train.py`:
+3. Fine-tune a pre-trained model or train your own model from scratch with `dcpg_train.py`:
 
 ```
   dcpg_train.py
@@ -80,7 +80,11 @@ This command uses chromosomes 1-3 for training and 10-13 for validation. `dna_mo
 
 This command predicts missing methylation states of all cells and chromosomes and evaluates prediction performances using known methylation states. Predicted states will be stored in `./eval/data.h5` and performance metrics in `./eval/report.tsv`.
 
-You can find mode examples in the `examples/` directory, e.g. a [very basic tutorial](examples/basics/index.ipynb)
+
+
+## Examples
+
+Interactive examples on how to use DeepCpG can be found [here](./examples/index.md).
 
 
 
@@ -93,9 +97,9 @@ Pre-trained models can be downloaded from the [DeepCpG model zoo](docs/models.md
 ## Content
 * `/deepcpg/`: Source code
 * `/docs`: Documentation
-* `/examples/`: Examples pipelines for using DeepCpG
+* `/examples/`: Examples for using DeepCpG
 * `/script/`: Executable scripts for data creation, model training, and interpretation
-* `/tests`: Test files for for code
+* `/tests`: Test files
 
 
 
