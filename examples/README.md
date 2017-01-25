@@ -10,6 +10,6 @@ bash setup.sh
 
 ## Tutorials
 
-* [DeepCpG basic](./basic/index.ipynb): Illustrates data pre-processing, model training, and model evaluation.
+* [DeepCpG basics](./basics/index.ipynb): Illustrates data pre-processing, model training, and model evaluation.
 
 ... more tutorials to come!
