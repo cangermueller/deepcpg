@@ -1,5 +1,48 @@
 #!/usr/bin/env python
 
+"""Shows the content of DeepCpG data files.
+
+Allows to selectively show the content of `dcpg_data.py` output files, for
+example to analyze CpG sites in a particular region.
+
+Examples:
+    Show the output methylation state of CpG sites on on chromosome 19 between
+    position 3028955 and 3079682:
+
+        dcpg_data_show.py \
+            ./data/*.h5 \
+            --chromo 1 \
+            --start 3028955 \
+            --end 3079682 \
+            --outputs
+
+    Show output methylation states and the state as well as the distance of
+    10 neighboring CpG sites of cell BS27_1_SER:
+
+        dcpg_data_show.py \
+            ./data/*.h5 \
+            --chromo 1 \
+            --start 3028955 \
+            --end 3079682 \
+            --outputs cpg/BS27_1_SER \
+            --cpg BS27_1_SER \
+            --cpg_wlen 10 \
+            --cpg_dist
+
+    Show output methylation states and DNA sequence windows of length 11 and
+    store the results in HDF5 file `selected.h5`:
+
+        dcpg_data_show.py \
+            ./data/*.h5 \
+            --chromo 1 \
+            --start 3028955 \
+            --end 3079682 \
+            --outputs \
+            --dna_wlen 11 \
+            --out_file selected.h5
+
+"""
+
 from collections import OrderedDict
 import os
 import sys
@@ -8,6 +51,8 @@ import argparse
 import h5py as h5
 import logging
 import pandas as pd
+
+from deepcpg.data import hdf
 
 
 def delta_columns(delta, zero=True):
@@ -30,26 +75,26 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Show data')
+            description='Shows selected data from DeepCpG data files')
         p.add_argument(
             'data_files',
             nargs='+',
             help='Data files')
         p.add_argument(
             '-o', '--out_file',
-            help='Write data to HDF5 file')
+            help='Write selected data to HDF5 file')
         p.add_argument(
             '--outputs',
             nargs='*',
-            help='Show outputs')
+            help='Name of outputs that are shown')
         p.add_argument(
             '--dna_wlen',
             type=int,
-            help='Show DNA of that length')
+            help='Length of DNA sequence window that is shown')
         p.add_argument(
             '--cpg',
             nargs='*',
-            help='Show CpG tracks of replicates')
+            help='Name of replicates that are shown')
         p.add_argument(
             '--cpg_wlen',
             type=int,
@@ -58,7 +103,7 @@ class App(object):
         p.add_argument(
             '--cpg_dist',
             action='store_true',
-            help='Show CpG distance instead of its state')
+            help='Also show distance to neighboring CpG sites')
         p.add_argument(
             '--chromo',
             help='Chromosome')
@@ -66,7 +111,7 @@ class App(object):
             '--start',
             type=int,
             help='Start position')
-        p.add_argument(
+      p.add_argument(
             '--end',
             type=int,
             help='End position')
@@ -108,7 +153,7 @@ class App(object):
                 group = data_file['outputs']
                 output_names = opts.outputs
                 if not len(output_names):
-                    output_names = list(group.keys())
+                    output_names = hdf.ls(filename, 'outputs', recursive=True)
                 outputs = []
                 for output_name in output_names:
                     output = pd.Series(group[output_name].value,

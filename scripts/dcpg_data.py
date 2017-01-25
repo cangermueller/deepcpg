@@ -8,7 +8,6 @@ to output directory. Output data can than be used for model training using
 `dcpg_train.py` model evaluation using `dcpg_eval.py`.
 
 Examples:
-    Create
     dcpg_data.py \
         --cpg_profiles cell1.dcpg cell2.dcpg cell3.dcpg \
         --cpg_wlen 50 \
