@@ -18,7 +18,7 @@ function run {
 }
 
 data_dir="./data"
-data_url="http://www.ebi.ac.uk/~angermue/deepcpg"
+data_host="http://www.ebi.ac.uk/~angermue/deepcpg/alias"
 
 function download_genome {
   name=$1
@@ -34,24 +34,23 @@ function download_genome {
 }
 
 function download_zip {
-  url=$1
-  out_file=$2
-  out_dir=$(dirname $out_file)
+  key=$1
+  out_dir=$2
 
   if [[ -e $out_dir ]]; then
     return
   fi
 
-  run "wget $data_host/b3afd7f831dec739d20843a3ef2dbeff -O $out_file"
-  run "unzip -o $out_file -d $(dirname $out_file)"
-  run "rm $out_file"
+  run "wget $data_host/$key -O $out_dir.zip"
+  run "unzip -o $out_dir.zip -d $out_dir"
+  run "rm $out_dir.zip"
 }
 
 
 download_genome "mm10" "ftp://ftp.ensembl.org/pub/release-85/fasta/mus_musculus/dna/Mus_musculus.GRCm38.dna.chromosome.*.fa.gz"
 
-if [[ ! -e $data_dir/cpg ]]; then
-  download_zip "${data_url}/examples/data/cpg.zip" "$data_dir/cpg.zip"
+if [[ ! -e "$data_dir/cpg" ]]; then
+  download_zip "b3afd7f831dec739d20843a3ef2dbeff" "$data_dir/cpg"
   run "gunzip $data_dir/cpg/*gz"
 fi
 

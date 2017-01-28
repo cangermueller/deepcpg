@@ -20,7 +20,7 @@ import logging
 from deepcpg.utils import make_dir
 
 
-DATA_HOST = 'http://www.ebi.ac.uk/~angermue/170126_deepcpg-data/alias'
+DATA_HOST = 'http://www.ebi.ac.uk/~angermue/deepcpg/alias'
 
 MODELS = {
     'Smallwood2014_2i_dna': '51b5b3df82e5431a37794640647baafd',
