@@ -1,4 +1,4 @@
-import os
+from os import path as pt
 
 from keras import backend as K
 from keras import models as km
@@ -65,7 +65,7 @@ def get_sample_weights(y, class_weights=None):
 
 
 def save_model(model, model_file, weights_file=None):
-    if os.path.splitext(model_file)[1] == '.h5':
+    if pt.splitext(model_file)[1] == '.h5':
         model.save(model_file)
     else:
         with open(model_file, 'w') as f:
@@ -74,14 +74,31 @@ def save_model(model, model_file, weights_file=None):
         model.save_weights(weights_file, overwrite=True)
 
 
-def load_model(model_files, custom_objects=CUSTOM_OBJECTS):
+def search_model_files(dirname):
+    json_file = pt.join(dirname, 'model.json')
+    if pt.isfile(json_file):
+        order = ['model_weights.h5', 'model_weights_val.h5',
+                 'model_weights_train.h5']
+        for name in order:
+            filename = pt.join(dirname, name)
+            if pt.isfile(filename):
+                return [json_file, filename]
+    elif pt.isfile(pt.join(dirname, 'model.h5')):
+        return pt.join(dirname, 'model.h5')
+    else:
+        return None
+
+
+def load_model(model_files, custom_objects=CUSTOM_OBJECTS, log=None):
     if not isinstance(model_files, list):
         model_files = [model_files]
-    if os.path.isdir(model_files[0]):
-        dirname = model_files[0]
-        model_files = [os.path.join(dirname, 'model.json'),
-                       os.path.join(dirname, 'model_weights_val.h5')]
-    if os.path.splitext(model_files[0])[1] == '.h5':
+    if pt.isdir(model_files[0]):
+        model_files = search_model_files(model_files[0])
+        if model_files is None:
+            raise ValueError('No model found in "%s"!' % model_files[0])
+        if log:
+            log('Using model files %s' % ' '.join(model_files))
+    if pt.splitext(model_files[0])[1] == '.h5':
         model = km.load_model(model_files[0], custom_objects=custom_objects)
     else:
         with open(model_files[0], 'r') as f:

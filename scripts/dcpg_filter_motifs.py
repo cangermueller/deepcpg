@@ -1,5 +1,33 @@
 #!/usr/bin/env python
 
+"""Visualizes and analyzes filter motifs.
+
+Allows to visualize motifs as sequence logos, compare motifs to annotated
+motifs, cluster motifs, and compute motif summary statistics. Requires Weblogo3
+for visualization, and Tomtom for motif comparison.
+
+Examples:
+    Compute filter activations and also store input DNA sequence windows:
+
+        dcpg_filter_act.py \
+            ./data/*.h5 \
+            --out_file ./activations.h5 \
+            --store_inputs \
+            --nb_sample 100000
+
+    Visualize and analyze motifs:
+
+        dcpg_filter_motifs.py \
+            ./activations.h5 \
+            --out_dir ./motifs \
+            --motif_db ./motif_databases/CIS-BP/Mus_musculus.meme \
+            --plot_heat \
+            --plot_dens \
+            --plot_pca
+
+Based on `basset_motifs.py`, therefore Copyright (c) 2015 David Kelley.
+"""
+
 from collections import OrderedDict
 import sys
 import os
@@ -19,7 +47,7 @@ mpl.use('agg')
 from matplotlib import pyplot as plt
 import seaborn as sns
 
-from deepcpg.utils import EPS, linear_weights
+from deepcpg.utils import EPS, linear_weights, make_dir
 from deepcpg.data import dna
 from deepcpg.motifs import read_meme_db, get_report
 
@@ -72,19 +100,15 @@ def format_out_of(out, of):
 
 
 def get_act_kmers(filter_act, filter_len, seqs, thr_per=0.5, thr_max=25000,
-                  log=None, thr_per_norm=True):
+                  log=None):
     assert filter_act.shape[0] == seqs.shape[0]
     assert filter_act.shape[1] == seqs.shape[1]
 
     _thr_per = 0
     if thr_per:
-        if thr_per_norm:
-            filter_act_mean = filter_act.mean()
-            filter_act_norm = filter_act - filter_act_mean
-            _thr_per = thr_per * filter_act_norm.max() + filter_act_mean
-        else:
-            _thr_per = thr_per * filter_act.max() + \
-                (1 - thr_per) * filter_act.min()
+        filter_act_mean = filter_act.mean()
+        filter_act_norm = filter_act - filter_act_mean
+        _thr_per = thr_per * filter_act_norm.max() + filter_act_mean
 
         if log:
             tmp = format_out_of(np.sum(filter_act >= _thr_per), filter_act.size)
@@ -276,88 +300,94 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Visualize filter motifs')
+            description='Visualizes and analyzes filter motifs')
+
         p.add_argument(
             'in_file',
-            help='Input file with filter activations and sequences')
+            help='HDF5 file from with filter activations and DNA sequences')
         p.add_argument(
             '-o', '--out_dir',
             help='Output directory',
             default='.')
-        p.add_argument(
-            '-m', '--motif_dbs',
-            help='MEME databases for motif search',
-            nargs='+')
-        p.add_argument(
-            '--fdr',
-            help='FDR for motif search',
-            default=0.05,
-            type=float)
-        p.add_argument(
+
+        g = p.add_argument_group('motif visualization')
+        g.add_argument(
             '--act_thr_per',
-            help='Percentage of maximum activation for selecting sites',
+            help='Minimum activation threshold of aligned sequence fragments. Percentage of maximum activation above the mean activation.',
             default=0.5,
             type=float)
-        p.add_argument(
-            '--act_thr_per_nonorm',
-            help='Do not normalize',
-            action='store_true')
-        p.add_argument(
+        g.add_argument(
             '--act_thr_max',
-            help='Max number of sites to be selected',
+            help='Maximum number of aligned sequence fragments',
             type=int,
             default=25000)
-        p.add_argument(
-            '--trim_thr',
-            help='Threshold from trimming uninformative sites of PWM',
-            type=float)
-        p.add_argument(
-            '--plot_dens',
-            help='Plot filter activation densitities',
+        g.add_argument(
+            '--weblogo_format',
+            help='Weblogo output format',
+            default='pdf')
+        g.add_argument(
+            '--weblogo_opts',
+            help='Command line options of Weblogo command',
+            default=WEBLOGO_OPTS)
+        g.add_argument(
+            '--delete_fasta',
+            help='Delete fasta files after visualizing motif to reduce disk storage',
             action='store_true')
-        p.add_argument(
+
+        g = p.add_argument_group('motif comparision')
+        g.add_argument(
+            '-m', '--motif_dbs',
+            help='MEME databases for motif comparison',
+            nargs='+')
+        g.add_argument(
+            '--fdr',
+            help='FDR for motif comparision',
+            default=0.05,
+            type=float)
+
+        g = p.add_argument_group('motif analysis')
+        g.add_argument(
+            '--plot_dens',
+            help='Plot filter activation density',
+            action='store_true')
+        g.add_argument(
             '--plot_heat',
             help='Plot filter heatmaps',
             action='store_true')
-        p.add_argument(
+        g.add_argument(
             '--plot_pca',
-            help='Plot activation principal components',
+            help='Plot first two principal componets of motif activities',
             action='store_true')
-        p.add_argument(
+        g.add_argument(
             '--nb_sample_pca',
-            help='Number of samples for PCA',
+            help='Number of samples in PCA matrix',
             type=int,
             default=1000)
-        p.add_argument(
-            '--delete_fasta',
-            help='Delete fasta files to reduce disk storage',
-            action='store_true')
-        p.add_argument(
-            '--nb_sample',
-            help='Maximum # samples',
-            type=int)
-        p.add_argument(
+
+
+        g = p.add_argument_group('advanced arguments')
+        g.add_argument(
+            '--trim_thr',
+            help='Threshold from trimming uninformative sites of PWM',
+            type=float)
+        g.add_argument(
             '--filters',
-            help='Filters to be tested (starting from 0)',
+            help='Indicies of filters (starting from 0) to be selected. Can be range of filters, e.g. -10 50-60 to select filter 0-10 and 50-50.',
             nargs='+')
-        p.add_argument(
-            '--WEBLOGO_OPTS',
-            help='Weblogo options',
-            default=WEBLOGO_OPTS)
-        p.add_argument(
-            '--weblogo_format',
-            help='Weblogo plot format',
-            default='pdf')
-        p.add_argument(
+        g.add_argument(
+            '--nb_sample',
+            help='Maximum number of input samples',
+            type=int)
+        g.add_argument(
             '--seed',
-            help='Seed of rng',
+            help='Seed of random number generator',
             type=int,
             default=0)
-        p.add_argument(
+        g.add_argument(
             '--verbose',
             help='More detailed log messages',
             action='store_true')
-        p.add_argument(
+        g.add_argument(
             '--log_file',
             help='Write log messages to file')
         return p
@@ -410,7 +440,7 @@ class App(object):
         print('Filter len: %d' % filter_len)
         print('Samples: %d' % nb_sample)
 
-        os.makedirs(opts.out_dir, exist_ok=True)
+        make_dir(opts.out_dir)
         sub_dirs = dict()
         names = ['logos', 'fa']
         if opts.plot_dens:
@@ -420,7 +450,7 @@ class App(object):
         for name in names:
             dirname = pt.join(opts.out_dir, name)
             sub_dirs[name] = dirname
-            os.makedirs(dirname, exist_ok=True)
+            make_dir(dirname)
 
         meme_filename = pt.join(opts.out_dir, 'meme.txt')
         meme_file = open_meme(meme_filename, seqs)
@@ -448,6 +478,9 @@ class App(object):
         log.info('Analyzing filters')
         log.info('-----------------')
         filter_stats = []
+        weblogo_opts = WEBLOGO_OPTS
+        if opts.weblogo_opts:
+            weblogo_opts = opts.weblogo_opts
         for idx in filters_idx:
             log.info('Filter %d' % idx)
             filter_act = filters_act[:nb_sample, :, idx]
@@ -481,8 +514,7 @@ class App(object):
             log.info('Extracting activating kmers')
             act_kmers = get_act_kmers(filter_act, filter_len, seqs,
                                       thr_per=opts.act_thr_per,
-                                      thr_max=opts.act_thr_max,
-                                      thr_per_norm=not opts.act_thr_per_nonorm)
+                                      thr_max=opts.act_thr_max)
             stats.nb_site = len(act_kmers)
 
             if len(act_kmers) < 10:
@@ -493,7 +525,7 @@ class App(object):
             logo_file = pt.join(sub_dirs['fa'], '%03d.fa' % idx)
             write_kmers(act_kmers, logo_file)
             plot_logo(logo_file, pt.join(sub_dirs['logos'], '%03d.pdf' % idx),
-                      options=WEBLOGO_OPTS)
+                      options=weblogo_opts)
             if opts.delete_fasta:
                 os.remove(logo_file)
 

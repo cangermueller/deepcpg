@@ -1,5 +1,16 @@
 #!/usr/bin/env python
 
+"""Visualizes learning curves of `dcpg_train.py`.
+
+Visualizes training and validation learning curve that `dcpg_train.py` stores in
+training output directory. For advanced visualization use Tensorboard.
+
+Example:
+    dcpg_train_viz.py \
+        ./model/lc_train.csv ./model/lc_val.csv \
+        --out_file ./lc.pdf
+"""
+
 import os
 import sys
 
@@ -52,7 +63,7 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Visualizes training learning curves')
+            description='Visualizes learning curves of `dcpg_train.py`')
         p.add_argument(
             'train_lc',
             help='Training learning curve')
@@ -64,8 +75,8 @@ class App(object):
             help='Performance metrics to be visualized',
             nargs='+')
         p.add_argument(
-            '-o', '--out_fig',
-            help='Output figure',
+            '-o', '--out_file',
+            help='Output file',
             default='lc.pdf')
         p.add_argument(
             '--outputs',
@@ -99,7 +110,7 @@ class App(object):
         lc = pd.concat(lc)
 
         plot = plot_lc(lc, metrics=opts.metrics, outputs=opts.outputs)
-        plot.savefig(opts.out_fig)
+        plot.savefig(opts.out_file)
 
         log.info('Done!')
 

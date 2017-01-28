@@ -64,7 +64,7 @@ def read_cpg_profiles(filenames, *args, **kwargs):
     for filename in filenames:
         cpg_file = dat.GzipFile(filename, 'r')
         output_name = split_ext(filename)
-        cpg_profile = dat.read_cpg_table(cpg_file, sort=True, *args, **kwargs)
+        cpg_profile = dat.read_cpg_profile(cpg_file, sort=True, *args, **kwargs)
         cpg_profiles[output_name] = cpg_profile
         cpg_file.close()
     return cpg_profiles
@@ -322,7 +322,7 @@ class App(object):
             log.info('Reading single-cell profiles ...')
             outputs['cpg'] = read_cpg_profiles(opts.cpg_profiles,
                                                chromos=opts.chromos,
-                                               nrows=opts.nb_sample)
+                                               nb_sample=opts.nb_sample)
 
         if opts.bulk_profiles:
             log.info('Reading bulk profiles ...')
@@ -347,12 +347,13 @@ class App(object):
             for cpg_table in list(outputs['cpg'].values()):
                 pos_tables.append(cpg_table[['chromo', 'pos']])
             pos_table = prepro_pos_table(pos_tables)
-        log.info('%d samples' % len(pos_table))
 
         if opts.chromos:
             pos_table = pos_table.loc[pos_table.chromo.isin(opts.chromos)]
         if opts.nb_sample:
             pos_table = pos_table.iloc[:opts.nb_sample]
+
+        log.info('%d samples' % len(pos_table))
 
         make_dir(opts.out_dir)
 

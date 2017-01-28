@@ -36,8 +36,13 @@ function download_genome {
 function download_zip {
   url=$1
   out_file=$2
+  out_dir=$(dirname $out_file)
 
-  run "wget $url -O $out_file"
+  if [[ -e $out_dir ]]; then
+    return
+  fi
+
+  run "wget $data_host/b3afd7f831dec739d20843a3ef2dbeff -O $out_file"
   run "unzip -o $out_file -d $(dirname $out_file)"
   run "rm $out_file"
 }
@@ -45,5 +50,14 @@ function download_zip {
 
 download_genome "mm10" "ftp://ftp.ensembl.org/pub/release-85/fasta/mus_musculus/dna/Mus_musculus.GRCm38.dna.chromosome.*.fa.gz"
 
-download_zip "${data_url}/examples/data/cpg.zip" "$data_dir/cpg.zip"
-run "gunzip $data_dir/cpg/*gz"
+if [[ ! -e $data_dir/cpg ]]; then
+  download_zip "${data_url}/examples/data/cpg.zip" "$data_dir/cpg.zip"
+  run "gunzip $data_dir/cpg/*gz"
+fi
+
+motif_file="motif_databases.12.15.tgz"
+if [[ ! -e $data_dir/motif_databases ]]; then
+  run "wget http://meme-suite.org/meme-software/Databases/motifs/$motif_file -O $data_dir/$motif_file"
+  run "tar xf $data_dir/$motif_file -C $data_dir"
+  run "rm $data_dir/$motif_file"
+fi

@@ -1,5 +1,16 @@
 #!/usr/bin/env python
 
+"""Evaluates prediction performance of a DeepCpG model.
+
+Imputes missing methylation states and evaluates model on observered states.
+
+Example:
+    dcpg_eval.py \
+        ./data/*.h5 \
+        --out_file ./eval.h5 \
+        --out_report ./eval.tsv
+"""
+
 import sys
 import os
 
@@ -25,10 +36,10 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Evaluates the performance of a model')
+            description='Evaluates prediction performance of a DeepCpG model')
         p.add_argument(
             'data_files',
-            help='Test data files',
+            help='Input data files for evaluation',
             nargs='+')
         p.add_argument(
             '--model_files',
@@ -36,7 +47,7 @@ class App(object):
             nargs='+')
         p.add_argument(
             '-o', '--out_report',
-            help='Output report file')
+            help='Output report file with evaluation metrics')
         p.add_argument(
             '--out_data',
             help='Output file with predictions and labels')

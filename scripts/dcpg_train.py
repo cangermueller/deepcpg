@@ -1,5 +1,40 @@
 #!/usr/bin/env python
 
+description = """Trains DeepCpG model to predict DNA methylation.
+
+Trains model on DNA (DNA model), neighboring methylation states (CpG model),
+or both (Joint model) to predict CpG methylation of multiple cells.
+Allows to fine-tune individual models or to train them from scratch.
+
+Examples:
+    Train DNA model on chromosome 1, 3, and 5,  and use chromosome 13, 14, and
+    15 for validation.
+
+        dcpg_train.py \
+            ./data/c{1,3,5}_*.h5 \
+            --val_files ./data/c{13,14,15}_*.h5 \
+            --dna_model CnnL2h128 \
+            --out_dir ./models/dna
+
+    Train CpG model:
+
+        dcpg_train.py \
+            ./data/c{1,3,5}_*.h5 \
+            --val_files ./data/c{13,14,15}_*.h5 \
+            --cpg_model RnnL1 \
+            --out_dir ./models/cpg
+
+    Train joint model based on pre-trained DNA and CpG model:
+
+        dcpg_train.py \
+            ./data/c{1,3,5}_*.h5 \
+            --val_files ./data/c{13,14,15}_*.h5 \
+            --dna_model ./models/dna \
+            --cpg_model ./models/cpg \
+            --out_dir ./models/joint \
+            --fine_tune
+"""
+
 from collections import OrderedDict
 import os
 import random
@@ -144,182 +179,193 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Train model')
+            description='Trains model on DNA (DNA model), neighboring '
+            'methylation states (CpG model), or both (Joint model) to predict '
+            'CpG methylation of multiple cells.')
 
         # IO
-        p.add_argument(
+        g = p.add_argument_group('input-output arguments')
+        g.add_argument(
             'train_files',
             nargs='+',
             help='Training data files')
-        p.add_argument(
+        g.add_argument(
             '--val_files',
             nargs='+',
             help='Validation data files')
-        p.add_argument(
+        g.add_argument(
             '-o', '--out_dir',
             default='./train',
             help='Output directory')
 
-        # Model specification
-        p.add_argument(
+        g = p.add_argument_group('arguments to define the model architecture')
+        models = sorted(list(mod.dna.list_models().keys()))
+        g.add_argument(
             '--dna_model',
-            help='Name of DNA model or files of existing model',
+            help='Name of DNA model or files of existing model.'
+            ' Available models: %s' % ', '.join(models),
             nargs='+')
-        p.add_argument(
+        g.add_argument(
             '--dna_wlen',
             help='DNA window length',
             type=int)
-        p.add_argument(
+        models = sorted(list(mod.cpg.list_models().keys()))
+        g.add_argument(
             '--cpg_model',
-            help='Name of CpG model or files of existing model',
+            help='Name of CpG model or files of existing model.'
+            ' Available models: %s' % ', '.join(models),
             nargs='+')
-        p.add_argument(
+        g.add_argument(
             '--cpg_wlen',
             help='CpG window length',
             type=int)
-        p.add_argument(
+        g.add_argument(
             '--joint_model',
             help='Name of joint model',
             default='JointL1h512')
-        p.add_argument(
+        g.add_argument(
             '--model_files',
-            help='Continue training an existing model',
+            help='Files of existing model',
             nargs='+')
 
-        # Learning paramters
-        p.add_argument(
-            '--learning_rate',
-            help='Learning rate',
-            type=float,
-            default=0.0001)
-        p.add_argument(
-            '--learning_rate_decay',
-            help='Exponential learning rate decay factor',
-            type=float,
-            default=0.975)
-        p.add_argument(
-            '--nb_epoch',
-            help='Maximum # training epochs',
-            type=int,
-            default=100)
-        p.add_argument(
-            '--nb_train_sample',
-            help='Maximum # training samples',
-            type=int)
-        p.add_argument(
-            '--nb_val_sample',
-            help='Maximum # validation samples',
-            type=int)
-        p.add_argument(
-            '--batch_size',
-            help='Batch size',
-            type=int,
-            default=128)
-        p.add_argument(
-            '--early_stopping',
-            help='Early stopping patience',
-            type=int,
-            default=3)
-        p.add_argument(
-            '--dropout',
-            help='Dropout rate',
-            type=float,
-            default=0.0)
-        p.add_argument(
-            '--l1_decay',
-            help='L1 weight decay',
-            type=float,
-            default=0.0)
-        p.add_argument(
-            '--l2_decay',
-            help='L2 weight decay',
-            type=float,
-            default=0.0)
-
-        # Trainable components
-        p.add_argument(
+        g = p.add_argument_group('arguments to define which model components '
+                                 'are trained')
+        g.add_argument(
             '--fine_tune',
             help='Only train output layers',
             action='store_true')
-        p.add_argument(
-            '--trainable',
-            help='Regex of layers that should be trained',
-            nargs='+')
-        p.add_argument(
-            '--not_trainable',
-            help='Regex of layers that should not be trained',
-            nargs='+')
-        p.add_argument(
+        g.add_argument(
             '--train_models',
             help='Only train the specified models',
             choices=['dna', 'cpg', 'joint'],
             nargs='+')
-        p.add_argument(
+        g.add_argument(
+            '--trainable',
+            help='Regex of layers that should be trained',
+            nargs='+')
+        g.add_argument(
+            '--not_trainable',
+            help='Regex of layers that should not be trained',
+            nargs='+')
+        g.add_argument(
             '--freeze_filter',
-            help='Do not train filter weights',
+            help='Exclude filter weights of first convolutional layer from '
+            'training',
             action='store_true')
-        p.add_argument(
+        g.add_argument(
             '--filter_weights',
             help='HDF5 file with weights to be used for initializing filters',
             nargs='+')
 
-        # Inputs, outputs options
-        p.add_argument(
+        g = p.add_argument_group('training arguments')
+        g.add_argument(
+            '--learning_rate',
+            help='Learning rate',
+            type=float,
+            default=0.0001)
+        g.add_argument(
+            '--learning_rate_decay',
+            help='Exponential learning rate decay factor',
+            type=float,
+            default=0.975)
+        g.add_argument(
+            '--nb_epoch',
+            help='Maximum # training epochs',
+            type=int,
+            default=50)
+        g.add_argument(
+            '--nb_train_sample',
+            help='Maximum # training samples',
+            type=int)
+        g.add_argument(
+            '--nb_val_sample',
+            help='Maximum # validation samples',
+            type=int)
+        g.add_argument(
+            '--batch_size',
+            help='Batch size',
+            type=int,
+            default=128)
+        g.add_argument(
+            '--early_stopping',
+            help='Early stopping patience',
+            type=int,
+            default=5)
+        g.add_argument(
+            '--dropout',
+            help='Dropout rate',
+            type=float,
+            default=0.0)
+        g.add_argument(
+            '--l1_decay',
+            help='L1 weight decay',
+            type=float,
+            default=0.0001)
+        g.add_argument(
+            '--l2_decay',
+            help='L2 weight decay',
+            type=float,
+            default=0.0001)
+
+        g = p.add_argument_group('arguments to select outputs and weights')
+        g.add_argument(
             '--output_names',
             help='Regex to select outputs',
             nargs='+',
             default=['cpg/.*'])
-        p.add_argument(
+        g.add_argument(
             '--nb_output',
             type=int,
             help='Maximum number of outputs')
-        p.add_argument(
+        g.add_argument(
             '--no_class_weights',
             help='Do not weight classes',
             action='store_true')
-        p.add_argument(
+        g.add_argument(
             '--output_weights',
-            help='List of regex=weight patterns',
+            help='Output weights defined as a list of `output`=`weight` '
+            'patterns, where `output` is a regex of output names, and '
+            '`weight` the weight that is assigned to them',
             nargs='+')
-        p.add_argument(
+        g.add_argument(
             '--replicate_names',
             help='Regex to select replicates',
             nargs='+')
-        p.add_argument(
+        g.add_argument(
             '--nb_replicate',
             type=int,
             help='Maximum number of replicates')
 
-        # Misc
-        p.add_argument(
+        g = p.add_argument_group('advanced arguments')
+        g.add_argument(
             '--max_time',
             help='Maximum training time in hours',
             type=float)
-        p.add_argument(
+        g.add_argument(
             '--stop_file',
-            help='Stop training if this file exists')
-        p.add_argument(
+            help='File that terminates training if it exists')
+        g.add_argument(
             '--seed',
-            help='Seed of rng',
+            help='Seed of random number generator',
             type=int,
             default=0)
-        p.add_argument(
+        g.add_argument(
             '--no_log_outputs',
             help='Do not log performance metrics of individual outputs',
             action='store_true')
-        p.add_argument(
+        g.add_argument(
             '--verbose',
             help='More detailed log messages',
             action='store_true')
-        p.add_argument(
+        g.add_argument(
             '--log_file',
             help='Write log messages to file')
-        p.add_argument(
+        g.add_argument(
             '--data_q_size',
             help='Size of data generator queue',
             type=int,
             default=10)
-        p.add_argument(
+        g.add_argument(
             '--data_nb_worker',
             help='Number of worker for data generator queue',
             type=int,
@@ -424,7 +470,7 @@ class App(object):
         log = self.log
         if os.path.exists(opts.dna_model[0]):
             log.info('Loading existing DNA model ...')
-            dna_model = mod.load_model(opts.dna_model)
+            dna_model = mod.load_model(opts.dna_model, log=log.info)
             remove_outputs(dna_model)
             rename_layers(dna_model, 'dna')
         else:
@@ -456,7 +502,7 @@ class App(object):
 
         if os.path.exists(opts.cpg_model[0]):
             log.info('Loading existing CpG model ...')
-            src_cpg_model = mod.load_model(opts.cpg_model)
+            src_cpg_model = mod.load_model(opts.cpg_model, log=log.info)
             remove_outputs(src_cpg_model)
             rename_layers(src_cpg_model, 'cpg')
             src_replicate_names = mod.get_replicate_names(src_cpg_model)
@@ -515,7 +561,7 @@ class App(object):
             stem = cpg_model
         else:
             log.info('Loading existing model ...')
-            stem = mod.load_model(opts.model_files)
+            stem = mod.load_model(opts.model_files, log=log.info)
             if sorted(output_names) == sorted(stem.output_names):
                 return stem
             log.info('Removing existing output layers ...')

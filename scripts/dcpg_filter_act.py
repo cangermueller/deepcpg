@@ -1,12 +1,39 @@
 #!/usr/bin/env python
 
+"""Computes filter activations of a DeepCpG model.
+
+Computes the activation of filters of the first convolutional layer for a
+given DNA model. The resulting activations can be used to visualize and cluster
+motifs, or correlated with model outputs.
+
+Example:
+    Compute activations in 25000 sequence windows and also store DNA sequences.
+    For example to visualize motifs.
+
+        dcpg_filter_act.py \
+            ./data/*.h5 \
+            --model_files ./models/dna \
+            --out_file ./activations.h5 \
+            --nb_sample 25000 \
+            --store_inputs
+
+    Compute the weighted mean activation in each sequence window and also store
+    model predictions. For example to cluster motifs or to correlated mean motif
+    activations with model predictions.
+
+        dcpg_filter_act.py \
+            ./data/*.h5 \
+            --model_files ./models/dna \
+            --out_file ./activations.h5 \
+            --act_fun wmean
+"""
+
 import sys
 import os
 
 import argparse
 import h5py as h5
 from keras import backend as K
-from keras import layers as kl
 import numpy as np
 import logging
 
@@ -29,7 +56,7 @@ class App(object):
         p = argparse.ArgumentParser(
             prog=name,
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description='Compute filter activations')
+            description='Computes filter activations of a DeepCpG model')
         p.add_argument(
             'data_files',
             help='Data files',
@@ -40,50 +67,53 @@ class App(object):
             nargs='+')
         p.add_argument(
             '-o', '--out_file',
-            help='Output file')
-        p.add_argument(
-            '--input_layer',
-            help='Compute effect wrt. inputs layer',
-            action='store_true')
-        p.add_argument(
+            help='Output file',
+            default='activations.h5')
+
+        g = p.add_argument_group('arguments for summarizing activations')
+        g.add_argument(
             '--act_fun',
-            help='Function applied to reduce sequence window activations',
+            help='Function for summarizing activations in each sequence window',
             choices=['mean', 'wmean', 'max'])
-        p.add_argument(
+        g.add_argument(
             '--act_wlen',
-            help='Slice wlen at center',
+            help='Maximal length of sequence windows',
             type=int)
-        p.add_argument(
+
+        g = p.add_argument_group('output arguments')
+        g.add_argument(
             '--store_outputs',
             help='Store output labels',
             action='store_true')
-        p.add_argument(
+        g.add_argument(
             '--store_preds',
             help='Store model predictions',
             action='store_true')
-        p.add_argument(
+        g.add_argument(
             '--store_inputs',
             help='Store model inputs',
             action='store_true')
-        p.add_argument(
+
+        g = p.add_argument_group('advanced arguments')
+        g.add_argument(
             '--nb_sample',
             help='Number of samples',
             type=int)
-        p.add_argument(
+        g.add_argument(
             '--batch_size',
             help='Batch size',
             type=int,
             default=128)
-        p.add_argument(
+        g.add_argument(
             '--seed',
-            help='Seed of rng',
+            help='Seed of random number generator',
             type=int,
             default=0)
-        p.add_argument(
+        g.add_argument(
             '--verbose',
             help='More detailed log messages',
             action='store_true')
-        p.add_argument(
+        g.add_argument(
             '--log_file',
             help='Write log messages to file')
         return p
@@ -106,7 +136,7 @@ class App(object):
 
         log.info('Loading model ...')
         K.set_learning_phase(0)
-        model = mod.load_model(opts.model_files)
+        model = mod.load_model(opts.model_files, log=log.info)
 
         weight_layer, act_layer = mod.get_first_conv_layer(model.layers, True)
         log.info('Using activation layer "%s"' % act_layer.name)
@@ -119,7 +149,8 @@ class App(object):
 
         log.info('Reading data ...')
         nb_sample = dat.get_nb_sample(opts.data_files, opts.nb_sample)
-        data_reader = mod.data_reader_from_model(model)
+        tmp = opts.store_outputs or opts.store_preds
+        data_reader = mod.data_reader_from_model(model, outputs=tmp)
         data_reader = data_reader(opts.data_files,
                                   nb_sample=nb_sample,
                                   batch_size=opts.batch_size,
@@ -154,7 +185,11 @@ class App(object):
         log.info('Computing activations')
         progbar = ProgressBar(nb_sample, log.info)
         idx = 0
-        for inputs, outputs, weights in data_reader:
+        for data in data_reader:
+            if isinstance(data, tuple):
+                inputs, outputs, weights = data
+            else:
+                inputs = data
             if isinstance(inputs, dict):
                 inputs = list(inputs.values())
             batch_size = len(inputs[0])

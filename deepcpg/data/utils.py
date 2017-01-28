@@ -125,7 +125,8 @@ def format_chromo(chromo):
     return chromo.str.upper().str.replace('^CHR', '')
 
 
-def read_cpg_table(filename, chromos=None, nrows=None, round=True, sort=True):
+def read_cpg_profile(filename, chromos=None, nb_sample=None, round=True,
+                     sort=True):
     if is_bedgraph(filename):
         usecols = [0, 1, 3]
         skiprows = 1
@@ -133,14 +134,17 @@ def read_cpg_table(filename, chromos=None, nrows=None, round=True, sort=True):
         usecols = [0, 1, 2]
         skiprows = 0
     dtype = {usecols[0]: np.str, usecols[1]: np.int32, usecols[2]: np.float32}
-    d = pd.read_table(filename, header=None, nrows=nrows, comment='#',
+    nrows = nb_sample if chromos is None else None
+    d = pd.read_table(filename, header=None, comment='#', nrows=nrows,
                       usecols=usecols, dtype=dtype, skiprows=skiprows)
     d.columns = ['chromo', 'pos', 'value']
+    d['chromo'] = format_chromo(d['chromo'])
     if chromos is not None:
         if not isinstance(chromos, list):
             chromos = [str(chromos)]
         d = d.loc[d.chromo.isin(chromos)]
-    d['chromo'] = format_chromo(d['chromo'])
+    if nb_sample is not None:
+        d = d.iloc[:nb_sample]
     if sort:
         d.sort_values(['chromo', 'pos'], inplace=True)
     if round:

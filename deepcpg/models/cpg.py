@@ -1,3 +1,5 @@
+import inspect
+
 from keras import layers as kl
 from keras import regularizers as kr
 from keras import models as km
@@ -96,6 +98,14 @@ class RnnL2(RnnL1):
         x = kl.Dropout(self.dropout)(x)
 
         return self._build(inputs, x)
+
+
+def list_models():
+    models = dict()
+    for name, value in globals().items():
+        if inspect.isclass(value) and name.lower().find('model') == -1:
+            models[name] = value
+    return models
 
 
 def get(name):
