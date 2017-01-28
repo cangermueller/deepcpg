@@ -313,7 +313,8 @@ class App(object):
         g = p.add_argument_group('motif visualization')
         g.add_argument(
             '--act_thr_per',
-            help='Minimum activation threshold of aligned sequence fragments. Percentage of maximum activation above the mean activation.',
+            help='Minimum activation threshold of aligned sequence fragments.'
+            ' Percentage of maximum activation above the mean activation.',
             default=0.5,
             type=float)
         g.add_argument(
@@ -331,7 +332,8 @@ class App(object):
             default=WEBLOGO_OPTS)
         g.add_argument(
             '--delete_fasta',
-            help='Delete fasta files after visualizing motif to reduce disk storage',
+            help='Delete fasta files after visualizing motif to reduce disk'
+            ' storage',
             action='store_true')
 
         g = p.add_argument_group('motif comparision')
@@ -364,7 +366,6 @@ class App(object):
             type=int,
             default=1000)
 
-
         g = p.add_argument_group('advanced arguments')
         g.add_argument(
             '--trim_thr',
@@ -372,7 +373,9 @@ class App(object):
             type=float)
         g.add_argument(
             '--filters',
-            help='Indicies of filters (starting from 0) to be selected. Can be range of filters, e.g. -10 50-60 to select filter 0-10 and 50-50.',
+            help='Indicies of filters (starting from 0) to be selected. Can be'
+            ' range of filters, e.g. -10 50-60 to select filter 0-10 and'
+            ' 50-50.',
             nargs='+')
         g.add_argument(
             '--nb_sample',

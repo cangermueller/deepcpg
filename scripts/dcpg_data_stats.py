@@ -1,5 +1,15 @@
 #!/usr/bin/env python
 
+"""Computes summary statistics of data files.
+
+Computes summary statistics of data files such as the number of samples or the
+mean and variance of output variables.
+
+Examples:
+    dcpg_data_stats.py \
+        ./data/*.h5
+"""
+
 from collections import OrderedDict
 import os
 import sys

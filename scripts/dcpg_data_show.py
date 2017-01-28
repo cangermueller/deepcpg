@@ -111,7 +111,7 @@ class App(object):
             '--start',
             type=int,
             help='Start position')
-      p.add_argument(
+        p.add_argument(
             '--end',
             type=int,
             help='End position')

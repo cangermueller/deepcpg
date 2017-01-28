@@ -202,10 +202,13 @@ class App(object):
         # I/O
         p.add_argument(
             '--pos_file',
-            help='File with positions of CpG sites that are to be predicted. If missing, only CpG sites that are observed in at least one of the given cells will be used.')
+            help='File with positions of CpG sites that are to be predicted.'
+            ' If missing, only CpG sites that are observed in at least one of'
+            ' the given cells will be used.')
         p.add_argument(
             '--cpg_profiles',
-            help='Input single-cell methylation profiles in dcpg or bedGraph format that are to be imputed',
+            help='Input single-cell methylation profiles in dcpg or bedGraph'
+            ' format that are to be imputed',
             nargs='+')
         p.add_argument(
             '--cpg_wlen',
@@ -213,16 +216,19 @@ class App(object):
             type=int)
         p.add_argument(
             '--cpg_cov',
-            help='Minimum CpG coverage. Only use CpG sites for which the true methylation state is known in at least that many cells.',
+            help='Minimum CpG coverage. Only use CpG sites for which the true'
+            ' methylation state is known in at least that many cells.',
             type=int,
             default=1)
         p.add_argument(
             '--bulk_profiles',
-            help='Input bulk methylation profiles in dcpg or bedGraph format that are to be imputed',
+            help='Input bulk methylation profiles in dcpg or bedGraph format'
+            ' that are to be imputed',
             nargs='+')
         p.add_argument(
             '--dna_files',
-            help='Directory or FASTA files named "*.chromosome.`chromo`.fa*" with the DNA sequences for chromosome `chromo`.',
+            help='Directory or FASTA files named "*.chromosome.`chromo`.fa*"'
+            ' with the DNA sequences for chromosome `chromo`.',
             nargs='+')
         p.add_argument(
             '--dna_wlen',
@@ -231,7 +237,8 @@ class App(object):
             default=1001)
         p.add_argument(
             '--anno_files',
-            help='Files with genomic annotations that are used as input features. Currently ignored by `dcpg_train.py`.',
+            help='Files with genomic annotations that are used as input'
+            ' features. Currently ignored by `dcpg_train.py`.',
             nargs='+')
         p.add_argument(
             '-o', '--out_dir',
@@ -241,7 +248,9 @@ class App(object):
         g = p.add_argument_group('output statistics')
         g.add_argument(
             '--stats',
-            help='Per CpG statistics derived from single-cell profiles. Required, e.g., for predicting mean methylation levels or cell-to-cell variance.',
+            help='Per CpG statistics derived from single-cell profiles.'
+            ' Required, e.g., for predicting mean methylation levels or'
+            ' cell-to-cell variance.',
             nargs='+',
             choices=['mean', 'mode', 'var', 'cat_var', 'cat2_var', 'entropy',
                      'diff', 'cov'])
@@ -252,7 +261,9 @@ class App(object):
             default=1)
         g.add_argument(
             '--win_stats',
-            help='Window-based output statistics derived from single-cell rofiles. Required, e.g., for predicting mean methylation levels or cell-to-cell variance.',
+            help='Window-based output statistics derived from single-cell'
+            ' profiles. Required, e.g., for predicting mean methylation levels'
+            ' or cell-to-cell variance.',
             nargs='+',
             choices=['mean', 'mode', 'var', 'cat_var', 'cat2_var', 'entropy',
                      'diff', 'cov'])
@@ -276,7 +287,8 @@ class App(object):
             '--chunk_size',
             type=int,
             default=32768,
-            help='Maximum number of samples per output file. Should be divisible by batch size.')
+            help='Maximum number of samples per output file. Should be'
+            ' divisible by batch size.')
         g.add_argument(
             '--verbose',
             help='More detailed log messages',
