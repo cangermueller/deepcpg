@@ -2,6 +2,8 @@
 
 Collection of pre-trained DeepCpG models for different datasets, which can be used to impute related datasets.
 
+***NOTE: save models as *.zip files***
+
 
 
 ## Smallwood et al. (2014)
