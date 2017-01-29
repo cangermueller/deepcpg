@@ -340,7 +340,7 @@ class App(object):
             log.info('Reading bulk profiles ...')
             outputs['bulk'] = read_cpg_profiles(opts.bulk_profiles,
                                                 chromos=opts.chromos,
-                                                nrows=opts.nb_sample,
+                                                nb_sample=opts.nb_sample,
                                                 round=False)
 
         # Create table with unique positions

@@ -117,6 +117,8 @@ def is_bedgraph(filename):
     else:
         pos = filename.tell()
         line = filename.readline()
+        if isinstance(line, bytes):
+            line = line.decode()
         filename.seek(pos)
     return re.match(r'track\s+type=bedGraph', line) is not None
 

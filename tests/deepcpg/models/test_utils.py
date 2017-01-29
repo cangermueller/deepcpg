@@ -7,7 +7,7 @@ from deepcpg.data import CPG_NAN
 from deepcpg import models as mod
 
 
-class TestModel(object):
+class TestDataReader(object):
 
     def setup(self):
         self.data_path = os.path.join(
@@ -20,21 +20,20 @@ class TestModel(object):
             os.path.join(self.data_path, 'c19_005000-008311.h5')
         ]
 
-    def test_reader(self):
-        model = mod.Model()
+    def test_call(self):
         dna_wlen = 101
         cpg_wlen = 10
-        output_names = ['cpg_BS27_4_SER', 'cpg_BS28_2_SER']
-        class_weights = {'cpg_BS27_4_SER': {0: 0.3, 1: 0.7},
-                         'cpg_BS28_2_SER': {0: 0.2, 1: 0.8}}
+        output_names = ['cpg/BS27_4_SER', 'cpg/BS28_2_SER']
+        class_weights = {'cpg/BS27_4_SER': {0: 0.3, 1: 0.7},
+                         'cpg/BS28_2_SER': {0: 0.2, 1: 0.8}}
         replicate_names = ['BS27_4_SER', 'BS28_2_SER']
-        reader = model.reader(self.data_files[0],
-                              output_names=output_names,
-                              dna_wlen=dna_wlen,
-                              replicate_names=replicate_names,
-                              cpg_wlen=cpg_wlen,
-                              class_weights=class_weights,
-                              loop=False)
+        reader = mod.DataReader(output_names=output_names,
+                                dna_wlen=dna_wlen,
+                                replicate_names=replicate_names,
+                                cpg_wlen=cpg_wlen)
+        reader = reader(self.data_files,
+                        class_weights=class_weights,
+                        loop=False)
 
         for inputs, outputs, weights in reader:
             assert len(inputs) == 3
@@ -45,8 +44,13 @@ class TestModel(object):
             assert np.all((tmp == 0) | (tmp == 1))
             assert np.all(dna[:, dna_wlen // 2, 3] == 1)
 
-            cpg_state = inputs['cpg/state']
-            cpg_dist = inputs['cpg/state']
+            for name, value in inputs.items():
+                if name.startswith('cpg/state'):
+                    cpg_state = value
+                if name.startswith('cpg/dist'):
+                    cpg_dist = value
+            assert cpg_state is not None
+            assert cpg_dist is not None
             assert np.all(cpg_state.shape == cpg_dist.shape)
             assert cpg_state.shape[1] == len(replicate_names)
             assert cpg_state.shape[2] == cpg_wlen
@@ -68,18 +72,15 @@ class TestModel(object):
                     assert np.all(weight[output == cla] == cw)
 
     def _test_loop(self, nb_sample, batch_size, nb_loop=3):
-        model = mod.Model()
-        output_names = ['cpg_BS27_4_SER', 'cpg_BS28_2_SER']
+        output_names = ['cpg/BS27_4_SER', 'cpg/BS28_2_SER']
         replicate_names = ['BS27_4_SER', 'BS28_2_SER']
-        reader = model.reader(self.data_files,
-                              nb_sample=nb_sample,
-                              batch_size=batch_size,
-                              output_names=output_names,
-                              replicate_names=replicate_names,
-                              shuffle=False, loop=True)
+        reader = mod.DataReader(output_names=output_names,
+                                replicate_names=replicate_names)
+        reader = reader(self.data_files, shuffle=False, loop=True,
+                        nb_sample=nb_sample, batch_size=batch_size)
         data_ref = None
         for loop in range(nb_loop):
-            np.random.seed(0) # Required, since missing values are sampled
+            np.random.seed(0)  # Required, since missing values are sampled
             data = mod.read_from(reader, nb_sample)
             assert len(data) == 3
             data = dict(zip(['inputs', 'outputs', 'weights'], data))
@@ -92,7 +93,6 @@ class TestModel(object):
                         assert np.all(dat == ref)
             else:
                 data_ref = data
-
 
     def test_loop(self):
         self._test_loop(10, 10)
