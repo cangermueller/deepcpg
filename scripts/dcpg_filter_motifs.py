@@ -276,9 +276,12 @@ def info_content(pwm):
     return np.sum(pwm * np.log2(pwm + EPS) + 0.5)
 
 
-def plot_logo(fasta_file, out_file, format='pdf', options=''):
+def plot_logo(fasta_file, out_file, out_format=None, options=''):
+    if out_format is None:
+        out_format = pt.splitext(out_file)[1][1:]
     cmd = 'weblogo {opts} -s large < {inp} > {out} -F {f} 2> /dev/null'
-    cmd = cmd.format(opts=options, inp=fasta_file, out=out_file, f=format)
+    cmd = cmd.format(opts=options, inp=fasta_file, out=out_file,
+                     f=out_format)
     subprocess.call(cmd, shell=True)
 
 
@@ -323,8 +326,8 @@ class App(object):
             type=int,
             default=25000)
         g.add_argument(
-            '--weblogo_format',
-            help='Weblogo output format',
+            '--out_format',
+            help='Output format of motif logos and plots',
             default='pdf')
         g.add_argument(
             '--weblogo_opts',
@@ -394,6 +397,11 @@ class App(object):
             '--log_file',
             help='Write log messages to file')
         return p
+
+    def plot_filename(self, dirname, basename, out_format=None):
+        if out_format is None:
+            out_format = self.opts.out_format
+        return pt.join(dirname, '%s.%s' % (basename, out_format))
 
     def main(self, name, opts):
         logging.basicConfig(filename=opts.log_file,
@@ -466,16 +474,16 @@ class App(object):
             pca_act = filters_act[:tmp, :, filters_idx]
 
             act = pca_act.mean(axis=1)
-            tmp = pt.join(opts.out_dir, 'pca_mean.pdf')
+            tmp = self.plot_filename(opts.out_dir, 'pca_mean')
             plot_pca(act, labels=filters_idx, filename=tmp)
 
             weights = linear_weights(pca_act.shape[1])
             act = np.average(pca_act, 1, weights)
-            tmp = pt.join(opts.out_dir, 'pca_wmean.pdf')
+            tmp = self.plot_filename(opts.out_dir, 'pca_wmean')
             plot_pca(act, labels=filters_idx, filename=tmp)
 
             act = pca_act.max(axis=1)
-            tmp = pt.join(opts.out_dir, 'pca_max.pdf')
+            tmp = self.plot_filename(opts.out_dir, 'pca_max')
             plot_pca(act, labels=filters_idx, filename=tmp)
 
         log.info('Analyzing filters')
@@ -506,12 +514,12 @@ class App(object):
 
             if opts.plot_dens:
                 log.info('Plotting filter densities')
-                tmp = pt.join(sub_dirs['dens'], '%03d.pdf' % idx)
+                tmp = self.plot_filename(sub_dirs['dens'], '%03d' % idx)
                 plot_filter_densities(np.ravel(filter_act), tmp)
 
             if opts.plot_heat:
                 log.info('Plotting filter heatmap')
-                tmp = pt.join(sub_dirs['heat'], '%03d.pdf' % idx)
+                tmp = self.plot_filename(sub_dirs['heat'], '%03d' % idx)
                 plot_filter_heatmap(filter_weights, tmp)
 
             log.info('Extracting activating kmers')
@@ -527,7 +535,9 @@ class App(object):
             log.info('Plotting sequence logo')
             logo_file = pt.join(sub_dirs['fa'], '%03d.fa' % idx)
             write_kmers(act_kmers, logo_file)
-            plot_logo(logo_file, pt.join(sub_dirs['logos'], '%03d.pdf' % idx),
+
+            plot_logo(logo_file,
+                      self.plot_filename(sub_dirs['logos'], '%03d' % idx),
                       options=weblogo_opts)
             if opts.delete_fasta:
                 os.remove(logo_file)
