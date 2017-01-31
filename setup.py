@@ -1,6 +1,6 @@
 import os
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
 def read(fname):
@@ -15,13 +15,14 @@ setup(name='deepcpg',
       author_email='cangermueller@gmail.com',
       license="BSD",
       url='https://github.com/cangermueller/deepcpg',
-      packages=['deepcpg'],
-      setup_requires=['scipy', 'h5py'],
-      install_requires=['argparse',
+      packages=find_packages(),
+      install_requires=['h5py',
+                        'argparse',
+                        'scikit-learn',
+                        'scipy',
                         'numpy',
                         'pandas',
                         'pytest',
-                        'scikit-learn',
                         'keras',
                         'matplotlib',
                         'seaborn']
