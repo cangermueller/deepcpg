@@ -48,6 +48,7 @@ python setup.py install
   dcpg_data.py
   --cpg_profiles ./cpg/cell1.tsv ./cpg/cell2.tsv ./cpg/cell3.tsv
   --dna_files ./dna/*.dna.chromosome.*.fa*
+  --cpg_wlen 50
   --out_dir ./data
 ```
 
