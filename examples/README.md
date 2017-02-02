@@ -11,5 +11,6 @@ bash setup.sh
 ## Tutorials
 
 * [DeepCpG basics](./basics/index.ipynb): Illustrates data pre-processing, model training, and model evaluation.
+* [Motif analysis](./motifs/index.ipynb): Explains how learnt motifs can be compared to known motifs and visualized.
 
 ... more tutorials to come!

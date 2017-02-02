@@ -4,7 +4,7 @@ from keras import layers as kl
 from keras import regularizers as kr
 from keras import models as km
 
-from .utils import Model, encode_replicate_names
+from .utils import Model
 from ..utils import get_from_module
 
 
@@ -17,11 +17,8 @@ class CpgModel(Model):
     def inputs(self, cpg_wlen, replicate_names):
         inputs = []
         shape = (len(replicate_names), cpg_wlen)
-        replicates_id = encode_replicate_names(replicate_names)
-        inputs.append(kl.Input(shape=shape,
-                               name='cpg/state/%s' % replicates_id))
-        inputs.append(kl.Input(shape=shape,
-                               name='cpg/dist/%s' % replicates_id))
+        inputs.append(kl.Input(shape=shape, name='cpg/state'))
+        inputs.append(kl.Input(shape=shape, name='cpg/dist'))
         return inputs
 
     def _merge_inputs(self, inputs):

@@ -142,15 +142,27 @@ class App(object):
         log.info('Using activation layer "%s"' % act_layer.name)
         log.info('Using weight layer "%s"' % weight_layer.name)
 
+        try:
+            dna_idx = model.input_names.index('dna')
+        except BaseException:
+            raise IOError('Model is not a valid DNA model!')
+
         fun_outputs = to_list(act_layer.output)
         if opts.store_preds:
             fun_outputs += to_list(model.output)
-        fun = K.function(to_list(model.input), fun_outputs)
+        fun = K.function([to_list(model.input)[dna_idx]], fun_outputs)
 
         log.info('Reading data ...')
+        if opts.store_outputs or opts.store_preds:
+            output_names = model.output_names
+        else:
+            output_names = None
+        data_reader = mod.DataReader(
+            output_names=output_names,
+            use_dna=True,
+            dna_wlen=to_list(model.input_shape)[dna_idx][1]
+        )
         nb_sample = dat.get_nb_sample(opts.data_files, opts.nb_sample)
-        tmp = opts.store_outputs or opts.store_preds
-        data_reader = mod.data_reader_from_model(model, outputs=tmp)
         data_reader = data_reader(opts.data_files,
                                   nb_sample=nb_sample,
                                   batch_size=opts.batch_size,

@@ -1,3 +1,8 @@
+"""Model utilities.
+
+Provides functionality for building, training, and loading models.
+"""
+
 from os import path as pt
 
 from keras import backend as K
@@ -15,6 +20,10 @@ from ..utils import to_list
 
 
 class ScaledSigmoid(kl.Layer):
+    """Scaled sigmoid activation function.
+
+    Allows to change the upper bound of one to any value.
+    """
 
     def __init__(self, scaling=1.0, **kwargs):
         self.supports_masking = True
@@ -34,6 +43,8 @@ CUSTOM_OBJECTS = {'ScaledSigmoid': ScaledSigmoid}
 
 
 def get_first_conv_layer(layers, get_act=False):
+    """Given a list of layers, returns the first convolutional layers."""
+
     conv_layer = None
     act_layer = None
     for layer in layers:
@@ -55,6 +66,8 @@ def get_first_conv_layer(layers, get_act=False):
 
 
 def get_sample_weights(y, class_weights=None):
+    """Given a vector with labels, returns sample weights for model training."""
+
     y = y[:]
     sample_weights = np.ones(y.shape, dtype=K.floatx())
     sample_weights[y == dat.CPG_NAN] = K.epsilon()
@@ -65,6 +78,13 @@ def get_sample_weights(y, class_weights=None):
 
 
 def save_model(model, model_file, weights_file=None):
+    """Simplifies saving a Keras model.
+
+    If `model_file` ends with '.h5', saves model description and model weights
+    in HDF5 file. Otherwise, saves JSON model description in `model_file`
+    and model weights in `weights_file` if provided.
+    """
+
     if pt.splitext(model_file)[1] == '.h5':
         model.save(model_file)
     else:
@@ -75,6 +95,12 @@ def save_model(model, model_file, weights_file=None):
 
 
 def search_model_files(dirname):
+    """Searches for model files in given directory.
+
+    Returns model JSON file and weights if existing, otherwise HDF5 file.
+    Returns None if no model files could be found.
+    """
+
     json_file = pt.join(dirname, 'model.json')
     if pt.isfile(json_file):
         order = ['model_weights.h5', 'model_weights_val.h5',
@@ -90,6 +116,8 @@ def search_model_files(dirname):
 
 
 def load_model(model_files, custom_objects=CUSTOM_OBJECTS, log=None):
+    """Given a list of model files, loads a model."""
+
     if not isinstance(model_files, list):
         model_files = [model_files]
     if pt.isdir(model_files[0]):
@@ -110,6 +138,8 @@ def load_model(model_files, custom_objects=CUSTOM_OBJECTS, log=None):
 
 
 def get_objectives(output_names):
+    """Return training objectives for a given list of output names."""
+
     objectives = dict()
     for output_name in output_names:
         _output_name = output_name.split(OUTPUT_SEP)
@@ -126,6 +156,8 @@ def get_objectives(output_names):
 
 
 def add_output_layers(stem, output_names):
+    """Adds and returns outputs to a given layer."""
+
     outputs = []
     for output_name in output_names:
         _output_name = output_name.split(OUTPUT_SEP)
@@ -147,6 +179,8 @@ def add_output_layers(stem, output_names):
 
 
 def predict_generator(model, generator, nb_sample=None):
+    """Predicts model outputs on generator."""
+
     data = None
     nb_seen = 0
     for data_batch in generator:
@@ -180,8 +214,10 @@ def predict_generator(model, generator, nb_sample=None):
     return data
 
 
-def evaluate_generator(model, generator, nb_sample, return_data=False):
-    data = predict_generator(model, generator, nb_sample)
+def evaluate_generator(model, generator, return_data=False, *args, **kwargs):
+    """Evaluates model on generator."""
+
+    data = predict_generator(model, generator, *args, **kwargs)
     perf = []
     for output in model.output_names:
         tmp = ev.evaluate(data[1][output], data[0][output])
@@ -268,24 +304,19 @@ def decode_replicate_names(replicate_names):
     return replicate_names.split('--')
 
 
-def get_replicate_names(model):
-    for input_name in model.input_names:
-        if input_name.startswith('cpg/state/'):
-            return decode_replicate_names(input_name.replace('cpg/state/', ''))
-    raise ValueError('Replicate names not found in model!')
-
-
 class DataReader(object):
 
     def __init__(self, output_names=None,
                  use_dna=True, dna_wlen=None,
-                 replicate_names=None, cpg_wlen=None, cpg_max_dist=25000):
+                 replicate_names=None, cpg_wlen=None, cpg_max_dist=25000,
+                 encode_replicates=False):
         self.output_names = to_list(output_names)
         self.use_dna = use_dna
         self.dna_wlen = dna_wlen
         self.replicate_names = to_list(replicate_names)
         self.cpg_wlen = cpg_wlen
         self.cpg_max_dist = cpg_max_dist
+        self.encode_replicates = encode_replicates
 
     def _prepro_dna(self, dna):
         if self.dna_wlen:
@@ -346,9 +377,13 @@ class DataReader(object):
                     states.append(data_raw[tmp + 'state'])
                     dists.append(data_raw[tmp + 'dist'])
                 states, dists = self._prepro_cpg(states, dists)
-                replicates_id = encode_replicate_names(self.replicate_names)
-                inputs['cpg/state/%s' % replicates_id] = states
-                inputs['cpg/dist/%s' % replicates_id] = dists
+                if self.encode_replicates:
+                    # DEPRECATED: to support loading data for legacy models
+                    tmp = '/' + encode_replicate_names(self.replicate_names)
+                else:
+                    tmp = ''
+                inputs['cpg/state%s' % tmp] = states
+                inputs['cpg/dist%s' % tmp] = dists
 
             if not self.output_names:
                 yield inputs
@@ -368,12 +403,12 @@ class DataReader(object):
                 yield (inputs, outputs, weights)
 
 
-def data_reader_from_model(model, outputs=True):
+def data_reader_from_model(model, outputs=True, replicate_names=None):
     use_dna = False
     dna_wlen = None
     cpg_wlen = None
-    replicate_names = None
     output_names = None
+    encode_replicates = False
 
     input_shapes = to_list(model.input_shape)
     for input_name, input_shape in zip(model.input_names, input_shapes):
@@ -381,9 +416,21 @@ def data_reader_from_model(model, outputs=True):
             use_dna = True
             dna_wlen = input_shape[1]
         elif input_name.startswith('cpg/state/'):
+            # DEPRECATED: legacy model. Decode replicate names from input name.
             replicate_names = decode_replicate_names(
                 input_name.replace('cpg/state/', ''))
             assert len(replicate_names) == input_shape[1]
+            cpg_wlen = input_shape[2]
+            encode_replicates = True
+        elif input_name == 'cpg/state':
+            if not replicate_names:
+                raise ValueError('Replicate names required!')
+            if len(replicate_names) != input_shape[1]:
+                tmp = '{r} replicates found but CpG model was trained with' \
+                    ' {s} replicates. Use `--nb_replicate {s}` or ' \
+                    ' `--replicate_names` option to select {s} replicates!'
+                tmp = tmp.format(r=len(replicate_names), s=input_shape[1])
+                raise ValueError(tmp)
             cpg_wlen = input_shape[2]
 
     if outputs:
@@ -393,4 +440,5 @@ def data_reader_from_model(model, outputs=True):
                       use_dna=use_dna,
                       dna_wlen=dna_wlen,
                       cpg_wlen=cpg_wlen,
-                      replicate_names=replicate_names)
+                      replicate_names=replicate_names,
+                      encode_replicates=encode_replicates)
