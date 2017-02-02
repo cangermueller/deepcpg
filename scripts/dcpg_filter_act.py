@@ -146,7 +146,6 @@ class App(object):
             dna_idx = model.input_names.index('dna')
         except BaseException:
             raise IOError('Model is not a valid DNA model!')
-        import ipdb; ipdb.set_trace()
 
         fun_outputs = to_list(act_layer.output)
         if opts.store_preds:
