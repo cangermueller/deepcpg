@@ -52,6 +52,14 @@ class App(object):
             '--out_data',
             help='Output file with predictions and labels')
         p.add_argument(
+            '--replicate_names',
+            help='Regex to select replicates',
+            nargs='+')
+        p.add_argument(
+            '--nb_replicate',
+            type=int,
+            help='Maximum number of replicates')
+        p.add_argument(
             '--batch_size',
             help='Batch size',
             type=int,
@@ -86,7 +94,12 @@ class App(object):
 
         log.info('Loading data ...')
         nb_sample = dat.get_nb_sample(opts.data_files, opts.nb_sample)
-        data_reader = mod.data_reader_from_model(model)
+        replicate_names = dat.get_replicate_names(
+            opts.data_files[0],
+            regex=opts.replicate_names,
+            nb_key=opts.nb_replicate)
+        data_reader = mod.data_reader_from_model(
+            model, replicate_names, replicate_names=replicate_names)
 
         data_reader = data_reader(opts.data_files,
                                   nb_sample=nb_sample,

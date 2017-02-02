@@ -493,7 +493,7 @@ class App(object):
             regex=opts.replicate_names,
             nb_key=opts.nb_replicate)
         if not replicate_names:
-            raise ValueError('Not replicates found!')
+            raise ValueError('No replicates found!')
         print('Replicate names:')
         print(', '.join(replicate_names))
         print()
@@ -505,8 +505,11 @@ class App(object):
             src_cpg_model = mod.load_model(opts.cpg_model, log=log.info)
             remove_outputs(src_cpg_model)
             rename_layers(src_cpg_model, 'cpg')
-            src_replicate_names = mod.get_replicate_names(src_cpg_model)
-            if src_replicate_names != replicate_names:
+            nb_replicate = src_cpg_model.input_shape[0][1]
+            if nb_replicate != len(replicate_names):
+                tmp = 'CpG model was trained with %d replicates but %d'
+                'replicates provided. Copying weight to new model ...'
+                tmp %= (nb_replicate, len(replicate_names))
                 log.info('Replicate names differ: '
                          'Copying weights to new model ...')
                 cpg_model_builder = mod.cpg.get(src_cpg_model.name)(
@@ -732,8 +735,12 @@ class App(object):
                       metrics=self.metrics)
 
         log.info('Loading data ...')
-        data_reader = mod.data_reader_from_model(model)
-
+        replicate_names = dat.get_replicate_names(
+            opts.train_files[0],
+            regex=opts.replicate_names,
+            nb_key=opts.nb_replicate)
+        data_reader = mod.data_reader_from_model(
+            model, replicate_names=replicate_names)
         nb_train_sample = dat.get_nb_sample(opts.train_files,
                                             opts.nb_train_sample)
         train_data = data_reader(opts.train_files,

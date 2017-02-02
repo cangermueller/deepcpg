@@ -304,24 +304,19 @@ def decode_replicate_names(replicate_names):
     return replicate_names.split('--')
 
 
-def get_replicate_names(model):
-    for input_name in model.input_names:
-        if input_name.startswith('cpg/state/'):
-            return decode_replicate_names(input_name.replace('cpg/state/', ''))
-    raise ValueError('Replicate names not found in model!')
-
-
 class DataReader(object):
 
     def __init__(self, output_names=None,
                  use_dna=True, dna_wlen=None,
-                 replicate_names=None, cpg_wlen=None, cpg_max_dist=25000):
+                 replicate_names=None, cpg_wlen=None, cpg_max_dist=25000,
+                 encode_replicates=False):
         self.output_names = to_list(output_names)
         self.use_dna = use_dna
         self.dna_wlen = dna_wlen
         self.replicate_names = to_list(replicate_names)
         self.cpg_wlen = cpg_wlen
         self.cpg_max_dist = cpg_max_dist
+        self.encode_replicates = encode_replicates
 
     def _prepro_dna(self, dna):
         if self.dna_wlen:
@@ -382,9 +377,13 @@ class DataReader(object):
                     states.append(data_raw[tmp + 'state'])
                     dists.append(data_raw[tmp + 'dist'])
                 states, dists = self._prepro_cpg(states, dists)
-                replicates_id = encode_replicate_names(self.replicate_names)
-                inputs['cpg/state/%s' % replicates_id] = states
-                inputs['cpg/dist/%s' % replicates_id] = dists
+                if self.encode_replicates:
+                    # DEPRECATED: to support loading data for legacy models
+                    tmp = '/' + encode_replicate_names(self.replicate_names)
+                else:
+                    tmp = ''
+                inputs['cpg/state%s' % tmp] = states
+                inputs['cpg/dist%s' % tmp] = dists
 
             if not self.output_names:
                 yield inputs
@@ -404,12 +403,12 @@ class DataReader(object):
                 yield (inputs, outputs, weights)
 
 
-def data_reader_from_model(model, outputs=True):
+def data_reader_from_model(model, outputs=True, replicate_names=None):
     use_dna = False
     dna_wlen = None
     cpg_wlen = None
-    replicate_names = None
     output_names = None
+    encode_replicates = False
 
     input_shapes = to_list(model.input_shape)
     for input_name, input_shape in zip(model.input_names, input_shapes):
@@ -417,9 +416,21 @@ def data_reader_from_model(model, outputs=True):
             use_dna = True
             dna_wlen = input_shape[1]
         elif input_name.startswith('cpg/state/'):
+            # DEPRECATED: legacy model. Decode replicate names from input name.
             replicate_names = decode_replicate_names(
                 input_name.replace('cpg/state/', ''))
             assert len(replicate_names) == input_shape[1]
+            cpg_wlen = input_shape[2]
+            encode_replicates = True
+        elif input_name == 'cpg/state':
+            if not replicate_names:
+                raise ValueError('Replicate names required!')
+            if len(replicate_names) != input_shape[1]:
+                tmp = '{r} replicates found but CpG model was trained with' \
+                    ' {s} replicates. Use `--nb_replicate {s}` or ' \
+                    ' `--replicate_names` option to select {s} replicates!'
+                tmp = tmp.format(r=len(replicate_names), s=input_shape[1])
+                raise ValueError(tmp)
             cpg_wlen = input_shape[2]
 
     if outputs:
@@ -429,4 +440,5 @@ def data_reader_from_model(model, outputs=True):
                       use_dna=use_dna,
                       dna_wlen=dna_wlen,
                       cpg_wlen=cpg_wlen,
-                      replicate_names=replicate_names)
+                      replicate_names=replicate_names,
+                      encode_replicates=encode_replicates)
