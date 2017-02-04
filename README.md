@@ -54,6 +54,7 @@ python setup.py install
 
 `./cpg/cell[123].tsv` store the methylation data from step 1., `dna` contains the DNA database, e.g. [mm10](http://ftp.ensembl.org/pub/release-85/fasta/mus_musculus/dna/) for mouse or [hg38](http://ftp.ensembl.org/pub/release-86/fasta/homo_sapiens/dna/) for human, and output data files will be stored in `./data`.
 
+
 3. Fine-tune a pre-trained model or train your own model from scratch with `dcpg_train.py`:
 
 ```
@@ -69,6 +70,7 @@ python setup.py install
 
 This command uses chromosomes 1-3 for training and 10-13 for validation. `dna_model`, `cpg_model`, and `joint_model` specify the architecture of the CpG, DNA, and joint model, respectively. Training will stop after at most 30 epochs and model files will be stored in `./model`.
 
+
 4. Use `dcpg_eval.py` to predict missing methylation states and evaluate prediction performances:
 
 ```
@@ -80,6 +82,7 @@ This command uses chromosomes 1-3 for training and 10-13 for validation. `dna_mo
 ```
 
 This command predicts missing methylation states of all cells and chromosomes and evaluates prediction performances using known methylation states. Predicted states will be stored in `./eval/data.h5` and performance metrics in `./eval/report.tsv`.
+
 
 5. Export imputed methylation profiles to bedGraph files:
 
