@@ -3,14 +3,19 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-DeepCpG documentation
-=====================
-
-Contents:
+Examples
+========
 
 .. toctree::
    :maxdepth: 2
 
+   basics
+
+API
+===
+
+.. automodule:: deepcpg.motifs
+  :members:
 
 
 Indices and tables
