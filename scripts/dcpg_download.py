@@ -21,6 +21,8 @@ from deepcpg.utils import make_dir
 
 
 DATA_HOST = 'http://www.ebi.ac.uk/~angermue/deepcpg/alias'
+MODEL_ZOO = 'https://github.com/cangermueller/deepcpg/blob/master/' \
+    'docs/models.md'
 
 MODELS = {
     'Smallwood2014_2i_dna': '51b5b3df82e5431a37794640647baafd',
@@ -63,11 +65,16 @@ class App(object):
         p.add_argument(
             'model_id',
             help='Model identifier from DeepCpG model zoo',
-            choices=sorted(list(MODELS.keys())))
+            choices=sorted(list(MODELS.keys())),
+            nargs='?')
         p.add_argument(
             '-o', '--out_dir',
             help='Output directory',
             default='./model')
+        p.add_argument(
+            '-s', '--show',
+            help='Show name of available models',
+            action='store_true')
         p.add_argument(
             '--verbose',
             help='More detailed log messages',
@@ -86,6 +93,15 @@ class App(object):
         else:
             log.setLevel(logging.INFO)
         log.debug(opts)
+
+        if opts.show:
+            print('Available models: %s' % MODEL_ZOO)
+            for name in sorted(list(MODELS.keys())):
+                print(name)
+            return 0
+
+        if not opts.model_id:
+            raise ValueError('Model ID required!')
 
         if opts.model_id not in MODELS:
             raise ValueError('Invalid model ID "%s"!' % opts.model_id)
