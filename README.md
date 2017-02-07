@@ -1,15 +1,35 @@
-# DeepCpG
+# DeepCpG: Deep neural networks for predicting single-cell DNA methylation
 
-Python package for predicting single-cell CpG methylation states from DNA sequence and neighboring CpG sites using deep neural networks ([Angermueller et al., 2016](http://biorxiv.org/content/early/2016/05/27/055715)).
+Python package for predicting single-cell CpG methylation states from DNA sequence and neighboring CpG sites using deep neural networks ([Angermueller et al., 2016](http://biorxiv.org/content/early/2017/02/01/055715)).
 
 ```
 Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. “Accurate Prediction of Single-Cell DNA Methylation States Using Deep Learning.” bioRxiv, May 27, 2016, 055715. doi:10.1101/055715.
 ```
 
+<figure>
+  <img src="./docs/fig1.png" alt="DeepCpG model and applications" width="80%" align="center"/>
+  <figcaption><small><b>DeepCpG model training and applications.</b> (a) Sparse
+  single-cell CpG profiles, for example as obtained from scBS-seq [5] or
+  scRRBS-seq  [6–8]. Methylated CpG sites are denoted by ones, un-methylated CpG
+  sites by zeros, and question marks denote CpG sites with unknown methylation
+  state (missing data). (b) Modular architecture of DeepCpG. The DNA module
+  consists of two convolutional and pooling layers to identify predictive motifs
+  from the local sequence context, and one fully connected layer to model motif
+  interactions. The CpG module scans the CpG neighbourhood of multiple cells
+  (rows in b), using a bidirectional gated recurrent network (GRU [24]),
+  yielding compressed features in a vector of constant size. The fusion module
+  learns interactions between higher-level features derived from the DNA- and
+  CpG module to predict methylation states in all cells. (c,d) The trained
+  DeepCpG model can be used for different downstream analyses, including
+  genome-wide imputation of missing CpG sites (c) and the discovery of DNA
+  sequence motifs that are associated with DNA methylation levels or
+  cell-to-cell variability (d). </small></figcaption>
+</figure>
+
 
 ## Installation
 
-Clone the DeepCpG repository into you current directory:
+Clone the DeepCpG repository into your current directory:
 
 ```
   git clone https://github.com/cangermueller/deepcpg.git
@@ -26,7 +46,7 @@ python setup.py install
 
 1. Store known CpG methylation states of each cell into a tab-delimted file with the following columns:
    * Chromosome (without chr)
-   * Position of the CpG site on the chromosome
+   * Position of the CpG site on the chromosome starting with one
    * Binary methylation state of the CpG sites (0=unmethylation, 1=methylated)
 
   Example:
@@ -52,7 +72,7 @@ python setup.py install
   --out_dir ./data
 ```
 
-`./cpg/cell[123].tsv` store the methylation data from step 1., `dna` contains the DNA database, e.g. [mm10](http://ftp.ensembl.org/pub/release-85/fasta/mus_musculus/dna/) for mouse or [hg38](http://ftp.ensembl.org/pub/release-86/fasta/homo_sapiens/dna/) for human, and output data files will be stored in `./data`.
+`./cpg/cell[123].tsv` store the methylation data from step 1., `./dna` contains the DNA database, e.g. [mm10](http://ftp.ensembl.org/pub/release-85/fasta/mus_musculus/dna/) for mouse or [hg38](http://ftp.ensembl.org/pub/release-86/fasta/homo_sapiens/dna/) for human, and output data files will be stored in `./data`.
 
 
 3. Fine-tune a pre-trained model or train your own model from scratch with `dcpg_train.py`:
@@ -105,6 +125,23 @@ Interactive examples on how to use DeepCpG can be found [here](./examples/README
 ## Models
 
 Pre-trained models can be downloaded from the [DeepCpG model zoo](docs/models.md).
+
+
+## FAQ
+
+**Why am I getting warnings 'No CpG site at position X!' when using `dcpg_data.py`?**
+This means that some sites in `--cpg_profile` files are not CpG sites, e.g. there is no CG dinucleotide at the given position in the DNA sequence. Make sure that `--dna_files` point to the correct genome and CpG sites are correctly aligned. Since DeepCpG currently does not support allele-specific methylation, data from different alleles must be merged (recommended) or only one allele be used.
+
+---
+
+**How can I train models on one or more GPUs?**
+DeepCpG use the [Keras](https://keras.io) deep learning library, which supports [Theano](http://deeplearning.net/software/theano/) or [Tensorflow](https://www.tensorflow.org/) as backend. If you are using Tensorflow, DeepCpG will automatically run on all available GPUs. If you are using Theano, you have to set the flag `device=GPU` in the `THEANO_FLAGS` environment variable.
+
+```shell
+  THEANO_FLAGS='device=gpu,floatX=float32'
+```
+
+You can find more information about Keras backends [here](https://keras.io/backend/), and about parallelization [here](https://keras.io/getting-started/faq/#how-can-i-run-keras-on-gpu).
 
 
 

@@ -20,6 +20,7 @@ Smallwood, Sébastien A., Heather J. Lee, Christof Angermueller, Felix Krueger, 
 Models trained on 18 serum mouse embryonic stem cells (mESCs)
 
 * [DNA module](http://www.ebi.ac.uk/~angermue/deepcpg/alias/1754b5bbc21a8257663acc52e657f69c)
+  * [Motifs](./models/motifs/Smallwood2014_serum.html)
 * [CpG module](http://www.ebi.ac.uk/~angermue/deepcpg/alias/33bc504f24df2e7a0380ef75aaa70e59)
 * [Joint module](http://www.ebi.ac.uk/~angermue/deepcpg/alias/e4b82088e980cb26b87a157a4f69abc0)
 
