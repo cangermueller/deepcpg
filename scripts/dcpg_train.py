@@ -432,7 +432,7 @@ class App(object):
         callbacks.append(self.perf_logger)
 
         if K._BACKEND == 'tensorflow':
-            callbacks.append(cbk.TensorBoard(
+            callbacks.append(kcbk.TensorBoard(
                 log_dir=opts.out_dir,
                 histogram_freq=1,
                 write_graph=True,
