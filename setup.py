@@ -30,5 +30,16 @@ setup(name='deepcpg',
                 'Deep neural networks',
                 'Epigenetics',
                 'DNA methylation',
-                'Single cells']
+                'Single cells'],
+      classifiers=['Development Status :: 5 - Production/Stable',
+                   'Environment :: Console',
+                   'Intended Audience :: Science/Research',
+                   'License :: OSI Approved :: MIT License',
+                   'Natural Language :: English',
+                   'Programming Language :: Python',
+                   'Programming Language :: Python :: 3',
+                   'Topic :: Scientific/Engineering :: Artificial Intelligence',
+                   'Topic :: Scientific/Engineering :: Bio-Informatics'
+                   'Topic :: Scientific/Engineering :: Information Analysis'
+                   ]
       )
