@@ -11,17 +11,62 @@ Example:
         --out_report ./eval.tsv
 """
 
-import sys
 import os
+import random
+import sys
 
 import argparse
+import h5py as h5
 import logging
+import numpy as np
+import pandas as pd
 
 from deepcpg import data as dat
 from deepcpg import evaluation as ev
 from deepcpg import models as mod
 from deepcpg.data import hdf
 from deepcpg.utils import ProgressBar, to_list
+
+
+class H5Writer(object):
+
+    def __init__(self, filename, nb_sample):
+        self.out_file = h5.File(filename, 'w')
+        self.nb_sample = nb_sample
+        self.idx = 0
+
+    def __call__(self, name, data, dtype=None, compression='gzip', stay=False):
+        if name not in self.out_file:
+            if dtype is None:
+                dtype = data.dtype
+            self.out_file.create_dataset(
+                name=name,
+                shape=[self.nb_sample] + list(data.shape[1:]),
+                dtype=dtype,
+                compression=compression
+            )
+        self.out_file[name][self.idx:(self.idx + len(data))] = data
+        if not stay:
+            self.idx += len(data)
+
+    def write_dict(self, data, name='', level=0, *args, **kwargs):
+        size = None
+        for key, value in data.items():
+            _name = '%s/%s' % (name, key)
+            if isinstance(value, dict):
+                self.write_dict(value, name=_name, level=level + 1,
+                                *args, **kwargs)
+            else:
+                if size:
+                    assert size == len(value)
+                else:
+                    size = len(value)
+                self(_name, value, stay=True, *args, **kwargs)
+        if level == 0:
+            self.idx += size
+
+    def close(self):
+        self.out_file.close()
 
 
 class App(object):
@@ -60,10 +105,21 @@ class App(object):
             type=int,
             help='Maximum number of replicates')
         p.add_argument(
+            '--eval_size',
+            help='Maximum number of samples that are kept in memory for'
+            ' batch-wise evaluation. If zero, evaluate on entire data set.',
+            type=int,
+            default=1000000)
+        p.add_argument(
             '--batch_size',
             help='Batch size',
             type=int,
             default=128)
+        p.add_argument(
+            '--seed',
+            help='Seed of random number generator',
+            type=int,
+            default=0)
         p.add_argument(
             '--nb_sample',
             help='Number of samples',
@@ -101,6 +157,11 @@ class App(object):
         data_reader = mod.data_reader_from_model(
             model, replicate_names, replicate_names=replicate_names)
 
+        # Seed used since unobserved input CpG states are randomly sampled
+        if opts.seed is not None:
+            np.random.seed(opts.seed)
+            random.seed(opts.seed)
+
         data_reader = data_reader(opts.data_files,
                                   nb_sample=nb_sample,
                                   batch_size=opts.batch_size,
@@ -111,11 +172,19 @@ class App(object):
                                  batch_size=opts.batch_size,
                                  loop=False, shuffle=False)
 
+        writer = None
+        if opts.out_data:
+            writer = H5Writer(opts.out_data, nb_sample)
+
         log.info('Predicting ...')
-        data = dict()
+        nb_tot = 0
+        nb_eval = 0
+        data_eval = dict()
+        perf_eval = []
         progbar = ProgressBar(nb_sample, log.info)
         for inputs, outputs, weights in data_reader:
             batch_size = len(list(inputs.values())[0])
+            nb_tot += batch_size
             progbar.update(batch_size)
 
             preds = to_list(model.predict(inputs))
@@ -129,20 +198,33 @@ class App(object):
 
             for name, value in next(meta_reader).items():
                 data_batch[name] = value
-            dat.add_to_dict(data_batch, data)
-        progbar.close()
-        data = dat.stack_dict(data)
 
-        report = ev.evaluate_outputs(data['outputs'], data['preds'])
+            if writer:
+                writer.write_dict(data_batch)
+
+            nb_eval += batch_size
+            dat.add_to_dict(data_batch, data_eval)
+
+            if nb_tot >= nb_sample or \
+                    (opts.eval_size and nb_eval >= opts.eval_size):
+                data_eval = dat.stack_dict(data_eval)
+                perf_eval.append(ev.evaluate_outputs(data_eval['outputs'],
+                                                     data_eval['preds']))
+                data_eval = dict()
+                nb_eval = 0
+
+        progbar.close()
+        if writer:
+            writer.close()
+
+        report = pd.concat(perf_eval)
+        report = report.groupby(['metric', 'output']).mean().reset_index()
 
         if opts.out_report:
             report.to_csv(opts.out_report, sep='\t', index=False)
 
         report = ev.unstack_report(report)
         print(report.to_string())
-
-        if opts.out_data:
-            hdf.write_data(data, opts.out_data)
 
         log.info('Done!')
 
