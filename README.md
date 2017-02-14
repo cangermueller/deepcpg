@@ -2,10 +2,10 @@
 [![Build Status](https://travis-ci.org/kundajelab/dragonn.svg?branch=master)](https://travis-ci.org/kundajelab/dragonn)
 [![License](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000)](https://github.com/cangermueller/deepcpg/tree/master/LICENSE)
 
-Python package for predicting single-cell CpG methylation states from DNA sequence and neighboring CpG sites using deep neural networks ([Angermueller et al., 2016](http://biorxiv.org/content/early/2017/02/01/055715)).
+Python package for predicting single-cell CpG methylation states from DNA sequence and neighboring CpG sites using deep neural networks ([Angermueller et al., 2017](http://biorxiv.org/content/early/2017/02/01/055715)).
 
 ```
-Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. “Accurate Prediction of Single-Cell DNA Methylation States Using Deep Learning.” bioRxiv, May 27, 2016, 055715. doi:10.1101/055715.
+Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. “Accurate Prediction of Single-Cell DNA Methylation States Using Deep Learning.” bioRxiv, February 1, 2017, 55715. doi:10.1101/055715.
 ```
 
 <figure>
@@ -128,7 +128,7 @@ This command predicts missing methylation states of all cells and chromosomes an
 
 ## Examples <a name='examples'></a>
 
-Interactive examples on how to use DeepCpG can be found [here](./examples/README.md).
+Interactive examples on how to use DeepCpG can be found [here](./examples/index.md).
 
 
 

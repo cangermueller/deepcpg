@@ -1,0 +1,4 @@
+LICENSE
+README.md
+recursive-include docs *.md *.rst
+recursive-include examples *.md *.rst

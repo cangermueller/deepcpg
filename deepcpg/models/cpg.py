@@ -1,3 +1,9 @@
+"""CpG models.
+
+Provides models trained observed neighboring methylation states of multiple
+cells.
+"""
+
 import inspect
 
 from keras import layers as kl

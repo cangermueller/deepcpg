@@ -1,3 +1,8 @@
+"""DNA models.
+
+Provides models trained with DNA sequence windows.
+"""
+
 import inspect
 
 from keras import layers as kl
