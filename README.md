@@ -26,8 +26,16 @@ Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. “Accurate P
   cell-to-cell variability (d). </small></figcaption>
 </figure>
 
+## Table of contents
+1. [Installation](#installation)
+2. [Getting started with DeepCpG in 30 seconds](#getting_started)
+3. [Examples](#examples)
+4. [Model Zoo](#model_zoo)
+5. [FAQ](#faq)
+6. [Contact](#contact)
 
-## Installation
+
+## Installation <a name='installation'></a>
 
 Clone the DeepCpG repository into your current directory:
 
@@ -42,7 +50,7 @@ python setup.py install
 ```
 
 
-## Getting started with DeepCpG in 30 seconds
+## Getting started with DeepCpG in 30 seconds <a name='getting_started'></a>
 
 1. Store known CpG methylation states of each cell into a tab-delimted file with the following columns:
    * Chromosome (without chr)
@@ -116,18 +124,18 @@ This command predicts missing methylation states of all cells and chromosomes an
 
 
 
-## Examples
+## Examples <a name='examples'></a>
 
 Interactive examples on how to use DeepCpG can be found [here](./examples/README.md).
 
 
 
-## Models
+## Model Zoo <a name='model_zoo'></a>
 
 Pre-trained models can be downloaded from the [DeepCpG model zoo](docs/models.md).
 
 
-## FAQ
+## FAQ <a name='faq'></a>
 
 **Why am I getting warnings 'No CpG site at position X!' when using `dcpg_data.py`?**
 This means that some sites in `--cpg_profile` files are not CpG sites, e.g. there is no CG dinucleotide at the given position in the DNA sequence. Make sure that `--dna_files` point to the correct genome and CpG sites are correctly aligned. Since DeepCpG currently does not support allele-specific methylation, data from different alleles must be merged (recommended) or only one allele be used.
@@ -145,16 +153,16 @@ You can find more information about Keras backends [here](https://keras.io/backe
 
 
 
-## Content
+## Content <a name='content'></a>
 * `/deepcpg/`: Source code
 * `/docs`: Documentation
-* `/examples/`: Examples for using DeepCpG
+* `/examples/`: Examples on how to use DeepCpG
 * `/script/`: Executable scripts for data creation, model training, and interpretation
 * `/tests`: Test files
 
 
 
-## Contact
+## Contact <a name='contact'></a>
 * Christof Angermueller
 * cangermueller@gmail.com
 * https://cangermueller.com
