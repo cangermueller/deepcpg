@@ -1,6 +1,7 @@
 # DeepCpG: Deep neural networks for predicting single-cell DNA methylation
 [![Build Status](https://travis-ci.org/kundajelab/dragonn.svg?branch=master)](https://travis-ci.org/kundajelab/dragonn)
-[![License](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000)](https://github.com/cangermueller/deepcpg/tree/master/LICENSE)
+[![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://github.com/cangermueller/deepcpg/tree/master/LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/nine.svg?style=plastic)](https://github.com/cangermueller/deepcpg/tree/master)
 
 Python package for predicting single-cell CpG methylation states from DNA sequence and neighboring CpG sites using deep neural networks ([Angermueller et al., 2017](http://biorxiv.org/content/early/2017/02/01/055715)).
 
