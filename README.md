@@ -1,4 +1,6 @@
 # DeepCpG: Deep neural networks for predicting single-cell DNA methylation
+[![Build Status](https://travis-ci.org/kundajelab/dragonn.svg?branch=master)](https://travis-ci.org/kundajelab/dragonn)
+[![License](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000)](https://github.com/cangermueller/deepcpg/tree/master/LICENSE)
 
 Python package for predicting single-cell CpG methylation states from DNA sequence and neighboring CpG sites using deep neural networks ([Angermueller et al., 2016](http://biorxiv.org/content/early/2017/02/01/055715)).
 
@@ -140,7 +142,6 @@ Pre-trained models can be downloaded from the [DeepCpG model zoo](docs/models.md
 **Why am I getting warnings 'No CpG site at position X!' when using `dcpg_data.py`?**
 This means that some sites in `--cpg_profile` files are not CpG sites, e.g. there is no CG dinucleotide at the given position in the DNA sequence. Make sure that `--dna_files` point to the correct genome and CpG sites are correctly aligned. Since DeepCpG currently does not support allele-specific methylation, data from different alleles must be merged (recommended) or only one allele be used.
 
----
 
 **How can I train models on one or more GPUs?**
 DeepCpG use the [Keras](https://keras.io) deep learning library, which supports [Theano](http://deeplearning.net/software/theano/) or [Tensorflow](https://www.tensorflow.org/) as backend. If you are using Tensorflow, DeepCpG will automatically run on all available GPUs. If you are using Theano, you have to set the flag `device=GPU` in the `THEANO_FLAGS` environment variable.
