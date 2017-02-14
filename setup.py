@@ -39,7 +39,6 @@ setup(name='deepcpg',
                    'Programming Language :: Python',
                    'Programming Language :: Python :: 3',
                    'Topic :: Scientific/Engineering :: Artificial Intelligence',
-                   'Topic :: Scientific/Engineering :: Bio-Informatics'
-                   'Topic :: Scientific/Engineering :: Information Analysis'
+                   'Topic :: Scientific/Engineering :: Bio-Informatics',
                    ]
       )
