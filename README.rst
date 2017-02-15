@@ -47,15 +47,11 @@ Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. `Accurate Pre
 Installation
 ============
 
-Clone the DeepCpG repository into your current directory:
-
-.. code:: bash
+Clone the DeepCpG repository into your current directory::
 
   git clone https://github.com/cangermueller/deepcpg.git
 
-Install DeepCpG and its dependencies:
-
-.. code:: bash
+Install DeepCpG and its dependencies::
 
   python setup.py install
 
@@ -68,9 +64,7 @@ Getting started with DeepCpG in 30 seconds
    * Position of the CpG site on the chromosome starting with one
    * Binary methylation state of the CpG sites (0=unmethylation, 1=methylated)
 
-  Example:
-
-.. code::
+  Example::
 
   1   3000827   1.0
   1   3001007   0.0
