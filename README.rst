@@ -22,30 +22,31 @@ Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. `Accurate Pre
 
 
 .. image:: docs/fig1.png
-   :alt: DeepCpG model and applications
-   :scale: 100 %
-   :align: center
-
-  **DeepCpG model training and applications.** (a) Sparse
-  single-cell CpG profiles, for example as obtained from scBS-seq or
-  scRRBS-seq. Methylated CpG sites are denoted by ones, un-methylated CpG
-  sites by zeros, and question marks denote CpG sites with unknown methylation
-  state (missing data). (b) Modular architecture of DeepCpG. The DNA module
-  consists of two convolutional and pooling layers to identify predictive motifs
-  from the local sequence context, and one fully connected layer to model motif
-  interactions. The CpG module scans the CpG neighbourhood of multiple cells
-  (rows in b), using a bidirectional gated recurrent network (GRU),
-  yielding compressed features in a vector of constant size. The fusion module
-  learns interactions between higher-level features derived from the DNA- and
-  CpG module to predict methylation states in all cells. (c,d) The trained
-  DeepCpG model can be used for different downstream analyses, including
-  genome-wide imputation of missing CpG sites (c) and the discovery of DNA
-  sequence motifs that are associated with DNA methylation levels or
-  cell-to-cell variability (d).
+   :width: 200 px
+   :scale: 50 %
+   :alt: alternate text
+   :align: right
 
 
-.. toctree::
-  :maxdepth: 2
+**DeepCpG model training and applications.** (a) Sparse
+single-cell CpG profiles, for example as obtained from scBS-seq or
+scRRBS-seq. Methylated CpG sites are denoted by ones, un-methylated CpG
+sites by zeros, and question marks denote CpG sites with unknown methylation
+state (missing data). (b) Modular architecture of DeepCpG. The DNA module
+consists of two convolutional and pooling layers to identify predictive motifs
+from the local sequence context, and one fully connected layer to model motif
+interactions. The CpG module scans the CpG neighbourhood of multiple cells
+(rows in b), using a bidirectional gated recurrent network (GRU),
+yielding compressed features in a vector of constant size. The fusion module
+learns interactions between higher-level features derived from the DNA- and
+CpG module to predict methylation states in all cells. (c,d) The trained
+DeepCpG model can be used for different downstream analyses, including
+genome-wide imputation of missing CpG sites (c) and the discovery of DNA
+sequence motifs that are associated with DNA methylation levels or
+cell-to-cell variability (d).
+
+
+.. contents:: Table of contents
 
 
 
