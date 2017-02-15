@@ -22,10 +22,9 @@ Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. `Accurate Pre
 
 
 .. image:: docs/fig1.png
-   :width: 200 px
    :scale: 50 %
-   :alt: alternate text
-   :align: right
+   :alt: DeepCpG model architecture and applications
+   :align: center
 
 
 **DeepCpG model training and applications.** (a) Sparse
@@ -46,7 +45,7 @@ sequence motifs that are associated with DNA methylation levels or
 cell-to-cell variability (d).
 
 
-.. contents:: Table of contents
+.. contents:: **Table of contents**
 
 
 
