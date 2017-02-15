@@ -22,11 +22,11 @@ Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. `Accurate Pre
 
 
 .. figure:: docs/fig1.png
-   :scale: 10%
+   :scale: 50%
    :alt: DeepCpG model architecture and applications
    :align: center
 
-    **DeepCpG model training and applications.** (a) Sparse
+    DeepCpG model training and applications. (a) Sparse
     single-cell CpG profiles, for example as obtained from scBS-seq or
     scRRBS-seq. Methylated CpG sites are denoted by ones, un-methylated CpG
     sites by zeros, and question marks denote CpG sites with unknown methylation
