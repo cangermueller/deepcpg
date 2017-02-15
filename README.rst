@@ -23,6 +23,7 @@ Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. `Accurate Pre
 
 .. image:: docs/fig1.png
    :width: 100
+   :height: 50
    :alt: DeepCpG model architecture and applications
    :align: center
 
@@ -45,7 +46,16 @@ sequence motifs that are associated with DNA methylation levels or
 cell-to-cell variability (d).
 
 
-.. contents:: **Table of contents**
+Table of contents
+=================
+
+* `Installation`
+* `Getting started with DeepCpG in 30 seconds`
+* `Examples`
+* `Model Zoo`
+* `FAQ`
+* `Content`
+* `Contact`
 
 
 
