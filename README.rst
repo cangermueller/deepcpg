@@ -2,7 +2,7 @@
 DeepCpG: Deep neural networks for predicting single-cell DNA methylation
 ========================================================================
 
-|License| |PyPI| |Version|
+|License| |PyPI| |Version| |Tweet|
 
 .. |License| image:: https://img.shields.io/github/license/mashape/apistatus.svg
   :target: https://github.com/cangermueller/deepcpg/tree/master/LICENSE
@@ -21,7 +21,7 @@ Python package for predicting single-cell CpG methylation states from DNA sequen
 Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. `Accurate Prediction of Single-Cell DNA Methylation States Using Deep Learning. <http://biorxiv.org/content/early/2017/02/01/055715>`_ bioRxiv, February 1, 2017, 55715. doi:10.1101/055715.
 
 
-.. figure:: docs/fig1.png
+.. image:: docs/fig1.png
    :alt: DeepCpG model and applications
    :scale: 100 %
    :align: center
@@ -45,6 +45,8 @@ Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. `Accurate Pre
 
 
 .. toctree::
+  :maxdepth: 2
+
 
 
 Installation
