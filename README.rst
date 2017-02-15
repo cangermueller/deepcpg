@@ -16,12 +16,7 @@ DeepCpG: Deep neural networks for predicting single-cell DNA methylation
 .. |Tweet| image:: https://img.shields.io/twitter/url/http/shields.io.svg?style=social
   :target: https://twitter.com/intent/tweet?text=Checkout+%23DeepCpG%3A+%23DeepLearning+for+predicting+DNA+methylation%2C+%40cangermueller 
 
-Python package for predicting single-cell CpG methylation states from DNA sequence and neighboring CpG sites using deep neural networks.
-
-.. code::
-
-  Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. `Accurate Prediction of Single-Cell DNA Methylation States Using Deep Learning. http://biorxiv.org/content/early/2017/02/01/055715 bioRxiv, February 1, 2017, 55715. doi:10.1101/055715.
-
+Python package for predicting single-cell CpG methylation states from DNA sequence and neighboring CpG sites using deep neural networks (`Angermueller et al., 2017 <http://biorxiv.org/content/early/2017/02/01/055715>`_)>
 
 .. image:: docs/fig1.png
    :scale: 50%
@@ -44,6 +39,10 @@ DeepCpG model can be used for different downstream analyses, including
 genome-wide imputation of missing CpG sites (c) and the discovery of DNA
 sequence motifs that are associated with DNA methylation levels or
 cell-to-cell variability (d).
+
+.. code::
+
+  Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. Accurate Prediction of Single-Cell DNA Methylation States Using Deep Learning. http://biorxiv.org/content/early/2017/02/01/055715 bioRxiv, February 1, 2017, 55715. doi:10.1101/055715.
 
 
 Table of contents
@@ -73,11 +72,12 @@ Getting started with DeepCpG in 30 seconds
 ==========================================
 
 1. Store known CpG methylation states of each cell into a tab-delimted file with the following columns:
-   * Chromosome (without chr)
-   * Position of the CpG site on the chromosome starting with one
-   * Binary methylation state of the CpG sites (0=unmethylation, 1=methylated)
 
-  Example:
+* Chromosome (without chr)
+* Position of the CpG site on the chromosome starting with one
+* Binary methylation state of the CpG sites (0=unmethylation, 1=methylated)
+
+Example:
 
 .. code::
 
@@ -90,7 +90,7 @@ Getting started with DeepCpG in 30 seconds
   Y   90829918  0.0
 
 
-2. Run `dcpg_data.py` to create the input data for DeepCpG:
+2. Run ``dcpg_data.py`` to create the input data for DeepCpG:
 
 .. code:: bash
 
