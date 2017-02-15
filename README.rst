@@ -18,30 +18,32 @@ DeepCpG: Deep neural networks for predicting single-cell DNA methylation
 
 Python package for predicting single-cell CpG methylation states from DNA sequence and neighboring CpG sites using deep neural networks.
 
-Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. `Accurate Prediction of Single-Cell DNA Methylation States Using Deep Learning. <http://biorxiv.org/content/early/2017/02/01/055715>`_ bioRxiv, February 1, 2017, 55715. doi:10.1101/055715.
+.. code::
+
+  Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. `Accurate Prediction of Single-Cell DNA Methylation States Using Deep Learning. http://biorxiv.org/content/early/2017/02/01/055715 bioRxiv, February 1, 2017, 55715. doi:10.1101/055715.
 
 
-.. figure:: docs/fig1.png
+.. image:: docs/fig1.png
    :scale: 50%
    :alt: DeepCpG model architecture and applications
    :align: center
 
-    DeepCpG model training and applications. (a) Sparse
-    single-cell CpG profiles, for example as obtained from scBS-seq or
-    scRRBS-seq. Methylated CpG sites are denoted by ones, un-methylated CpG
-    sites by zeros, and question marks denote CpG sites with unknown methylation
-    state (missing data). (b) Modular architecture of DeepCpG. The DNA module
-    consists of two convolutional and pooling layers to identify predictive motifs
-    from the local sequence context, and one fully connected layer to model motif
-    interactions. The CpG module scans the CpG neighbourhood of multiple cells
-    (rows in b), using a bidirectional gated recurrent network (GRU),
-    yielding compressed features in a vector of constant size. The fusion module
-    learns interactions between higher-level features derived from the DNA- and
-    CpG module to predict methylation states in all cells. (c,d) The trained
-    DeepCpG model can be used for different downstream analyses, including
-    genome-wide imputation of missing CpG sites (c) and the discovery of DNA
-    sequence motifs that are associated with DNA methylation levels or
-    cell-to-cell variability (d).
+**DeepCpG model training and applications.** (a) Sparse
+single-cell CpG profiles, for example as obtained from scBS-seq or
+scRRBS-seq. Methylated CpG sites are denoted by ones, un-methylated CpG
+sites by zeros, and question marks denote CpG sites with unknown methylation
+state (missing data). (b) Modular architecture of DeepCpG. The DNA module
+consists of two convolutional and pooling layers to identify predictive motifs
+from the local sequence context, and one fully connected layer to model motif
+interactions. The CpG module scans the CpG neighbourhood of multiple cells
+(rows in b), using a bidirectional gated recurrent network (GRU),
+yielding compressed features in a vector of constant size. The fusion module
+learns interactions between higher-level features derived from the DNA- and
+CpG module to predict methylation states in all cells. (c,d) The trained
+DeepCpG model can be used for different downstream analyses, including
+genome-wide imputation of missing CpG sites (c) and the discovery of DNA
+sequence motifs that are associated with DNA methylation levels or
+cell-to-cell variability (d).
 
 
 Table of contents
