@@ -22,7 +22,7 @@ Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. `Accurate Pre
 
 
 .. image:: docs/fig1.png
-   :width: 250px
+   :width: 100
    :alt: DeepCpG model architecture and applications
    :align: center
 
@@ -45,9 +45,7 @@ sequence motifs that are associated with DNA methylation levels or
 cell-to-cell variability (d).
 
 
-Table of contents
-=================
-.. contents:: .
+.. contents:: **Table of contents**
 
 
 
@@ -167,7 +165,7 @@ You can find more information about Keras backends `here <https://keras.io/backe
 
 Content
 =======
-* `/deepcpg/`: Source code
+* ``/deepcpg/``: Source code
 * `/docs`: Documentation
 * `/examples/`: Examples on how to use DeepCpG
 * `/script/`: Executable scripts for data creation, model training, and interpretation
