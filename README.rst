@@ -22,10 +22,7 @@ Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. `Accurate Pre
 
 
 .. image:: docs/fig1.png
-   :width: 100
-   :height: 50
-   :alt: DeepCpG model architecture and applications
-   :align: center
+   :scale: 10%
 
 
 **DeepCpG model training and applications.** (a) Sparse
@@ -45,17 +42,6 @@ genome-wide imputation of missing CpG sites (c) and the discovery of DNA
 sequence motifs that are associated with DNA methylation levels or
 cell-to-cell variability (d).
 
-
-Table of contents
-=================
-
-* `Installation`
-* `Getting started with DeepCpG in 30 seconds`
-* `Examples`
-* `Model Zoo`
-* `FAQ`
-* `Content`
-* `Contact`
 
 
 
@@ -188,3 +174,13 @@ Contact
 * cangermueller@gmail.com
 * https://cangermueller.com
 * `@cangermueller <https://twitter.com/cangermueller>`_
+
+Table of contents
+=================
+* `Installation`
+* `Getting started with DeepCpG in 30 seconds`
+* `Examples`
+* `Model Zoo`
+* `FAQ`
+* `Content`
+* `Contact`
