@@ -44,7 +44,7 @@ Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. `Accurate Pre
 Table of contents
 =================
 
-.. contents::
+.. contents::    
 
 
 Installation
