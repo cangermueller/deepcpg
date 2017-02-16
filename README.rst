@@ -2,16 +2,19 @@
 DeepCpG: Deep neural networks for predicting single-cell DNA methylation
 ========================================================================
 
-|License| |PyPI| |Version| |Tweet|
+|Version| |License| |PyPI| |Docs| |Tweet|
+
+.. |Version| image:: https://img.shields.io/badge/python-3.5%2B-green.svg
+  :target: https://www.python.org/
 
 .. |License| image:: https://img.shields.io/github/license/mashape/apistatus.svg
   :target: https://github.com/cangermueller/deepcpg/tree/master/LICENSE
 
 .. |PyPI| image:: https://img.shields.io/pypi/v/nine.svg?style=plastic
-  :target: https://pypi.python.org/pypi/deepcpg/1.0.0
+  :target: https://pypi.python.org/pypi/deepcpg/1.0.1
 
-.. |Version| image:: http://aigamedev.github.io/scikit-neuralnetwork/badge_python.svg
-  :target: https://www.python.org/
+.. |Docs| image:: https://img.shields.io/badge/docs-up--to--date-green.svg
+  :target: http://deepcpg.readthedocs.io
 
 .. |Tweet| image:: https://img.shields.io/twitter/url/http/shields.io.svg?style=social
   :target: https://twitter.com/intent/tweet?text=Checkout+%23DeepCpG%3A+%23DeepLearning+for+predicting+DNA+methylation%2C+%40cangermueller 
