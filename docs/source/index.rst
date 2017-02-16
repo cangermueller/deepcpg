@@ -15,14 +15,20 @@ DeepCpG is a deep neural network for predicting the methylation state of CpG din
 Installation
 ------------
 
-Clone the DeepCpG repository into your current directory:
+The easiest way to install DeepCpG is to use ``PyPI``:
+
+.. code:: bash
+
+  pip install deepcpg
+
+Alternatively, you can checkout the repository
 
 .. code:: bash
 
   git clone https://github.com/cangermueller/deepcpg.git
 
 
-Install DeepCpG and its dependencies:
+and then install DeepCpG using ``setup.py``:
 
 .. code:: bash
 

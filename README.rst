@@ -59,11 +59,22 @@ Table of contents
 Installation
 ============
 
-Clone the DeepCpG repository into your current directory::
+The easiest way to install DeepCpG is to use ``PyPI``:
+
+.. code:: bash
+
+  pip install deepcpg
+
+Alternatively, you can checkout the repository,
+
+.. code:: bash
 
   git clone https://github.com/cangermueller/deepcpg.git
 
-Install DeepCpG and its dependencies::
+
+and then install DeepCpG using ``setup.py``:
+
+.. code:: bash
 
   python setup.py install
 
@@ -116,7 +127,7 @@ Example:
     --nb_epoch 30
     --out_dir ./model
 
-This command uses chromosomes 1-3 for training and 10-13 for validation. ``dna_model``, ``cpg_model``, and ``joint_model`` specify the architecture of the CpG, DNA, and joint model, respectively. Training will stop after at most 30 epochs and model files will be stored in ``./model``.
+This command uses chromosomes 1-3 for training and 10-13 for validation. ``---dna_model``, ``--cpg_model``, and ``--joint_model`` specify the architecture of the CpG, DNA, and joint module, respectively (see manuscript for details). Training will stop after at most 30 epochs and model files will be stored in ``./model``.
 
 
 4. Use ``dcpg_eval.py`` to predict missing methylation states and evaluate prediction performances:
