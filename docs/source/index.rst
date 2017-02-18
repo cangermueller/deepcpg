@@ -43,10 +43,13 @@ Interactive examples on how to use DeepCpG can be found `here <https://github.co
 
 API documentation
 -----------------
+DeepCpG modules:
+
 .. toctree::
   :maxdepth: 2
 
-  models/index
+  lib/index
+  lib/models/index
 
 
 Indices and tables

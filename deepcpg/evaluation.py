@@ -10,6 +10,7 @@ from .utils import get_from_module
 
 
 def cor(y, z):
+    """Computes Pearon's correlation."""
     return np.corrcoef(y, z)[0, 1]
 
 
