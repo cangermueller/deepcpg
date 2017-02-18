@@ -1,0 +1,10 @@
+h5py
+argparse
+scikit-learn
+scipy
+numpy
+pandas
+pytest
+keras
+matplotlib
+seaborn
