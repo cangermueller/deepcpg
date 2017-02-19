@@ -1,6 +1,11 @@
+from __future__ import division
+from __future__ import print_function
+
 import os
 from glob import glob
 import gzip as gz
+
+from six.moves import range
 
 from ..utils import to_list
 

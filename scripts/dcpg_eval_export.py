@@ -16,6 +16,9 @@ Example:
             --chromo 4 5
 """
 
+from __future__ import print_function
+from __future__ import division
+
 import os
 import sys
 
@@ -24,6 +27,7 @@ import h5py as h5
 import logging
 import numpy as np
 import pandas as pd
+import six
 
 from deepcpg import data as dat
 from deepcpg.utils import make_dir
@@ -117,7 +121,7 @@ class App(object):
         if opts.chromos:
             idx = np.in1d(data['chromo'],
                           [chromo.encode() for chromo in opts.chromos])
-            for key, value in data.items():
+            for key, value in six.iteritems(data):
                 data[key] = value[idx]
 
         output_names = dat.get_output_names(opts.data_file,

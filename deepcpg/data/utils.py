@@ -1,3 +1,6 @@
+from __future__ import division
+from __future__ import print_function
+
 import gzip
 import threading
 import re
@@ -5,6 +8,8 @@ import re
 import h5py as h5
 import numpy as np
 import pandas as pd
+import six
+from six.moves import range
 
 from . import hdf
 
@@ -27,6 +32,9 @@ class threadsafe_iter:
         with self.lock:
             return next(self.it)
 
+    def next(self):
+        return self.__next__()
+
 
 def threadsafe_generator(f):
     """A decorator that takes a generator function and makes it thread-safe.
@@ -37,7 +45,7 @@ def threadsafe_generator(f):
 
 
 def add_to_dict(src, dst):
-    for key, value in src.items():
+    for key, value in six.iteritems(src):
         if isinstance(value, dict):
             if key not in dst:
                 dst[key] = dict()
@@ -50,7 +58,7 @@ def add_to_dict(src, dst):
 
 def stack_dict(data):
     sdata = dict()
-    for key, value in data.items():
+    for key, value in six.iteritems(data):
         if isinstance(value, dict):
             sdata[key] = stack_dict(value)
         else:

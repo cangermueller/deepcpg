@@ -1,9 +1,14 @@
+from __future__ import division
+from __future__ import print_function
+
 from collections import OrderedDict
 import os
 
 import h5py as h5
 import numpy as np
 from numpy import testing as npt
+import six
+from six.moves import range
 
 from deepcpg.data import hdf
 
@@ -125,11 +130,11 @@ class TestReader(object):
             nb_sample_loop = 0
             while nb_sample_loop < nb_sample:
                 data_batch = next(reader)
-                for key, value in data_batch.items():
+                for key, value in six.iteritems(data_batch):
                     data_loop.setdefault(key, []).append(value)
                 nb_sample_loop += len(value)
             assert nb_sample_loop == nb_sample
-            for key, value in data_loop.items():
+            for key, value in six.iteritems(data_loop):
                 fun = np.vstack if value[0].ndim > 1 else np.hstack
                 data_loop[key] = fun(value)
                 assert np.all(data[key] == data_loop[key])

@@ -1,6 +1,9 @@
+from __future__ import division
+from __future__ import print_function
+
 import pandas as pd
 import numpy as np
-import sys
+from six.moves import range
 
 
 def read_bed(filename, sort=False, usecols=[0, 1, 2], *args, **kwargs):
@@ -130,7 +133,6 @@ def group_overlapping(s, e):
     if n == 0:
         return group
     idx = 0
-    l = s[0]
     r = e[0]
     for i in range(1, n):
         if s[i] > r:

@@ -5,6 +5,9 @@ CpG matrix x assumed to have shape
     * [sites, cells, context] for window-based statistics
 """
 
+from __future__ import division
+from __future__ import print_function
+
 import numpy as np
 
 from ..utils import EPS, get_from_module

@@ -43,6 +43,9 @@ Examples:
 
 """
 
+from __future__ import print_function
+from __future__ import division
+
 from collections import OrderedDict
 import os
 import sys

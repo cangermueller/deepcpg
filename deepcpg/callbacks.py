@@ -1,12 +1,14 @@
+from __future__ import division
+from __future__ import print_function
+
 from collections import OrderedDict
 import os
-from pkg_resources import parse_version
 from time import time
 
-from keras import backend as K
 from keras.callbacks import Callback
 
 import numpy as np
+import six
 
 from .utils import format_table, EPS
 
@@ -16,8 +18,6 @@ class PerformanceLogger(Callback):
 
     Stores and prints performance metrics for each batch, epoch, and output.
     """
-
-
 
     def __init__(self, metrics=['loss', 'acc'], log_freq=0.1,
                  precision=4, callbacks=[], verbose=1, logger=print):
@@ -78,7 +78,7 @@ class PerformanceLogger(Callback):
         for mean_name in metrics:
             logs_dict[mean_name] = []
         # Followed by all output metrics
-        for mean_name, names in metrics.items():
+        for mean_name, names in six.iteritems(metrics):
             for name in names:
                 logs_dict[name] = []
 
@@ -87,7 +87,7 @@ class PerformanceLogger(Callback):
     def _update_means(self, logs, metrics):
         """Computes the mean over all outputs, if it does not exist yet."""
 
-        for mean_name, names in metrics.items():
+        for mean_name, names in six.iteritems(metrics):
             # Skip, if mean already exists, e.g. loss.
             if logs[mean_name][-1] is not None:
                 continue
@@ -138,7 +138,7 @@ class PerformanceLogger(Callback):
             self._val_epoch_metrics, self.val_epoch_logs = tmp
 
         # Add new epoch logs to logs table
-        for metric, metric_logs in self.epoch_logs.items():
+        for metric, metric_logs in six.iteritems(self.epoch_logs):
             if metric in logs:
                 metric_logs.append(logs[metric])
             else:
@@ -147,7 +147,7 @@ class PerformanceLogger(Callback):
         self._update_means(self.epoch_logs, self._epoch_metrics)
 
         # Add new validation epoch logs to logs table
-        for metric, metric_logs in self.val_epoch_logs.items():
+        for metric, metric_logs in six.iteritems(self.val_epoch_logs):
             metric_val = 'val_' + metric
             if metric_val in logs:
                 metric_logs.append(logs[metric_val])
@@ -163,15 +163,15 @@ class PerformanceLogger(Callback):
             table[mean_name] = []
         # Show output logs
         if self.verbose:
-            for mean_name, names in self._epoch_metrics.items():
+            for mean_name, names in six.iteritems(self._epoch_metrics):
                 for name in names:
                     table[name] = []
-        for name, logs in self.epoch_logs.items():
+        for name, logs in six.iteritems(self.epoch_logs):
             if name in table:
                 table[name].append(logs[-1])
         if self.val_epoch_logs:
             table['split'].append('val')
-            for name, logs in self.val_epoch_logs.items():
+            for name, logs in six.iteritems(self.val_epoch_logs):
                 if name in table:
                     table[name].append(logs[-1])
         self._log('')
@@ -196,12 +196,12 @@ class PerformanceLogger(Callback):
             self._totals = OrderedDict()
             # Number of samples up to the current batch
             self._nb_totals = OrderedDict()
-            for name in self._batch_logs.keys():
+            for name in self._batch_logs:
                 if name in logs:
                     self._totals[name] = 0
                     self._nb_totals[name] = 0
 
-        for name, value in logs.items():
+        for name, value in six.iteritems(logs):
             # Skip value if nan, which can occur if the batch size is small.
             if np.isnan(value):
                 continue
@@ -241,11 +241,11 @@ class PerformanceLogger(Callback):
             for mean_name in self._batch_metrics:
                 table[mean_name] = []
             if self.verbose:
-                for mean_name, names in self._batch_metrics.items():
+                for mean_name, names in six.iteritems(self._batch_metrics):
                     for name in names:
                         table[name] = []
                         precision.append(self.precision)
-            for name, logs in self._batch_logs.items():
+            for name, logs in six.iteritems(self._batch_logs):
                 if name in table:
                     table[name].append(logs[-1])
                     precision.append(self.precision)

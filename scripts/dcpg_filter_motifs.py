@@ -28,6 +28,9 @@ Examples:
 Based on `basset_motifs.py`, therefore Copyright (c) 2015 David Kelley.
 """
 
+from __future__ import print_function
+from __future__ import division
+
 from collections import OrderedDict
 import sys
 import os
@@ -39,8 +42,10 @@ import logging
 
 from sklearn.decomposition import PCA
 import numpy as np
-import subprocess
 import pandas as pd
+import six
+from six.moves import range
+import subprocess
 
 import matplotlib as mpl
 mpl.use('agg')
@@ -141,7 +146,7 @@ def get_act_kmers(filter_act, filter_len, seqs, thr_per=0.5, thr_max=25000,
 
 def write_kmers(kmers, filename):
     char_kmers = np.chararray(kmers.shape)
-    for _char, _int in ALPHABET.items():
+    for _char, _int in six.iteritems(ALPHABET):
         char_kmers[kmers == _int] = _char
 
     with open(filename, 'w') as fh:
@@ -203,14 +208,14 @@ def plot_pca(act, pc_x=1, pc_y=2, labels=None, filename=None):
 def map_alphabets(values, src_alphabet, dst_alphabet):
     assert len(src_alphabet) == len(dst_alphabet)
     _values = values.copy()
-    for src_char, src_int in src_alphabet.items():
+    for src_char, src_int in six.iteritems(src_alphabet):
         _values[dst_alphabet[src_char]] = values[src_int]
     return _values
 
 
 def open_meme(filename, seqs):
     nt_freq = np.zeros(len(ALPHABET))
-    for nt_int in ALPHABET.values():
+    for nt_int in six.itervalues(ALPHABET):
         nt_freq[nt_int] = np.sum(seqs == nt_int) + 1
     nt_freq = nt_freq / nt_freq.sum()
     nt_freq = map_alphabets(nt_freq, ALPHABET, MEME_ALPHABET)
@@ -225,7 +230,7 @@ def open_meme(filename, seqs):
     print('', file=meme_file)
     print('Background letter frequencies:', file=meme_file)
     nt_freq_str = []
-    for nt_char, nt_int in MEME_ALPHABET.items():
+    for nt_char, nt_int in six.iteritems(MEME_ALPHABET):
         nt_freq_str.append('%s %.4f' % (nt_char, nt_freq[nt_int]))
     print(' '.join(nt_freq_str), file=meme_file)
     print('', file=meme_file)

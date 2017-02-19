@@ -28,6 +28,9 @@ Example:
             --act_fun wmean
 """
 
+from __future__ import print_function
+from __future__ import division
+
 import sys
 import os
 
@@ -36,6 +39,7 @@ import h5py as h5
 from keras import backend as K
 import numpy as np
 import logging
+import six
 
 from deepcpg import data as dat
 from deepcpg import models as mod
@@ -213,7 +217,7 @@ class App(object):
                             dna.onehot_to_int(inputs[i]), idx)
 
             if opts.store_outputs:
-                for name, output in outputs.items():
+                for name, output in six.iteritems(outputs):
                     h5_dump('outputs/%s' % name, output, idx)
 
             fun_eval = fun(inputs)
@@ -242,7 +246,7 @@ class App(object):
                 for i, name in enumerate(model.output_names):
                     h5_dump('preds/%s' % name, preds[i].squeeze(), idx)
 
-            for name, value in next(meta_reader).items():
+            for name, value in six.iteritems(next(meta_reader)):
                 h5_dump(name, value, idx)
 
             idx += batch_size

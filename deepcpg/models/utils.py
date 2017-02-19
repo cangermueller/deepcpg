@@ -3,6 +3,9 @@
 Provides functionality for building, training, and loading models.
 """
 
+from __future__ import division
+from __future__ import print_function
+
 from os import path as pt
 
 from keras import backend as K

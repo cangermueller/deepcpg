@@ -1,7 +1,12 @@
+from __future__ import division
+from __future__ import print_function
+
 import os
 
 from keras import backend as K
 import numpy as np
+import six
+from six.moves import range
 
 from deepcpg.data import CPG_NAN
 from deepcpg import models as mod
@@ -44,7 +49,7 @@ class TestDataReader(object):
             assert np.all((tmp == 0) | (tmp == 1))
             assert np.all(dna[:, dna_wlen // 2, 3] == 1)
 
-            for name, value in inputs.items():
+            for name, value in six.iteritems(inputs):
                 if name.startswith('cpg/state'):
                     cpg_state = value
                 if name.startswith('cpg/dist'):
@@ -86,8 +91,8 @@ class TestDataReader(object):
             data = dict(zip(['inputs', 'outputs', 'weights'], data))
             assert len(list(data['inputs'].values())[0]) == nb_sample
             if data_ref:
-                for key, value in data.items():
-                    for key2, value2 in value.items():
+                for key, value in six.iteritems(data):
+                    for key2, value2 in six.iteritems(value):
                         dat = value2
                         ref = data_ref[key][key2]
                         assert np.all(dat == ref)

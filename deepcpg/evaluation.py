@@ -1,9 +1,13 @@
+from __future__ import division
+from __future__ import print_function
+
 from collections import OrderedDict
 
 import numpy as np
 import pandas as pd
 import sklearn.metrics as skm
 from scipy.stats import kendalltau
+from six.moves import range
 
 from .data import CPG_NAN, OUTPUT_SEP
 from .utils import get_from_module
@@ -147,7 +151,7 @@ def get_output_metrics(output_name):
 
 def evaluate_outputs(outputs, preds):
     perf = []
-    for output_name in outputs.keys():
+    for output_name in outputs:
         _output_name = output_name.split(OUTPUT_SEP)
         if _output_name[-1] in ['cat_var']:
             tmp = evaluate_cat(outputs[output_name],

@@ -11,6 +11,9 @@ Example:
         --out_report ./eval.tsv
 """
 
+from __future__ import print_function
+from __future__ import division
+
 import os
 import random
 import sys
@@ -20,6 +23,7 @@ import h5py as h5
 import logging
 import numpy as np
 import pandas as pd
+import six
 
 from deepcpg import data as dat
 from deepcpg import evaluation as ev
@@ -51,7 +55,7 @@ class H5Writer(object):
 
     def write_dict(self, data, name='', level=0, *args, **kwargs):
         size = None
-        for key, value in data.items():
+        for key, value in six.iteritems(data):
             _name = '%s/%s' % (name, key)
             if isinstance(value, dict):
                 self.write_dict(value, name=_name, level=level + 1,
@@ -196,7 +200,7 @@ class App(object):
                 data_batch['preds'][name] = preds[i].squeeze()
                 data_batch['outputs'][name] = outputs[name].squeeze()
 
-            for name, value in next(meta_reader).items():
+            for name, value in six.iteritems(next(meta_reader)):
                 data_batch[name] = value
 
             if writer:

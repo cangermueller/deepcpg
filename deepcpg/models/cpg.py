@@ -4,6 +4,9 @@ Provides models trained observed neighboring methylation states of multiple
 cells.
 """
 
+from __future__ import division
+from __future__ import print_function
+
 import inspect
 
 from keras import layers as kl

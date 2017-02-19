@@ -1,7 +1,12 @@
+from __future__ import division
+from __future__ import print_function
+
 import re
 
 import h5py as h5
 import numpy as np
+import six
+from six.moves import range
 
 from ..utils import filter_regex, to_list
 
@@ -38,7 +43,7 @@ def ls(filename, group='/', recursive=False, groups=False,
 def write_data(data, filename):
     is_root = isinstance(filename, str)
     group = h5.File(filename, 'w') if is_root else filename
-    for key, value in data.items():
+    for key, value in six.iteritems(data):
         if isinstance(value, dict):
             key_group = group.create_group(key)
             write_data(value, key_group)
@@ -50,7 +55,7 @@ def write_data(data, filename):
 
 def hnames_to_names(hnames):
     names = []
-    for key, value in hnames.items():
+    for key, value in six.iteritems(hnames):
         if isinstance(value, dict):
             for name in hnames_to_names(value):
                 names.append('%s/%s' % (key, name))
@@ -113,7 +118,7 @@ def reader(data_files, names, batch_size=128, nb_sample=None, shuffle=False,
             # the entire file into memory
             idx = np.arange(nb_sample_file)
             np.random.shuffle(idx)
-            for name, value in data_file.items():
+            for name, value in six.iteritems(data_file):
                 data_file[name] = value[:len(idx)][idx]
 
         nb_batch = int(np.ceil(nb_sample_file / batch_size))
@@ -162,7 +167,7 @@ def read_from(reader, nb_sample=None):
         if not isinstance(data_batch, dict):
             data_batch = _to_dict(data_batch)
             is_dict = False
-        for key, value in data_batch.items():
+        for key, value in six.iteritems(data_batch):
             values = data.setdefault(key, [])
             values.append(value)
         nb_seen += len(list(data_batch.values())[0])
@@ -171,7 +176,7 @@ def read_from(reader, nb_sample=None):
 
     data = stack_dict(data)
     if nb_sample:
-        for key, value in data.items():
+        for key, value in six.iteritems(data):
             data[key] = value[:nb_sample]
 
     if not is_dict:

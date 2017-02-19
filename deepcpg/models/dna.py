@@ -3,6 +3,9 @@
 Provides models trained with DNA sequence windows.
 """
 
+from __future__ import division
+from __future__ import print_function
+
 import inspect
 
 from keras import layers as kl
@@ -197,7 +200,7 @@ class ResNet01(DnaModel):
 
     Parameters: 1.700.000
 
-    He et al., “Identity Mappings in Deep Residual Networks.”
+    He et al., 'Identity Mappings in Deep Residual Networks.'
     """
 
     def _res_unit(self, inputs, nb_filter, size=3, stride=1, stage=1, block=1):
@@ -290,7 +293,7 @@ class ResNet02(ResNet01):
 
     Parameters: 2.000.000
 
-    He et al., “Identity Mappings in Deep Residual Networks.”
+    He et al., 'Identity Mappings in Deep Residual Networks.'
     """
 
     def __call__(self, inputs):
@@ -334,7 +337,7 @@ class ResConv01(ResNet01):
 
     Parameters: 2.800.000
 
-    He et al., “Identity Mappings in Deep Residual Networks.”
+    He et al., 'Identity Mappings in Deep Residual Networks.'
     """
 
     def _res_unit(self, inputs, nb_filter, size=3, stride=1, stage=1, block=1):
@@ -419,8 +422,8 @@ class ResAtrous01(DnaModel):
 
     Parameters: 2.000.000
 
-    He et al., “Identity Mappings in Deep Residual Networks.”
-    Yu and Koltun, “Multi-Scale Context Aggregation by Dilated Convolutions.”
+    He et al., 'Identity Mappings in Deep Residual Networks.'
+    Yu and Koltun, 'Multi-Scale Context Aggregation by Dilated Convolutions.'
     """
 
     def _res_unit(self, inputs, nb_filter, size=3, stride=1, atrous=1,
@@ -515,7 +518,7 @@ class ResAtrous01(DnaModel):
 def list_models():
     models = dict()
     for name, value in globals().items():
-        if inspect.isclass(value) and name.lower().find('model') == -1:
+        if inspect.isclass(value) and name.lower().find('model') == 0:
             models[name] = value
     return models
 

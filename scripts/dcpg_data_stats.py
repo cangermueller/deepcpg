@@ -10,6 +10,9 @@ Examples:
         ./data/*.h5
 """
 
+from __future__ import print_function
+from __future__ import division
+
 from collections import OrderedDict
 import os
 import sys
@@ -19,6 +22,7 @@ import logging
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import six
 
 from deepcpg import data as dat
 from deepcpg.data import hdf
@@ -107,7 +111,7 @@ class App(object):
             output = list(output.values())[0]
             stats[name] = get_output_stats(output)
         tmp = []
-        for key, value in stats.items():
+        for key, value in six.iteritems(stats):
             tmp.append(pd.DataFrame(value, index=[key]))
         stats = pd.concat(tmp)
         stats.index.name = 'output'

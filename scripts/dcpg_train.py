@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-description = """Trains DeepCpG model to predict DNA methylation.
+"""Trains DeepCpG model to predict DNA methylation.
 
 Trains model on DNA (DNA model), neighboring methylation states (CpG model),
 or both (Joint model) to predict CpG methylation of multiple cells.
@@ -35,6 +35,9 @@ Examples:
             --fine_tune
 """
 
+from __future__ import print_function
+from __future__ import division
+
 from collections import OrderedDict
 import os
 import random
@@ -46,6 +49,8 @@ import h5py as h5
 import logging
 import numpy as np
 import pandas as pd
+import six
+from six.moves import range
 
 from keras import backend as K
 from keras import callbacks as kcbk
@@ -105,7 +110,7 @@ def get_output_weights(output_names, weight_patterns):
 
     output_weights = dict()
     for output_name in output_names:
-        for regex, weight in regex_weights.items():
+        for regex, weight in six.iteritems(regex_weights):
             if re.match(regex, output_name):
                 output_weights[output_name] = weight
         if output_name not in output_weights:
@@ -410,7 +415,7 @@ class App(object):
         def save_lc(epoch, epoch_logs, val_epoch_logs):
             logs = {'lc_train.csv': epoch_logs,
                     'lc_val.csv': val_epoch_logs}
-            for name, logs in logs.items():
+            for name, logs in six.iteritems(logs):
                 if not logs:
                     continue
                 logs = pd.DataFrame(logs)
@@ -418,7 +423,7 @@ class App(object):
                     f.write(perf_logs_str(logs))
 
         metrics = OrderedDict()
-        for metric_funs in self.metrics.values():
+        for metric_funs in six.itervalues(self.metrics):
             for metric_fun in metric_funs:
                 metrics[metric_fun.__name__] = True
         metrics = ['loss'] + list(metrics.keys())
@@ -443,9 +448,9 @@ class App(object):
 
     def print_output_stats(self, output_stats):
         table = OrderedDict()
-        for name, stats in output_stats.items():
+        for name, stats in six.iteritems(output_stats):
             table.setdefault('name', []).append(name)
-            for key in stats.keys():
+            for key in stats:
                 table.setdefault(key, []).append(stats[key])
         print('Output statistics:')
         print(format_table(table))
@@ -453,11 +458,11 @@ class App(object):
 
     def print_class_weights(self, class_weights):
         table = OrderedDict()
-        for name, class_weight in class_weights.items():
+        for name, class_weight in six.iteritems(class_weights):
             if not class_weight:
                 continue
             column = []
-            for cla, weight in class_weight.items():
+            for cla, weight in six.iteritems(class_weight):
                 column.append('%s=%.2f' % (cla, weight))
                 table[name] = column
         if table:

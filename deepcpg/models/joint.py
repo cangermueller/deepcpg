@@ -1,3 +1,6 @@
+from __future__ import division
+from __future__ import print_function
+
 from keras import layers as kl
 from keras import models as km
 from keras import regularizers as kr

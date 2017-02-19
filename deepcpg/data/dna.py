@@ -1,6 +1,10 @@
+from __future__ import division
+from __future__ import print_function
+
 from collections import OrderedDict
 
 import numpy as np
+from six.moves import range
 
 CHAR_TO_INT = OrderedDict([('A', 0), ('T', 1), ('G', 2), ('C', 3), ('N', 4)])
 INT_TO_CHAR = {v: k for k, v in CHAR_TO_INT.items()}

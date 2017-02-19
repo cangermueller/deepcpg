@@ -16,6 +16,9 @@ Examples:
         --out_dir ./data
 """
 
+from __future__ import print_function
+from __future__ import division
+
 from collections import OrderedDict
 import os
 import sys
@@ -26,6 +29,9 @@ import logging
 import h5py as h5
 import numpy as np
 import pandas as pd
+
+import six
+from six.moves import range
 
 from deepcpg import data as dat
 from deepcpg.data import annotations as an
@@ -134,7 +140,7 @@ def map_values(values, pos, target_pos, dtype=None, nan=dat.CPG_NAN):
 def map_cpg_tables(cpg_tables, chromo, chromo_pos):
     chromo_pos.sort()
     mapped_tables = OrderedDict()
-    for name, cpg_table in cpg_tables.items():
+    for name, cpg_table in six.iteritems(cpg_tables):
         cpg_table = cpg_table.loc[cpg_table.chromo == chromo]
         cpg_table = cpg_table.sort_values(['chromo', 'pos'])
         mapped_table = map_values(cpg_table.value.values,
@@ -163,7 +169,7 @@ def get_stats_meta(names):
 
 def select_dict(data, idx):
     data = data.copy()
-    for key, value in data.items():
+    for key, value in six.iteritems(data):
         if isinstance(value, dict):
             data[key] = select_dict(value, idx)
         else:
@@ -444,7 +450,7 @@ class App(object):
 
                 # Write cpg profiles
                 if 'cpg' in chunk_outputs:
-                    for name, value in chunk_outputs['cpg'].items():
+                    for name, value in six.iteritems(chunk_outputs['cpg']):
                         assert len(value) == len(chunk_pos)
                         out_group.create_dataset('cpg/%s' % name,
                                                  data=value,
@@ -457,7 +463,7 @@ class App(object):
                                                       dat.CPG_NAN)
                         mask = np.sum(~cpg_mat.mask, axis=1)
                         mask = mask < opts.stats_cov
-                        for name, fun in cpg_stats_meta.items():
+                        for name, fun in six.iteritems(cpg_stats_meta):
                             stat = fun[0](cpg_mat).data.astype(fun[1])
                             stat[mask] = dat.CPG_NAN
                             assert len(stat) == len(chunk_pos)
@@ -468,7 +474,7 @@ class App(object):
 
                 # Write bulk profiles
                 if 'bulk' in chunk_outputs:
-                    for name, value in chunk_outputs['bulk'].items():
+                    for name, value in six.iteritems(chunk_outputs['bulk']):
                         assert len(value) == len(chunk_pos)
                         out_group.create_dataset('bulk/%s' % name,
                                                  data=value,
@@ -494,7 +500,7 @@ class App(object):
                     context_group = in_group.create_group('cpg')
                     # outputs['cpg'], since neighboring CpG sites might lie
                     # outside chunk borders and un-mapped values are needed
-                    for name, cpg_table in outputs['cpg'].items():
+                    for name, cpg_table in six.iteritems(outputs['cpg']):
                         cpg_table = cpg_table.loc[cpg_table.chromo == chromo]
                         state, dist = cpg_ext.extract(chunk_pos,
                                                       cpg_table.pos.values,
@@ -524,7 +530,7 @@ class App(object):
                     cpg_states = []
                     cpg_group = out_group['cpg']
                     context_group = in_group['cpg']
-                    for output_name in cpg_group.keys():
+                    for output_name in six.iterkeys(cpg_group):
                         state = context_group[output_name]['state'].value
                         states.append(np.expand_dims(state, 2))
                         dist = context_group[output_name]['dist'].value
@@ -542,7 +548,7 @@ class App(object):
                         idx = (states == dat.CPG_NAN) | (dists > wlen // 2)
                         states_wlen = np.ma.masked_array(states, idx)
                         group = out_group.create_group('win_stats/%d' % wlen)
-                        for name, fun in win_stats_meta.items():
+                        for name, fun in six.iteritems(win_stats_meta):
                             stat = fun[0](states_wlen)
                             if hasattr(stat, 'mask'):
                                 idx = stat.mask
@@ -555,7 +561,7 @@ class App(object):
                 if annos:
                     log.info('Adding annotations ...')
                     group = in_group.create_group('annos')
-                    for name, anno in annos.items():
+                    for name, anno in six.iteritems(annos):
                         group.create_dataset(name, data=anno[chunk_idx],
                                              dtype='int8',
                                              compression='gzip')

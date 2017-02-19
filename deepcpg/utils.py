@@ -1,6 +1,11 @@
+from __future__ import division
+from __future__ import print_function
+
 from collections import OrderedDict
 import os
 import re
+import six
+from six.moves import range
 
 import numpy as np
 
@@ -18,7 +23,7 @@ def make_dir(dirname):
 def slice_dict(data, idx):
     if isinstance(data, dict):
         data_sliced = dict()
-        for key, value in data.items():
+        for key, value in six.iteritems(data):
             data_sliced[key] = slice_dict(value, idx)
         return data_sliced
     else:
@@ -50,7 +55,7 @@ def move_columns_front(frame, columns):
 def get_from_module(identifier, module_params, ignore_case=True):
     if ignore_case:
         _module_params = dict()
-        for key, value in module_params.items():
+        for key, value in six.iteritems(module_params):
             _module_params[key.lower()] = value
         _identifier = identifier.lower()
     else:
@@ -108,7 +113,7 @@ def format_table(table, colwidth=None, precision=2, header=True, sep=' | '):
         rows.append('-' * tot_width)
     for row in range(nb_row):
         values = []
-        for col_values in ftable.values():
+        for col_values in six.itervalues(ftable):
             if row < len(col_values):
                 values.append(col_values[row])
             else:

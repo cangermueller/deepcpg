@@ -1,3 +1,6 @@
+from __future__ import division
+from __future__ import print_function
+
 from keras import backend as K
 
 from .utils import get_from_module

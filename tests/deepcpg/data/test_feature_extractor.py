@@ -1,5 +1,9 @@
+from __future__ import division
+from __future__ import print_function
+
 import numpy as np
 import numpy.testing as npt
+import six
 
 from deepcpg.data import feature_extractor as fe
 from deepcpg.data import dna
@@ -156,7 +160,7 @@ class TestKmersFeatureExtractor(object):
     def _freq(self, kmer_freq):
         kmer_len = 4**len(list(kmer_freq.keys())[0])
         _freq = np.zeros(kmer_len)
-        for kmer, freq in kmer_freq.items():
+        for kmer, freq in six.iteritems(kmer_freq):
             _freq[self._kmer_idx(kmer)] = freq
         return _freq
 
