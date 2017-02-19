@@ -21,6 +21,10 @@ DeepCpG: Deep neural networks for predicting single-cell DNA methylation
 
 DeepCpG is a deep neural network for predicting the methylation state of CpG dinucleotides in multiple cells. It allows to accurately impute incomplete DNA methylation profiles, to discover predictive sequence motifs, and to quantify the effect of sequence mutations. (`Angermueller et al, 2017 <http://biorxiv.org/content/early/2017/02/01/055715>`_).
 
+.. note::
+
+  If you encounter any issue or if you have ideas how to improve DeepCpG, please submit an `issue <https://github.com/cangermueller/deepcpg/issues>`_.
+
 .. image:: docs/fig1.png
    :scale: 50%
    :alt: DeepCpG model architecture and applications
@@ -55,6 +59,7 @@ Table of contents
 * `Examples`_
 * `Model Zoo`_
 * `FAQ`_
+* `Issues`_
 * `Content`_
 * `Contact`_
 
@@ -182,6 +187,7 @@ DeepCpG use the `Keras <https://keras.io>`_ deep learning library, which support
   THEANO_FLAGS='device=gpu,floatX=float32'
 
 You can find more information about Keras backends `here <https://keras.io/backend/>`_, and about parallelization `here <https://keras.io/getting-started/faq/#how-can-i-run-keras-on-gpu>`_.
+
 
 
 
