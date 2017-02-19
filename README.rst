@@ -13,7 +13,7 @@ DeepCpG: Deep neural networks for predicting single-cell DNA methylation
 .. |PyPI| image:: https://img.shields.io/badge/pypi-latest-orange.svg
   :target: https://pypi.python.org/pypi/deepcpg
 
-.. |Docs| image:: https://img.shields.io/badge/docs-up--to--date-green.svg
+.. |Docs| image:: https://img.shields.io/badge/docs-up--to--date-brightgreen.svg
   :target: http://deepcpg.readthedocs.io
 
 .. |Tweet| image:: https://img.shields.io/twitter/url/http/shields.io.svg?style=social
