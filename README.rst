@@ -2,7 +2,7 @@
 DeepCpG: Deep neural networks for predicting single-cell DNA methylation
 ========================================================================
 
-|Version| |License| |PyPI| |Docs| |Tweet|
+|Version| |License| |PyPI| |Docs| |Tweet| |DOI|
 
 .. |Version| image:: https://img.shields.io/badge/python-2.7%2B%2C3.4%2B-green.svg
   :target: https://www.python.org/
@@ -18,6 +18,9 @@ DeepCpG: Deep neural networks for predicting single-cell DNA methylation
 
 .. |Tweet| image:: https://img.shields.io/twitter/url/http/shields.io.svg?style=social
   :target: https://twitter.com/intent/tweet?text=Checkout+%23DeepCpG%3A+%23DeepLearning+for+predicting+DNA+methylation%2C+%40cangermueller 
+
+.. |DOI| image:: https://zenodo.org/badge/68630079.svg
+   :target: https://zenodo.org/badge/latestdoi/68630079
 
 DeepCpG is a deep neural network for predicting the methylation state of CpG dinucleotides in multiple cells. It allows to accurately impute incomplete DNA methylation profiles, to discover predictive sequence motifs, and to quantify the effect of sequence mutations. (`Angermueller et al, 2017 <http://biorxiv.org/content/early/2017/02/01/055715>`_).
 
