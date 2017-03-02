@@ -96,8 +96,10 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, assert_cpg=False):
 
     for i in range(nb_win):
         p = pos[i] - seq_index
+        if p < 0 or p >= len(seq):
+            raise ValueError('Position %d not on chromosome!' % (p + seq_index))
         if seq[p:p + 2] != 'CG':
-            warnings.warn('No CpG site at position %d!' % p)
+            warnings.warn('No CpG site at position %d!' % (p + seq_index))
         win = seq[max(0, p - delta): min(len(seq), p + delta + 1)]
         if len(win) < wlen:
             win = max(0, delta - p) * 'N' + win
