@@ -27,10 +27,10 @@ class DnaModel(Model):
 
 
 class CnnL1h128(DnaModel):
-    """CNN with one convolutional and one hidden layer with 128 units.
+    """CNN with one convolutional and one fully-connected layer with 128 units.
 
-    Specification: conv[128@11]_mp[4]_fc[128]_do[0.0]
-    Parameters: 4.100.000
+    Parameters: 4,100,000
+    Specification: conv[128@11]_mp[4]_fc[128]_do
     """
 
     def __init__(self, nb_hidden=128, *args, **kwargs):
@@ -56,10 +56,10 @@ class CnnL1h128(DnaModel):
 
 
 class CnnL1h256(CnnL1h128):
-    """CNN with one convolutional and one hidden layer with 256 units.
+    """CNN with one convolutional and one fully-connected layer with 256 units.
 
-    Specification: conv[128@11]_mp[4]_fc[256]_do[0.0]
-    Parameters: 8.100.000
+    Parameters: 8,100,000
+    Specification: conv[128@11]_mp[4]_fc[256]_do
     """
 
     def __init__(self,  *args, **kwargs):
@@ -68,10 +68,10 @@ class CnnL1h256(CnnL1h128):
 
 
 class CnnL2h128(DnaModel):
-    """CNN with two convolutional and one hidden layer with 128 units.
+    """CNN with two convolutional and one fully-connected layer with 128 units.
 
-    Specification: conv[128@11]_mp[4]_conv[256@3]_mp[2]_fc[128]_do[0.0]
-    Parameters: 4.100.000
+    Parameters: 4,100,000
+    Specification: conv[128@11]_mp[4]_conv[256@3]_mp[2]_fc[128]_do
     """
 
     def __init__(self, nb_hidden=128, *args, **kwargs):
@@ -102,10 +102,10 @@ class CnnL2h128(DnaModel):
 
 
 class CnnL2h256(CnnL2h128):
-    """CNN with two convolutional and one hidden layer with 256 units.
+    """CNN with two convolutional and one fully-connected layer with 256 units.
 
-    Specification: conv[128@11]_mp[4]_conv[256@3]_mp[2]_fc[256]_do[0.0]
-    Parameters: 8.100.000
+    Parameters: 8,100,000
+    Specification: conv[128@11]_mp[4]_conv[256@3]_mp[2]_fc[256]_do
     """
 
     def __init__(self,  *args, **kwargs):
@@ -114,11 +114,11 @@ class CnnL2h256(CnnL2h128):
 
 
 class CnnL3h128(DnaModel):
-    """CNN with three convolutional and one hidden layer with 128 units.
+    """CNN with three convolutional and one fully-connected layer with 128 units.
 
+    Parameters: 4,400,000
     Specification: conv[128@11]_mp[4]_conv[256@3]_mp[2]_conv[512@3]_mp[2]_
-                   fc[128]_do[0.0]
-    Parameters: 4.400.000
+                   fc[128]_do
     """
 
     def __init__(self, nb_hidden=128, *args, **kwargs):
@@ -154,11 +154,11 @@ class CnnL3h128(DnaModel):
 
 
 class CnnL3h256(CnnL3h128):
-    """CNN with three convolutional and one hidden layer with 256 units.
+    """CNN with three convolutional and one fully-connected layer with 256 units.
 
+    Parameters: 8,300,000
     Specification: conv[128@11]_mp[4]_conv[256@3]_mp[2]_conv[512@3]_mp[2]_
-                   fc[256]_do[0.0]
-    Parameters: 8.300.000
+                   fc[256]_do
     """
 
     def __init__(self,  *args, **kwargs):
@@ -172,8 +172,9 @@ class CnnRnn01(DnaModel):
     Convolutional-recurrent model with two convolutional layers followed by a
     bidirectional GRU layer.
 
-    Specification: conv[128@11]_pool[4]_conv[256@7]_pool[4]_bGRU[256]_do[0.0]
-    Parameters: 1.100.000"""
+    Parameters: 1,100,000
+    Specification: conv[128@11]_pool[4]_conv[256@7]_pool[4]_bgru[256]_do
+    """
 
     def __call__(self, inputs):
         x = inputs[0]
@@ -196,9 +197,10 @@ class CnnRnn01(DnaModel):
 
 
 class ResNet01(DnaModel):
-    """Residual network with 3x2 bottleneck residual units.
+    """Residual network with bottleneck residual units.
 
-    Parameters: 1.700.000
+    Parameters: 1,700,000
+    Specification: conv[128@11]_mp[2]_resb[2x128|2x256|2x512|1x1024]_gap_do
 
     He et al., 'Identity Mappings in Deep Residual Networks.'
     """
@@ -289,9 +291,10 @@ class ResNet01(DnaModel):
 
 
 class ResNet02(ResNet01):
-    """Residual network with 3x3 bottleneck residual units.
+    """Residual network with bottleneck residual units.
 
-    Parameters: 2.000.000
+    Parameters: 2,000,000
+    Specification: conv[128@11]_mp[2]_resb[3x128|3x256|3x512|1x1024]_gap_do
 
     He et al., 'Identity Mappings in Deep Residual Networks.'
     """
@@ -333,9 +336,10 @@ class ResNet02(ResNet01):
 
 
 class ResConv01(ResNet01):
-    """Residual network with two convolutional layers in each residual units.
+    """Residual network with two convolutional layers in each residual unit.
 
-    Parameters: 2.800.000
+    Parameters: 2,800,000
+    Specification: conv[128@11]_mp[2]_resc[2x128|1x256|1x256|1x512]_gap_do
 
     He et al., 'Identity Mappings in Deep Residual Networks.'
     """
@@ -420,7 +424,8 @@ class ResAtrous01(DnaModel):
     units. Atrous convolutional layers allow to increase the receptive field and
     hence better model long-range dependencies.
 
-    Parameters: 2.000.000
+    Parameters: 2,000,000
+    Specification: conv[128@11]_mp[2]_resa[3x128|3x256|3x512|1x1024]_gap_do
 
     He et al., 'Identity Mappings in Deep Residual Networks.'
     Yu and Koltun, 'Multi-Scale Context Aggregation by Dilated Convolutions.'
@@ -518,7 +523,7 @@ class ResAtrous01(DnaModel):
 def list_models():
     models = dict()
     for name, value in globals().items():
-        if inspect.isclass(value) and name.lower().find('model') == 0:
+        if inspect.isclass(value) and name.lower().find('model') == -1:
             models[name] = value
     return models
 

@@ -1,6 +1,6 @@
 """CpG models.
 
-Provides models trained observed neighboring methylation states of multiple
+Provides models trained with observed neighboring methylation states of multiple
 cells.
 """
 
@@ -18,6 +18,7 @@ from ..utils import get_from_module
 
 
 class CpgModel(Model):
+    """Abstract class of a CpG model."""
 
     def __init__(self, *args, **kwargs):
         super(CpgModel, self).__init__(*args, **kwargs)
@@ -34,8 +35,12 @@ class CpgModel(Model):
         return kl.merge(inputs, mode='concat', concat_axis=2)
 
 
-class DenseAvg(CpgModel):
-    """54000 params"""
+class FcAvg(CpgModel):
+    """Fully-connected layer followed by global average layer.
+
+    Parameters: 54,000
+    Specification: fc[512]_gap
+    """
 
     def _replicate_model(self, input):
         w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
@@ -57,7 +62,11 @@ class DenseAvg(CpgModel):
 
 
 class RnnL1(CpgModel):
-    """810000 parameters"""
+    """Bidirectional GRU with one layer.
+
+    Parameters: 810,000
+    Specification: fc[256]_bgru[256]_do
+    """
 
     def __init__(self, act_replicate='relu', *args, **kwargs):
         super(RnnL1, self).__init__(*args, **kwargs)
@@ -85,7 +94,11 @@ class RnnL1(CpgModel):
 
 
 class RnnL2(RnnL1):
-    """1112069 params"""
+    """Bidirectional GRU with two layers.
+
+    Parameters: 1,100,000
+    Specification: fc[256]_bgru[128]_bgru[256]_do
+    """
 
     def __call__(self, inputs):
         x = self._merge_inputs(inputs)

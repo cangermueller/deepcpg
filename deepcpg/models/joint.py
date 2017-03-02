@@ -1,5 +1,11 @@
+"""Joint models.
+
+Provides models two join features of DNA and CpG model.
+"""
 from __future__ import division
 from __future__ import print_function
+
+import inspect
 
 from keras import layers as kl
 from keras import models as km
@@ -39,12 +45,21 @@ class JointModel(Model):
 
 
 class JointL0(JointModel):
+    """Concatenates inputs without trainable layers.
+
+    Parameters: 0
+    """
 
     def __call__(self, models):
         return self._build(models)
 
 
 class JointL1h512(JointModel):
+    """One fully-connected layer with 512 units.
+
+    Parameters: 524,000
+    Specification: fc[512]
+    """
 
     def __init__(self, nb_layer=1, nb_hidden=512, *args, **kwargs):
         super(JointL1h512, self).__init__(*args, **kwargs)
@@ -64,6 +79,11 @@ class JointL1h512(JointModel):
 
 
 class JointL2h512(JointL1h512):
+    """Two fully-connected layers with 512 units.
+
+    Parameters: 786,000
+    Specification: fc[512]_fc[512]
+    """
 
     def __init__(self, *args, **kwargs):
         super(JointL2h512, self).__init__(*args, **kwargs)
@@ -71,10 +91,23 @@ class JointL2h512(JointL1h512):
 
 
 class JointL3h512(JointL1h512):
+    """Three fully-connected layers with 512 units.
+
+    Parameters: 1,000,000
+    Specification: fc[512]_fc[512]_fc[512]
+    """
 
     def __init__(self, *args, **kwargs):
         super(JointL3h512, self).__init__(*args, **kwargs)
         self.nb_layer = 3
+
+
+def list_models():
+    models = dict()
+    for name, value in globals().items():
+        if inspect.isclass(value) and name.lower().find('model') == -1:
+            models[name] = value
+    return models
 
 
 def get(name):

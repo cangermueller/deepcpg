@@ -224,10 +224,12 @@ class App(object):
             '--cpg_wlen',
             help='CpG window length',
             type=int)
+        models = sorted(list(mod.joint.list_models().keys()))
         g.add_argument(
             '--joint_model',
-            help='Name of joint model',
-            default='JointL1h512')
+            help='Name of joint model.'
+            ' Available models: %s' % ', '.join(models),
+            default='JointL2h512')
         g.add_argument(
             '--model_files',
             help='Files of existing model',
@@ -277,7 +279,7 @@ class App(object):
             '--nb_epoch',
             help='Maximum # training epochs',
             type=int,
-            default=50)
+            default=30)
         g.add_argument(
             '--nb_train_sample',
             help='Maximum # training samples',
