@@ -674,6 +674,8 @@ Both the training loss and validation loss should continually decrease until sat
 
 If your training loss fluctuates or increases, then you should decrease the learning rate. For more information on interpreting learning curves I recommend this tutorial.
 
+To stop training before reaching the number of epochs specified by `--nb_epoch`, you can create a stop file (default name `STOP`) in the training output directory with `touch STOP`. See also **X**.
+
 Watching numeric console outputs is not particular user friendly. [TensorBoard](https://www.tensorflow.org/get_started/summaries_and_tensorboard) provides a more convenient and visually appealing way to mointor training. You can use TensorBoard provided that you are using the Tensorflow backend (**see X**). Simply go to the training output directory and run `tensorboard --logdir .`.
 
 ## Configuring the Keras backend
@@ -703,3 +705,43 @@ The dropout rate defines how strongly your model is regularized. If you have onl
 DeepCpG provides different architectures for the DNA, CpG, and joint module. Architectures are more or less complex, depending on how many layers and neurons say have. More complex model might yield better performances, but take longer to train and might overfit your data. See **X** for more information about different architectures.
 
 L2 weight decay is an alternative to dropout for regularizing model training. If your model is overfitting, you might try 0.001, or 0.005.
+
+## Deciding how long to train / Controlling training
+The arguments `--nb_epoch` and `--early_stopping` control how long models are trained. 
+
+`--nb_epoch` defines the maximum number of training epochs (default 30). After one epoch, the model has seen the entire training set once. The time per epoch hence depends on the size of the training set, but also on the complexity of the model that you are training and the hardware of your machine. On a large dataset, you have to train for fewer epochs than on a small dataset, since your model will have seen already a lot of training samples after one epoch. For training on about 3,000,000 samples, good default values are 20 for the DNA and CpG module, and 10 for the joint module.
+
+Early stopping stops training if the loss on the validation set did not improve after the number of epochs that is specified by `--early_stopping` (default 5). If you are training without specifying a validation set with `--val_files`, early stopping will be deactivated.
+
+`--max_time` sets the maximum training time in hours. This guarantees that training terminates after a certain amount of time regardless of the `--nb_epoch` or `--early_stopping` argument.
+
+`--stop_file` defines the path of a file that, if it exists, stop training after the end of the current epoch. This is useful if you are monitoring training and want to terminate training manually as soon as the training loss starts to saturate regardless of `--nb_epoch` or `--early_stopping`. For example, when using `--stop_file ./train/STOP`, you can create an empty file with `touch ./train/STOP` to stop training at the end of the current epoch.
+
+
+
+## Testing training
+
+`dcpg_train.py` provides different arguments that allow to briefly test training before training the full model for a about a day.
+
+`--nb_train_sample` and `--nb_val_sample` specify the number of training and validation samples. When using `--nb_train_sample 500`, the training loss should briefly decay and your model should start overfitting.
+
+`--nb_output` and `--output_names` define the maximum number and the name of model outputs. For example, `--nb_output 3` will train only on the first three outputs, and `--output_names cpg/.*SER.*` only on outputs that include 'SER' in their name.
+
+Analogously, `--nb_replicate` and `--replicate_name` define the number and name of cells that are used as input to the CpG module. `--nb_replicate 3` will only use observed methylation states from the first three cells, and allows to briefly test the CpG module.
+
+`--dna_wlen` specifies the size of DNA sequence windows that will be used as input to the DNA module. For example, `--dna_wlen 101` will train only on windows of size 101, instead of using the full window length that was specified when creating data files with `dcpg_data.py`.
+
+Analogously, `--cpg_wlen` specifies the sum of the number of observed CpG sites to the left and the right of the target CpG site for training the CpG module. For example, `--cpg_wlen 10` will use 5 observed CpG sites to the left and to the right.
+
+
+## Fine-tuning
+`dcpg_train.py` provides different arguments that allow to selectively train only some components of a model. 
+
+With `--fine_tune`, only the output layer will be trained. As the name implies, this argument is useful for fine-tuning a pre-trained model.
+
+`--train_models` specifies which modules are trained. For example, `--train_models joint` will train the joint module, but not the DNA and CpG module. `--train_models cpg joint` will train the CpG and joint module, but not the DNA module.
+
+`--trainable` and `--not_trainable` allow including and excluding certain layers. For example, `--not_trainable '.*' --trainable 'dna/.*_2'` will only train the second layers of the DNA module.
+
+
+`--freeze_filter` excludes the first convolutional layer of the DNA module from training.

@@ -113,7 +113,7 @@ class App(object):
             help='Maximum number of samples that are kept in memory for'
             ' batch-wise evaluation. If zero, evaluate on entire data set.',
             type=int,
-            default=1000000)
+            default=100000)
         p.add_argument(
             '--batch_size',
             help='Batch size',

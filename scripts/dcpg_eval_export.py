@@ -76,7 +76,7 @@ class App(object):
             '-f', '--out_format',
             help='Output file format',
             choices=['bedGraph', 'hdf'],
-            default='bedGraph')
+            default='hdf')
         p.add_argument(
             '--chromos',
             help='Chromosomes to be exported',

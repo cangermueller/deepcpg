@@ -56,7 +56,7 @@ cell-to-cell variability (d).
 Table of contents
 =================
 * `Installation`_
-* `Getting started with DeepCpG in 30 seconds`_
+* `Getting started`_
 * `Examples`_
 * `Model Zoo`_
 * `FAQ`_
@@ -87,8 +87,8 @@ and then install DeepCpG using ``setup.py``:
   python setup.py install
 
 
-Getting started with DeepCpG in 30 seconds
-==========================================
+Getting started
+===============
 
 1. Store known CpG methylation states of each cell into a tab-delimted file with the following columns:
 
@@ -117,6 +117,7 @@ Example:
   --cpg_profiles ./cpg/cell1.tsv ./cpg/cell2.tsv ./cpg/cell3.tsv
   --dna_files ./dna/*.dna.chromosome.*.fa*
   --cpg_wlen 50
+  --dna_wlen 1001
   --out_dir ./data
 
 ``./cpg/cell[123].tsv`` store the methylation data from step 1., ``./dna`` contains the DNA database, e.g. `mm10 <http://ftp.ensembl.org/pub/release-85/fasta/mus_musculus/dna/>`_ for mouse or `hg38 <http://ftp.ensembl.org/pub/release-86/fasta/homo_sapiens/dna/>`_ for human, and output data files will be stored in ``./data``.
