@@ -139,7 +139,7 @@ Example:
 This command uses chromosomes 1-3 for training and 10-13 for validation. ``---dna_model``, ``--cpg_model``, and ``--joint_model`` specify the architecture of the CpG, DNA, and joint module, respectively (see manuscript for details). Training will stop after at most 30 epochs and model files will be stored in ``./model``.
 
 
-4. Use ``dcpg_eval.py`` to predict missing methylation states and evaluate prediction performances:
+4. Use ``dcpg_eval.py`` to impute methylation profiles and evaluate model performances.
 
 .. code:: bash
 
@@ -147,31 +147,38 @@ This command uses chromosomes 1-3 for training and 10-13 for validation. ``---dn
     ./data/c*.h5
     --model_files ./model/model.json ./model/model_weights_val.h5
     --out_data ./eval/data.h5
-    --out_report ./eval/report.tsv
+    --out_report ./eval/report.csv
 
-This command predicts missing methylation states of all cells and chromosomes and evaluates prediction performances using known methylation states. Predicted states will be stored in ``./eval/data.h5`` and performance metrics in ``./eval/report.tsv``.
+This command predicts missing methylation states on all chromosomes and evaluates prediction performances using known methylation states. Predicted states will be stored in ``./eval/data.h5`` and performance metrics in ``./eval/report.csv``.
 
 
-5. Export imputed methylation profiles to bedGraph files:
+5. Export imputed methylation profiles to HDF5 or bedGraph files:
 
 .. code:: bash
 
   dcpg_eval_export.py
     ./eval/data.h5
-    -o ./eval
-    -f bedGraph
+    -o ./eval/hdf
+    -f hdf
 
 
 
 Examples
 ========
 
-Interactive examples on how to use DeepCpG can be found `here <examples/index.md>`_.
+You can find example notebooks and scripts on how to use DeepCpG `here <examples/README.md>`_.
+
+
+Documentation
+=============
+
+The `DeepCpG documentation <http://deepcpg.readthedocs.io>`_ provides information on training, hyper-parameter selection, and module architectures.
+
 
 Model Zoo
 =========
 
-Pre-trained models can be downloaded from the `DeepCpG model zoo <docs/models.md>`_.
+You can download pre-trained models from the `DeepCpG model zoo <docs/source/zoo.md>`_.
 
 
 FAQ
@@ -197,7 +204,7 @@ Content
 * ``/deepcpg/``: Source code
 * ``/docs``: Documentation
 * ``/examples/``: Examples on how to use DeepCpG
-* ``/script/``: Executable scripts for data creation, model training, and interpretation
+* ``/script/``: Executable DeepCpG scripts
 * ``/tests``: Test files
 
 

@@ -1,6 +1,6 @@
 # DeepCpG examples
 
-The following tutorials illustrate how to use DeepCpG for imputing and analysing single-cell methylation data. Tutorials are implemented as [IPython notebooks](https://ipython.org/notebook.html) and can be executed interactively. They can be exported to shell scripts and executed in the terminal by selecting `File -> Download as -> Bash (.sh)`. This is recommended for large-scale experiments, e.g. training models on the entire data set.
+Here you can find IPython notebooks and shell scripts that illustrate how to use DeepCpG.
 
 `setup.sh` must be execute once to setup the required dependencies:
 
@@ -8,10 +8,21 @@ The following tutorials illustrate how to use DeepCpG for imputing and analysing
 bash setup.sh
 ```
 
-## Tutorials
+## Notebooks
+`./notebooks` contains [IPython notebooks](https://ipython.org/notebook.html), which can be executed interactively. They can be exported to shell scripts and executed in the terminal by selecting `File -> Download as -> Bash (.sh)`. This is recommended for large-scale experiments, e.g. training models on the entire data set.
 
-* [DeepCpG basics](./src/basics/index.ipynb): Pre-processing data, training models, and evaluating models.
-* [Fine-tuning](./src/fine_tune/index.ipynb): Fine-tuning a pre-trained model to speed-up training.
-* [Motif analysis](./src/motifs/index.ipynb): Visualizing and analyzing learned motifs.
+* [DeepCpG basics](./notebooks/basics/index.ipynb): Pre-processing data, training models, and evaluating models.
+* [Fine-tuning](./notebooks/fine_tune/index.ipynb): Fine-tuning a pre-trained model to speed-up training.
+* [Motif analysis](./notebooks/motifs/index.ipynb): Visualizing and analyzing learned motifs.
 
-... more tutorials to come!
+## Shell scripts
+
+Collections of scripts with recommended default parameters for data creation, model training, and model evaluation.
+
+Set `test_mode` variable in scripts to `1` for testing, and `0` otherwise. You might have to adapt the scripts for your particular dataset.
+
+* [lib.sh](./scripts/lib.sh): Global variable definitions and functions.
+* [data.sh](./scripts/data.sh): Creates DeepCpG data files.
+* [train.sh](./scripts/train.sh): Trains DeepCpG DNA, CpG, and joint module separately.
+* [eval.sh](./scripts/eval.sh): Evaluates prediction performances and imputes methylation profiles.
+
