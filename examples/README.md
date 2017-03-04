@@ -2,7 +2,7 @@
 
 Here you can find IPython notebooks and shell scripts that illustrate how to use DeepCpG.
 
-`setup.sh` must be execute once to setup the required dependencies:
+To setup the required dependencies, execute `setup.sh`:
 
 ```shell
 bash setup.sh
@@ -16,10 +16,7 @@ bash setup.sh
 * [Motif analysis](./notebooks/motifs/index.ipynb): Visualizing and analyzing learned motifs.
 
 ## Shell scripts
-
-Collections of scripts with recommended default parameters for data creation, model training, and model evaluation.
-
-Set `test_mode` variable in scripts to `1` for testing, and `0` otherwise. You might have to adapt the scripts for your particular dataset.
+`./scripts` contains shell scrips with recommended default parameters. They may help you to easily build a DeepCpG pipeline for creating data, training models, and evaluating models. Set `test_mode` variable in scripts to `1` for testing, and `0` otherwise.
 
 * [lib.sh](./scripts/lib.sh): Global variable definitions and functions.
 * [data.sh](./scripts/data.sh): Creates DeepCpG data files.

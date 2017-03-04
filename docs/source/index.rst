@@ -41,6 +41,12 @@ Examples
 Interactive examples on how to use DeepCpG can be found `here <https://github.com/cangermueller/deepcpg/tree/master/examples>`_.
 
 
+Documentation
+-------------
+* ref:`Model training` - Everything about training DeepCpG models
+* ref:`lib/index` - API documentation of DeepCpG modules and functions
+
+
 API documentation
 -----------------
 DeepCpG modules:
