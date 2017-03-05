@@ -53,7 +53,7 @@ cell-to-cell variability (d).
   Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. Accurate Prediction of Single-Cell DNA Methylation States Using Deep Learning. http://biorxiv.org/content/early/2017/02/01/055715 bioRxiv, February 1, 2017, 55715. doi:10.1101/055715.
 
 
-.. attention:: News
+.. attention::
 
   * 170305: New documentation about DeepCpG module architectures `available <http://deepcpg.readthedocs.io/modules.html>_`!
   * 170302: New guide on DeepCpG model training `available <http://deepcpg.readthedocs.io/train.html>_`!
