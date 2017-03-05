@@ -55,6 +55,7 @@ cell-to-cell variability (d).
 
 Table of contents
 =================
+* `News`_
 * `Installation`_
 * `Getting started`_
 * `Examples`_
@@ -62,6 +63,13 @@ Table of contents
 * `FAQ`_
 * `Content`_
 * `Contact`_
+
+
+News
+====
+* 170305: New documentation about DeepCpG module architectures available!
+* 170302: New guide on DeepCpG model training available!
+* 170228: New example shell scripts for building a DeepCpG pipeline available!
 
 
 Installation

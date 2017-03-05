@@ -41,8 +41,9 @@ Interactive examples on how to use DeepCpG can be found `here <https://github.co
 Documentation
 =============
 
+* :ref:`train` -- Everything about model training.
 * :ref:`modules` -- Description of DNA, CpG, and joint module architectures.
-* :ref:`libdoc` -- Documentation of DeepCpG modules.
+* :ref:`libdoc` -- Documentation of DeepCpG source code.
 
 
 Indices and tables
@@ -56,5 +57,6 @@ Indices and tables
   :maxdepth: 1
   :hidden:
 
+  train
   modules
   lib/index
