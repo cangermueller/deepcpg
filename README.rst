@@ -53,6 +53,13 @@ cell-to-cell variability (d).
   Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. Accurate Prediction of Single-Cell DNA Methylation States Using Deep Learning. http://biorxiv.org/content/early/2017/02/01/055715 bioRxiv, February 1, 2017, 55715. doi:10.1101/055715.
 
 
+.. attention:: News
+
+  * 170305: New documentation about DeepCpG module architectures `available <http://deepcpg.readthedocs.io/modules.html>_`!
+  * 170302: New guide on DeepCpG model training `available <http://deepcpg.readthedocs.io/train.html>_`!
+  * 170228: New example shell scripts for building a DeepCpG pipeline `available <./examples/README.md>`!
+
+
 Table of contents
 =================
 * `News`_
@@ -63,13 +70,6 @@ Table of contents
 * `FAQ`_
 * `Content`_
 * `Contact`_
-
-
-News
-====
-* 170305: New documentation about DeepCpG module architectures available!
-* 170302: New guide on DeepCpG model training available!
-* 170228: New example shell scripts for building a DeepCpG pipeline available!
 
 
 Installation
@@ -123,7 +123,7 @@ Example:
 
   dcpg_data.py
   --cpg_profiles ./cpg/cell1.tsv ./cpg/cell2.tsv ./cpg/cell3.tsv
-  --dna_files ./dna/*.dna.chromosome.*.fa*
+  --dna_files ./dna/mm10
   --cpg_wlen 50
   --dna_wlen 1001
   --out_dir ./data
@@ -136,8 +136,8 @@ Example:
 .. code:: bash
 
   dcpg_train.py
-    ./data/c{1,2,3}_*.h5
-    --val_data ./data/c{10,11,13}_*.h5
+    ./data/c{1,3,6,7,9}_*.h5
+    --val_data ./data/c{13,14,15,16,17,18,19}_*.h5
     --dna_model CnnL2h128
     --cpg_model RnnL1
     --joint_model JointL2h512
@@ -152,7 +152,7 @@ This command uses chromosomes 1-3 for training and 10-13 for validation. ``---dn
 .. code:: bash
 
   dcpg_eval.py
-    ./data/c*.h5
+    ./data/*.h5
     --model_files ./model/model.json ./model/model_weights_val.h5
     --out_data ./eval/data.h5
     --out_report ./eval/report.csv
