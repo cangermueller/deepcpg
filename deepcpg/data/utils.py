@@ -135,8 +135,20 @@ def format_chromo(chromo):
     return chromo.str.upper().str.replace('^CHR', '')
 
 
+def sample_from_chromo(frame, nb_sample):
+    """Randomly sample `nb_sample` samples from each chromosome."""
+
+    def sample_frame(frame):
+        idx = np.random.choice(len(frame), nb_sample, replace=False)
+        return frame.iloc[idx]
+
+    frame = frame.groupby('chromo', as_index=False).apply(sample_frame)
+    frame.index = range(len(frame))
+    return frame
+
+
 def read_cpg_profile(filename, chromos=None, nb_sample=None, round=True,
-                     sort=True):
+                     sort=True, nb_sample_chromo=None):
     if is_bedgraph(filename):
         usecols = [0, 1, 3]
         skiprows = 1
@@ -144,7 +156,9 @@ def read_cpg_profile(filename, chromos=None, nb_sample=None, round=True,
         usecols = [0, 1, 2]
         skiprows = 0
     dtype = {usecols[0]: np.str, usecols[1]: np.int32, usecols[2]: np.float32}
-    nrows = nb_sample if chromos is None else None
+    nrows = None
+    if chromos is None and nb_sample_chromo is None:
+        nrows = nb_sample
     d = pd.read_table(filename, header=None, comment='#', nrows=nrows,
                       usecols=usecols, dtype=dtype, skiprows=skiprows)
     d.columns = ['chromo', 'pos', 'value']
@@ -153,6 +167,8 @@ def read_cpg_profile(filename, chromos=None, nb_sample=None, round=True,
         if not isinstance(chromos, list):
             chromos = [str(chromos)]
         d = d.loc[d.chromo.isin(chromos)]
+    if nb_sample_chromo is not None:
+        d = sample_from_chromo(d, nb_sample_chromo)
     if nb_sample is not None:
         d = d.iloc[:nb_sample]
     if sort:

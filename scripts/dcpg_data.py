@@ -140,11 +140,15 @@ def map_values(values, pos, target_pos, dtype=None, nan=dat.CPG_NAN):
 
 
 def map_cpg_tables(cpg_tables, chromo, chromo_pos):
+    """Maps values from cpg_tables to `chromo_pos`.
+
+    Positions in `cpg_tables` for `chromo`  must be a subset of `chromo_pos`.
+    """
     chromo_pos.sort()
     mapped_tables = OrderedDict()
     for name, cpg_table in six.iteritems(cpg_tables):
         cpg_table = cpg_table.loc[cpg_table.chromo == chromo]
-        cpg_table = cpg_table.sort_values(['chromo', 'pos'])
+        cpg_table = cpg_table.sort_values('pos')
         mapped_table = map_values(cpg_table.value.values,
                                   cpg_table.pos.values,
                                   chromo_pos)
@@ -292,11 +296,20 @@ class App(object):
             type=int,
             help='Maximum number of samples')
         g.add_argument(
+            '--nb_sample_chromo',
+            type=int,
+            help='Number of random samples from each chromosome')
+        g.add_argument(
             '--chunk_size',
             type=int,
             default=32768,
             help='Maximum number of samples per output file. Should be'
             ' divisible by batch size.')
+        g.add_argument(
+            '--seed',
+            help='Seed of random number generator',
+            type=int,
+            default=0)
         g.add_argument(
             '--verbose',
             help='More detailed log messages',
@@ -307,6 +320,9 @@ class App(object):
         return p
 
     def main(self, name, opts):
+        if opts.seed is not None:
+            np.random.seed(opts.seed)
+
         logging.basicConfig(filename=opts.log_file,
                             format='%(levelname)s (%(asctime)s): %(message)s')
         log = logging.getLogger(name)
@@ -340,9 +356,11 @@ class App(object):
         # Read single-cell profiles if provided
         if opts.cpg_profiles:
             log.info('Reading single-cell profiles ...')
-            outputs['cpg'] = read_cpg_profiles(opts.cpg_profiles,
-                                               chromos=opts.chromos,
-                                               nb_sample=opts.nb_sample)
+            outputs['cpg'] = read_cpg_profiles(
+                opts.cpg_profiles,
+                chromos=opts.chromos,
+                nb_sample=opts.nb_sample,
+                nb_sample_chromo=opts.nb_sample_chromo)
 
         if opts.bulk_profiles:
             log.info('Reading bulk profiles ...')
@@ -370,6 +388,8 @@ class App(object):
 
         if opts.chromos:
             pos_table = pos_table.loc[pos_table.chromo.isin(opts.chromos)]
+        if opts.nb_sample_chromo:
+            pos_table = dat.sample_from_chromo(pos_table, opts.nb_sample_chromo)
         if opts.nb_sample:
             pos_table = pos_table.iloc[:opts.nb_sample]
 
