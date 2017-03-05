@@ -1,29 +1,14 @@
-.. _libdoc_deepcpg:
+.. _libdoc:
 
-======================================
-:mod:`callbacks` -- Training callbacks
-======================================
+=================
+API documentation
+=================
 
-.. automodule:: deepcpg.callbacks
-  :members:
+Documentation of DeepCpG modules.
 
-===========================================
-:mod:`evaluation` -- Performance evaluation
-===========================================
+.. toctree::
+  :maxdepth: 2
 
-.. automodule:: deepcpg.evaluation
-  :members:
-
-==============================
-:mod:`motifs` -- Motif related
-==============================
-
-.. automodule:: deepcpg.motifs
-  :members:
-
-=========================
-:mod:`utils` -- Utilities
-=========================
-
-.. automodule:: deepcpg.utils
-  :members:
+  deepcpg
+  data/index
+  models/index

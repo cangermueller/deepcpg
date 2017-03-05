@@ -1,25 +1,27 @@
 .. _libdoc_model:
 
-==============================
-:mod:`model` -- DeepCpG models
-==============================
 
-The models package provides functionalities for building and training models.
+============
+:mod:`model`
+============
 
-:mod:`model.utils` -- Model utilities
-=====================================
+Package for building and training DeepCpG modules.
+
+
+:mod:`model.utils`
+==================
 
 .. automodule:: deepcpg.models.utils
   :members:
 
-:mod:`model.cpg` -- CpG models
-==============================
+:mod:`model.cpg`
+================
 
 .. automodule:: deepcpg.models.cpg
   :members:
 
-:mod:`model.dna` -- DNA models
-==============================
+:mod:`model.dna`
+================
 
 .. automodule:: deepcpg.models.dna
   :members:
