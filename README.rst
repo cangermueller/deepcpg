@@ -24,7 +24,7 @@ DeepCpG: Deep neural networks for predicting single-cell DNA methylation
 
 DeepCpG is a deep neural network for predicting the methylation state of CpG dinucleotides in multiple cells. It allows to accurately impute incomplete DNA methylation profiles, to discover predictive sequence motifs, and to quantify the effect of sequence mutations. (`Angermueller et al, 2017 <http://biorxiv.org/content/early/2017/02/01/055715>`_).
 
-If you encounter any issue or if you have ideas how to improve DeepCpG, please submit an `issue <https://github.com/cangermueller/deepcpg/issues>`_.
+**Please help to improve DeepCpG**, by reporting bugs, typos in notebooks and documentation, or any ideas on how to improve DeepCpG. You can submit an `issue <https://github.com/cangermueller/deepcpg/issues>`_ or send me an `email <mailto:cangermueller@gmail.com>`_.
 
 .. image:: docs/fig1.png
    :scale: 50%
@@ -54,12 +54,6 @@ cell-to-cell variability (d).
 
 
 
-.. note::
-
-  * 170305: New documentation about DeepCpG module architectures `available <http://deepcpg.readthedocs.io/modules.html>`_!
-  * 170302: New guide on DeepCpG model training `available <http://deepcpg.readthedocs.io/train.html>`_!
-  * 170228: New example shell scripts for building a DeepCpG pipeline `available <./examples/README.md>`_!
-
 Table of contents
 =================
 * `News`_
@@ -71,6 +65,12 @@ Table of contents
 * `Content`_
 * `Contact`_
 
+
+News
+====
+* **170305**: New documentation about DeepCpG module architectures `released <http://deepcpg.readthedocs.io/modules.html>`_!
+* **170302**: New guide on DeepCpG model training `released <http://deepcpg.readthedocs.io/train.html>`_!
+* **170228**: New example shell scripts for building a DeepCpG pipeline `released <./examples/README.md>`_!
 
 
 Installation
