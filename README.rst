@@ -69,8 +69,8 @@ Table of contents
 News
 ====
 
-* **170305**: New documentation about DeepCpG module architectures `released <http://deepcpg.readthedocs.io/modules.html>`_!
-* **170302**: New guide on DeepCpG model training `released <http://deepcpg.readthedocs.io/train.html>`_!
+* **170305**: New documentation about DeepCpG module architectures `released <http://deepcpg.readthedocs.io/latest/modules.html>`_!
+* **170302**: New guide on DeepCpG model training `released <http://deepcpg.readthedocs.io/latest/train.html>`_!
 * **170228**: New example shell scripts for building a DeepCpG pipeline `released <./examples/README.md>`_!
 
 
