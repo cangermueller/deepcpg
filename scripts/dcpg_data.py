@@ -65,9 +65,11 @@ def split_ext(filename):
     return os.path.basename(filename).split(os.extsep)[0]
 
 
-def read_cpg_profiles(filenames, *args, **kwargs):
+def read_cpg_profiles(filenames, log=None, *args, **kwargs):
     cpg_profiles = OrderedDict()
     for filename in filenames:
+        if log:
+            log(filename)
         cpg_file = dat.GzipFile(filename, 'r')
         output_name = split_ext(filename)
         cpg_profile = dat.read_cpg_profile(cpg_file, sort=True, *args, **kwargs)
@@ -360,14 +362,16 @@ class App(object):
                 opts.cpg_profiles,
                 chromos=opts.chromos,
                 nb_sample=opts.nb_sample,
-                nb_sample_chromo=opts.nb_sample_chromo)
+                nb_sample_chromo=opts.nb_sample_chromo,
+                log=log.info)
 
         if opts.bulk_profiles:
             log.info('Reading bulk profiles ...')
             outputs['bulk'] = read_cpg_profiles(opts.bulk_profiles,
                                                 chromos=opts.chromos,
                                                 nb_sample=opts.nb_sample,
-                                                round=False)
+                                                round=False,
+                                                log=log.info)
 
         # Create table with unique positions
         if opts.pos_file:
