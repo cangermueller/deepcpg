@@ -120,6 +120,9 @@ class RnnL2(RnnL1):
 
 
 def list_models():
+    """Return the name of models in the module."""
+
+
     models = dict()
     for name, value in globals().items():
         if inspect.isclass(value) and name.lower().find('model') == -1:

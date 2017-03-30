@@ -17,6 +17,7 @@ from ..utils import get_from_module
 
 
 class JointModel(Model):
+    """Abstract class of a Joint model."""
 
     def __init__(self, *args, **kwargs):
         super(JointModel, self).__init__(*args, **kwargs)
@@ -103,6 +104,8 @@ class JointL3h512(JointL1h512):
 
 
 def list_models():
+    """Return the name of models in the module."""
+
     models = dict()
     for name, value in globals().items():
         if inspect.isclass(value) and name.lower().find('model') == -1:

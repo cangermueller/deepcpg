@@ -233,6 +233,8 @@ def evaluate_generator(model, generator, return_data=False, *args, **kwargs):
 
 
 def read_from(reader, nb_sample=None):
+    """Read `nb_sample` samples from `reader`."""
+
     data = None
     nb_seen = 0
     for data_batch in reader:
@@ -257,6 +259,13 @@ def read_from(reader, nb_sample=None):
 
 
 def copy_weights(src_model, dst_model, must_exist=True):
+    """Copy weights from `src_model` to `dst_model`.
+
+    Params:
+    -------
+        must_exist: raise `ValueError` if a layer from `src_model` does not
+            exist in `dst_model`.
+    """
     copied = []
     for dst_layer in dst_model.layers:
         for src_layer in src_model.layers:
@@ -274,6 +283,7 @@ def copy_weights(src_model, dst_model, must_exist=True):
 
 
 class Model(object):
+    """Abstract model class."""
 
     def __init__(self, dropout=0.0, l1_decay=0.0, l2_decay=0.0,
                  init='glorot_uniform'):
@@ -285,6 +295,7 @@ class Model(object):
         self.scope = None
 
     def inputs(self, *args, **kwargs):
+        """Return list of Keras input layers."""
         pass
 
     def _build(self, input, output):
@@ -296,14 +307,25 @@ class Model(object):
         return model
 
     def __call__(self, inputs=None):
+        """Build model given `inputs`."""
         pass
 
 
 def encode_replicate_names(replicate_names):
+    """Encode list of replicate names as single string.
+
+    This function is deprecated but still needed to support legacy models. The
+    function will be removed in the future.
+    """
     return '--'.join(replicate_names)
 
 
 def decode_replicate_names(replicate_names):
+    """Decode string of replicate names and return names as list.
+
+    This function is deprecated but still needed to support legacy models. The
+    function will be removed in the future.
+    """
     return replicate_names.split('--')
 
 
