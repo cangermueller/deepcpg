@@ -27,7 +27,7 @@ DeepCpG [1]_ is a deep neural network for predicting the methylation state of Cp
 **Please help to improve DeepCpG**, by reporting bugs, typos in notebooks and documentation, or any ideas on how to make things better. You can submit an `issue <https://github.com/cangermueller/deepcpg/issues>`_ or send me an `email <mailto:cangermueller@gmail.com>`_.
 
 .. figure:: docs/source/fig1.png
-   :scale: 20 %
+   :width: 640 px
    :align: left
    :alt: DeepCpG model architecture and applications
 
@@ -213,10 +213,10 @@ Changelog
 1.0.3
 -----
 Extends ``dcpg_data.py``, updates documentation, and fixes minor bugs.
-* Extends `dcpg_data.py` to support bedGraph and TSV input files.
-* Enables training on continuous methylation states.
-* Adds new documentation about creating and analyzing Data.
-* Updates API documentation.
+  + Extends `dcpg_data.py` to support bedGraph and TSV input files.
+  + Enables training on continuous methylation states.
+  + Adds new documentation about creating and analyzing Data.
+  + Updates API documentation.
 
 
 
