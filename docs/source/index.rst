@@ -52,7 +52,8 @@ Documentation
 * :ref:`data` -- Creating and analyzing data.
 * :ref:`train` -- Training DeepCpG models.
 * :ref:`models` -- Description of DeepCpG model architectures.
-* :ref:`libdoc` -- Documentation of DeepCpG source code.
+* :ref:`scripts` -- Documentation of DeepCpG scripts.
+* :ref:`library` -- Documentation of DeepCpG library.
 
 
 Indices and tables
@@ -69,4 +70,5 @@ Indices and tables
   data
   train
   models
+  scripts/index
   lib/index

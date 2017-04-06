@@ -1,10 +1,10 @@
-.. _libdoc:
+.. _library:
 
-=================
-API documentation
-=================
+=======
+Library
+=======
 
-Documentation of DeepCpG modules.
+Documentation of DeepCpG library.
 
 .. toctree::
   :maxdepth: 2

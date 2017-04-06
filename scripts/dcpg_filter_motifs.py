@@ -7,26 +7,31 @@ motifs, cluster motifs, and compute motif summary statistics. Requires Weblogo3
 for visualization, and Tomtom for motif comparison.
 
 Copyright (c) 2015 David Kelley since since parts of the code are based on the
-Basset script `basset_motifs.py` from David Kelley.
+`Basset <https://github.com/davek44/Basset>`_ script ``basset_motifs.py``
+from David Kelley.
 
 Examples
 --------
 Compute filter activations and also store input DNA sequence windows:
 
-    dcpg_filter_act.py \
-        ./data/*.h5 \
-        --out_file ./activations.h5 \
-        --store_inputs \
+.. code:: bash
+
+    dcpg_filter_act.py
+        ./data/*.h5
+        --out_file ./activations.h5
+        --store_inputs
         --nb_sample 100000
 
 Visualize and analyze motifs:
 
-    dcpg_filter_motifs.py \
-        ./activations.h5 \
-        --out_dir ./motifs \
-        --motif_db ./motif_databases/CIS-BP/Mus_musculus.meme \
-        --plot_heat \
-        --plot_dens \
+.. code:: bash
+
+    dcpg_filter_motifs.py
+        ./activations.h5
+        --out_dir ./motifs
+        --motif_db ./motif_databases/CIS-BP/Mus_musculus.meme
+        --plot_heat
+        --plot_dens
         --plot_pca
 """
 

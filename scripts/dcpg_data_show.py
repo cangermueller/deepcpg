@@ -2,7 +2,7 @@
 
 """Show the content of DeepCpG data files.
 
-Shows the content of `dcpg_data.py` output files for a selected region, for
+Shows the content of ``dcpg_data.py`` output files for a selected region, for
 example the methylation state of the target CpG site, neighboring CpG sites, or
 the DNA sequence.
 
@@ -11,36 +11,42 @@ Examples
 Show the output methylation state of CpG sites on on chromosome 19 between
 position 3028955 and 3079682:
 
-    dcpg_data_show.py \
-        ./data/*.h5 \
-        --chromo 1 \
-        --start 3028955 \
-        --end 3079682 \
+.. code:: bash
+
+    dcpg_data_show.py
+        ./data/*.h5
+        --chromo 1
+        --start 3028955
+        --end 3079682
         --outputs
 
 Show output methylation states and the state as well as the distance of
 10 neighboring CpG sites of cell BS27_1_SER:
 
-    dcpg_data_show.py \
-        ./data/*.h5 \
-        --chromo 1 \
-        --start 3028955 \
-        --end 3079682 \
-        --outputs cpg/BS27_1_SER \
-        --cpg BS27_1_SER \
-        --cpg_wlen 10 \
+.. code:: bash
+
+    dcpg_data_show.py
+        ./data/*.h5
+        --chromo 1
+        --start 3028955
+        --end 3079682
+        --outputs cpg/BS27_1_SER
+        --cpg BS27_1_SER
+        --cpg_wlen 10
         --cpg_dist
 
 Show output methylation states and DNA sequence windows of length 11 and
-store the results in HDF5 file `selected.h5`:
+store the results in HDF5 file ``selected.h5``:
 
-    dcpg_data_show.py \
-        ./data/*.h5 \
-        --chromo 1 \
-        --start 3028955 \
-        --end 3079682 \
-        --outputs \
-        --dna_wlen 11 \
+.. code:: bash
+
+    dcpg_data_show.py
+        ./data/*.h5
+        --chromo 1
+        --start 3028955
+        --end 3079682
+        --outputs
+        --dna_wlen 11
         --out_hdf selected.h5
 """
 

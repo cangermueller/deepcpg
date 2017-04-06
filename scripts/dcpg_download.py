@@ -9,12 +9,16 @@ Examples
 --------
 Show available models:
 
+.. code:: bash
+
     dcpg_download --show
 
 Download DNA model trained on serum cells from Smallwood et al:
 
-    dcpg_download.py \
-        Smallwood2014_serum_dna \
+.. code:: bash
+
+    dcpg_download.py
+        Smallwood2014_serum_dna
         -o ./model
 """
 

@@ -24,9 +24,3 @@
 
 .. automodule:: deepcpg.utils
   :members:
-
-dcpg_train
-==========
-
-.. automodule:: dcpg_train
-  :members:

@@ -12,18 +12,22 @@ Examples
 --------
 Export profiles of all cells as HDF5 files to `./eval`:
 
-    dcpg_eval_export.py \
-        ./eval/data.h5 \
+.. code:: bash
+
+    dcpg_eval_export.py
+        ./eval/data.h5
         --out_dir ./eval
 
 Export the profile of cell Ca01 for chromosomes 4 and 5 to a bedGraph file:
 
-    dcpg_eval_export.py \
-        ./eval/data.h5 \
-        --output cpg/Ca01 \
-        --chromo 4 5 \
-        --format bedGraph \
-        --out_dir ./eval \
+.. code:: bash
+
+    dcpg_eval_export.py
+        ./eval/data.h5
+        --output cpg/Ca01
+        --chromo 4 5
+        --format bedGraph
+        --out_dir ./eval
 """
 
 from __future__ import print_function

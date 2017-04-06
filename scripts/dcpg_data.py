@@ -5,7 +5,7 @@
 Takes as input incomplete CpG methylation profiles of multiple cells, extracts
 neighboring CpG sites and/or DNA sequences windows, and writes data chunk files
 to output directory. Output data can than be used for model training using
-`dcpg_train.py` model evaluation using `dcpg_eval.py`.
+``dcpg_train.py`` model evaluation using ``dcpg_eval.py``.
 
 Examples
 --------
@@ -13,30 +13,34 @@ Create data files for training a CpG and DNA model, using 50 neighboring
 methylation states and DNA sequence windows of 1001 bp from the mm10 genome
 build:
 
-    dcpg_data.py \
-        --cpg_profiles ./cpg/*.tsv \
-        --cpg_wlen 50 \
-        --dna_files ./mm10 \
-        --dna_wlen 1001 \
+.. code:: bash
+
+    dcpg_data.py
+        --cpg_profiles ./cpg/*.tsv
+        --cpg_wlen 50
+        --dna_files ./mm10
+        --dna_wlen 1001
         --out_dir ./data
 
 Create data files from gzip-compressed bedGraph files for predicting the mean
 methylation rate and cell-to-cell variance from the DNA sequence:
 
-    dcpg_data.py \
-        --cpg_profiles ./cpg/*.bedGraph.gz \
-        --dna_files ./mm10 \
-        --dna_wlen 1001 \
-        --win_stats mean var \
-        --win_stats_wlen 1001 2001 3001 4001 5001 \
+.. code:: bash
+
+    dcpg_data.py
+        --cpg_profiles ./cpg/*.bedGraph.gz
+        --dna_files ./mm10
+        --dna_wlen 1001
+        --win_stats mean var
+        --win_stats_wlen 1001 2001 3001 4001 5001
         --out_dir ./data
 
 
 See Also
 --------
-    `dcpg_data_stats.py`: For computing statistics of data files.
-    `dcpg_data_show.py`: For showing the content of data files.
-    `dcpg_train.py`: For training a model.
+* ``dcpg_data_stats.py``: For computing statistics of data files.
+* ``dcpg_data_show.py``: For showing the content of data files.
+* ``dcpg_train.py``: For training a model.
 """
 
 from __future__ import print_function

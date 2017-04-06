@@ -1,14 +1,17 @@
 #!/usr/bin/env python
 
-"""Visualizes learning curves of `dcpg_train.py`.
+"""Visualizes learning curves of ``dcpg_train.py``.
 
 Visualizes training and validation learning from `dcpg_train.py`. Tensorboard is
 recommended for advanced visualization.
 
 Examples
 --------
-    dcpg_train_viz.py \
-        ./model/lc_train.tsv ./model/lc_val.tsv \
+
+.. code:: bash
+
+    dcpg_train_viz.py
+        ./model/lc_train.tsv ./model/lc_val.tsv
         --out_file ./lc.pdf
 """
 

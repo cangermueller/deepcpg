@@ -7,7 +7,10 @@ mean and variance of output variables.
 
 Examples
 --------
-    dcpg_data_stats.py \
+
+.. code:: bash
+
+    dcpg_data_stats.py
         ./data/*.h5
 """
 
