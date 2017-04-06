@@ -61,7 +61,7 @@ News
 * **170404**: New guide on creating and analyzing DeepCpG data `released <http://deepcpg.readthedocs.io/data.html>`_!
 * **170404**: Training on continuous data, e.g. from bulk experiments, now `supported <http://deepcpg.readthedocs.io/data.html>`_!
 * **170305**: New documentation of DeepCpG model architectures `released <http://deepcpg.readthedocs.io/models.html>`_!
-* **170302**: New guide on DeepCpG model training `released <http://deepcpg.readthedocs.io/train.html>`_!
+* **170302**: New guide on DeepCpG model training `released <http://deepcpg.readthedocs.io/latest/train.html>`_!
 * **170228**: New example shell scripts for building a DeepCpG pipeline `released <./examples/README.md>`_!
 
 
