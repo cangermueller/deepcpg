@@ -1,31 +1,40 @@
 #!/usr/bin/env python
 
-"""Computes filter activations of a DeepCpG model.
+"""Compute filter activations of a DeepCpG model.
 
-Computes the activation of filters of the first convolutional layer for a
+Computes the activation of the filters of the first convolutional layer for a
 given DNA model. The resulting activations can be used to visualize and cluster
 motifs, or correlated with model outputs.
 
-Example:
-    Compute activations in 25000 sequence windows and also store DNA sequences.
-    For example to visualize motifs.
+Examples
+--------
+Compute activations in 25000 sequence windows and also store DNA sequences.
+For example to visualize motifs.
 
-        dcpg_filter_act.py \
-            ./data/*.h5 \
-            --model_files ./models/dna \
-            --out_file ./activations.h5 \
-            --nb_sample 25000 \
-            --store_inputs
+.. code:: bash
 
-    Compute the weighted mean activation in each sequence window and also store
-    model predictions. For example to cluster motifs or to correlated mean motif
-    activations with model predictions.
+    dcpg_filter_act.py
+        ./data/*.h5
+        --model_files ./models/dna
+        --out_file ./activations.h5
+        --nb_sample 25000
+        --store_inputs
 
-        dcpg_filter_act.py \
-            ./data/*.h5 \
-            --model_files ./models/dna \
-            --out_file ./activations.h5 \
-            --act_fun wmean
+Compute the weighted mean activation in each sequence window and also store
+model predictions. For example to cluster motifs or to correlated mean motif
+activations with model predictions.
+
+.. code:: bash
+
+    dcpg_filter_act.py
+        ./data/*.h5
+        --model_files ./models/dna
+        --out_file ./activations.h5
+        --act_fun wmean
+
+See Also
+--------
+* ``dcpg_filter_motifs.py``: For motif visualization and analysis.
 """
 
 from __future__ import print_function

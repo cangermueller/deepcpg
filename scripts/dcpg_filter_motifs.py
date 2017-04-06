@@ -2,30 +2,37 @@
 
 """Visualizes and analyzes filter motifs.
 
-Allows to visualize motifs as sequence logos, compare motifs to annotated
+Enables to visualize motifs as sequence logos, compare motifs to annotated
 motifs, cluster motifs, and compute motif summary statistics. Requires Weblogo3
 for visualization, and Tomtom for motif comparison.
 
-Examples:
-    Compute filter activations and also store input DNA sequence windows:
+Copyright (c) 2015 David Kelley since since parts of the code are based on the
+`Basset <https://github.com/davek44/Basset>`_ script ``basset_motifs.py``
+from David Kelley.
 
-        dcpg_filter_act.py \
-            ./data/*.h5 \
-            --out_file ./activations.h5 \
-            --store_inputs \
-            --nb_sample 100000
+Examples
+--------
+Compute filter activations and also store input DNA sequence windows:
 
-    Visualize and analyze motifs:
+.. code:: bash
 
-        dcpg_filter_motifs.py \
-            ./activations.h5 \
-            --out_dir ./motifs \
-            --motif_db ./motif_databases/CIS-BP/Mus_musculus.meme \
-            --plot_heat \
-            --plot_dens \
-            --plot_pca
+    dcpg_filter_act.py
+        ./data/*.h5
+        --out_file ./activations.h5
+        --store_inputs
+        --nb_sample 100000
 
-Based on `basset_motifs.py`, therefore Copyright (c) 2015 David Kelley.
+Visualize and analyze motifs:
+
+.. code:: bash
+
+    dcpg_filter_motifs.py
+        ./activations.h5
+        --out_dir ./motifs
+        --motif_db ./motif_databases/CIS-BP/Mus_musculus.meme
+        --plot_heat
+        --plot_dens
+        --plot_pca
 """
 
 from __future__ import print_function
@@ -561,7 +568,7 @@ class App(object):
         print()
         print('\nFilter statistics:')
         print(filter_stats.to_string())
-        filter_stats.to_csv(pt.join(opts.out_dir, 'stats.csv'),
+        filter_stats.to_csv(pt.join(opts.out_dir, 'stats.tsv'),
                             float_format='%.4f',
                             sep='\t', index=False)
 
@@ -580,16 +587,16 @@ class App(object):
             for motif_db in opts.motif_dbs:
                 meme_motifs.append(read_meme_db(motif_db))
             meme_motifs = pd.concat(meme_motifs)
-            tmp = pt.join(opts.out_dir, 'tomtom', 'meme_motifs.csv')
+            tmp = pt.join(opts.out_dir, 'tomtom', 'meme_motifs.tsv')
             meme_motifs.to_csv(tmp, sep='\t', index=False)
 
             report = get_report(
-                pt.join(opts.out_dir, 'stats.csv'),
+                pt.join(opts.out_dir, 'stats.tsv'),
                 pt.join(opts.out_dir, 'tomtom', 'tomtom.txt'),
                 meme_motifs)
             report.sort_values(['idx', 'q-value', 'act_mean'],
                                ascending=[True, True, False], inplace=True)
-            report.to_csv(pt.join(opts.out_dir, 'report.csv'), index=False,
+            report.to_csv(pt.join(opts.out_dir, 'report.tsv'), index=False,
                           sep='\t', float_format='%.3f')
 
             report_top = report.groupby('idx').first().reset_index()
@@ -597,7 +604,7 @@ class App(object):
                                    ascending=[True, False], inplace=True)
             report_top.index = range(len(report_top))
             report_top.to_csv(pt.join(opts.out_dir,
-                                      'report_top.csv'), index=False,
+                                      'report_top.tsv'), index=False,
                               sep='\t', float_format='%.3f')
 
             print('\nTomtom results:')

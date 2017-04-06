@@ -1,19 +1,46 @@
 #!/usr/bin/env python
 
-"""Creates DeepCpG input data from incomplete methylation profiles.
+"""Create DeepCpG input data from incomplete methylation profiles.
 
 Takes as input incomplete CpG methylation profiles of multiple cells, extracts
 neighboring CpG sites and/or DNA sequences windows, and writes data chunk files
 to output directory. Output data can than be used for model training using
-`dcpg_train.py` model evaluation using `dcpg_eval.py`.
+``dcpg_train.py`` model evaluation using ``dcpg_eval.py``.
 
-Examples:
-    dcpg_data.py \
-        --cpg_profiles cell1.dcpg cell2.dcpg cell3.dcpg \
-        --cpg_wlen 50 \
-        --dna_files ./mm10/ \
-        --dna_wlen 1001 \
+Examples
+--------
+Create data files for training a CpG and DNA model, using 50 neighboring
+methylation states and DNA sequence windows of 1001 bp from the mm10 genome
+build:
+
+.. code:: bash
+
+    dcpg_data.py
+        --cpg_profiles ./cpg/*.tsv
+        --cpg_wlen 50
+        --dna_files ./mm10
+        --dna_wlen 1001
         --out_dir ./data
+
+Create data files from gzip-compressed bedGraph files for predicting the mean
+methylation rate and cell-to-cell variance from the DNA sequence:
+
+.. code:: bash
+
+    dcpg_data.py
+        --cpg_profiles ./cpg/*.bedGraph.gz
+        --dna_files ./mm10
+        --dna_wlen 1001
+        --win_stats mean var
+        --win_stats_wlen 1001 2001 3001 4001 5001
+        --out_dir ./data
+
+
+See Also
+--------
+* ``dcpg_data_stats.py``: For computing statistics of data files.
+* ``dcpg_data_show.py``: For showing the content of data files.
+* ``dcpg_train.py``: For training a model.
 """
 
 from __future__ import print_function
@@ -62,10 +89,21 @@ def prepro_pos_table(pos_tables):
 
 
 def split_ext(filename):
+    """Remove file extension from `filename`."""
     return os.path.basename(filename).split(os.extsep)[0]
 
 
 def read_cpg_profiles(filenames, log=None, *args, **kwargs):
+    """Read methylation profiles.
+
+    Input files can be gzip compressed.
+
+    Returns
+    -------
+    `dict (key, value)`, where `key` is the output name and `value` the CpG
+    table.
+    """
+
     cpg_profiles = OrderedDict()
     for filename in filenames:
         if log:
@@ -119,7 +157,10 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, assert_cpg=False):
 
 
 def map_values(values, pos, target_pos, dtype=None, nan=dat.CPG_NAN):
-    """Maps `values` array at positions `pos` to `target_pos`."""
+    """Maps `values` array at positions `pos` to `target_pos`.
+
+    Inserts `nan` for uncovered positions.
+    """
     assert len(values) == len(pos)
     assert np.all(pos == np.sort(pos))
     assert np.all(target_pos == np.sort(target_pos))
@@ -145,6 +186,7 @@ def map_cpg_tables(cpg_tables, chromo, chromo_pos):
     """Maps values from cpg_tables to `chromo_pos`.
 
     Positions in `cpg_tables` for `chromo`  must be a subset of `chromo_pos`.
+    Inserts `dat.CPG_NAN` for uncovered positions.
     """
     chromo_pos.sort()
     mapped_tables = OrderedDict()
@@ -235,11 +277,6 @@ class App(object):
             type=int,
             default=1)
         p.add_argument(
-            '--bulk_profiles',
-            help='Input bulk methylation profiles in dcpg or bedGraph format'
-            ' that are to be imputed',
-            nargs='+')
-        p.add_argument(
             '--dna_files',
             help='Directory or FASTA files named "*.chromosome.`chromo`.fa*"'
             ' with the DNA sequences for chromosome `chromo`.',
@@ -286,7 +323,7 @@ class App(object):
             help='Window lengths for computing statistics',
             type=int,
             nargs='+',
-            default=[3001])
+            default=[1001, 2001, 3001, 4001, 5001])
 
         g = p.add_argument_group('advanced arguments')
         g.add_argument(
@@ -335,7 +372,7 @@ class App(object):
         log.debug(opts)
 
         # Check input arguments
-        if not (opts.cpg_profiles or opts.bulk_profiles):
+        if not opts.cpg_profiles:
             if not (opts.pos_file or opts.dna_files):
                 raise ValueError('Position table and DNA database expected!')
 
@@ -364,14 +401,6 @@ class App(object):
                 nb_sample=opts.nb_sample,
                 nb_sample_chromo=opts.nb_sample_chromo,
                 log=log.info)
-
-        if opts.bulk_profiles:
-            log.info('Reading bulk profiles ...')
-            outputs['bulk'] = read_cpg_profiles(opts.bulk_profiles,
-                                                chromos=opts.chromos,
-                                                nb_sample=opts.nb_sample,
-                                                round=False,
-                                                log=log.info)
 
         # Create table with unique positions
         if opts.pos_file:
@@ -417,11 +446,6 @@ class App(object):
                 chromo_outputs['cpg_mat'] = np.vstack(
                     list(chromo_outputs['cpg'].values())).T
                 assert len(chromo_outputs['cpg_mat']) == len(chromo_pos)
-
-            if 'bulk' in outputs:
-                # Concatenate CpG tables into single nb_site x nb_output matrix
-                chromo_outputs['bulk'] = map_cpg_tables(outputs['bulk'],
-                                                        chromo, chromo_pos)
 
             if 'cpg_mat' in chromo_outputs and opts.cpg_cov:
                 cov = np.sum(chromo_outputs['cpg_mat'] != dat.CPG_NAN, axis=1)
@@ -478,8 +502,9 @@ class App(object):
                 if 'cpg' in chunk_outputs:
                     for name, value in six.iteritems(chunk_outputs['cpg']):
                         assert len(value) == len(chunk_pos)
+                        # Round continuous values
                         out_group.create_dataset('cpg/%s' % name,
-                                                 data=value,
+                                                 data=value.round(),
                                                  dtype=np.int8,
                                                  compression='gzip')
                     # Compute and write statistics
@@ -497,15 +522,6 @@ class App(object):
                                                      data=stat,
                                                      dtype=fun[1],
                                                      compression='gzip')
-
-                # Write bulk profiles
-                if 'bulk' in chunk_outputs:
-                    for name, value in six.iteritems(chunk_outputs['bulk']):
-                        assert len(value) == len(chunk_pos)
-                        out_group.create_dataset('bulk/%s' % name,
-                                                 data=value,
-                                                 dtype=np.float32,
-                                                 compression='gzip')
 
                 # Write input features
                 in_group = chunk_file.create_group('inputs')
@@ -534,12 +550,12 @@ class App(object):
                         nan = np.isnan(state)
                         state[nan] = dat.CPG_NAN
                         dist[nan] = dat.CPG_NAN
-                        state = state.astype(np.int8, copy=False)
+                        # States can be binary (np.int8) or continuous
+                        # (np.float32).
+                        state = state.astype(cpg_table.value.dtype, copy=False)
                         dist = dist.astype(np.float32, copy=False)
 
                         assert len(state) == len(chunk_pos)
-                        assert np.all((state == 0) | (state == 1) |
-                                      (state == dat.CPG_NAN))
                         assert len(dist) == len(chunk_pos)
                         assert np.all((dist > 0) | (dist == dat.CPG_NAN))
 

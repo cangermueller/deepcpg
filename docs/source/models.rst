@@ -1,27 +1,27 @@
-.. _modules:
+.. _models:
 
-=======
-Modules
-=======
+===================
+Model architectures
+===================
 
-DeepCpG consists of a DNA module to recognize features in the DNA
-sequence, a CpG module to recognize features in the methylation
-neighborhood of multiple cells, and joint module to combine the features
-from the DNA and CpG module.
+DeepCpG consists of a DNA model to recognize features in the DNA
+sequence, a CpG model to recognize features in the methylation
+neighborhood of multiple cells, and a Joint model to combine the features
+from the DNA and CpG model.
 
 DeepCpG provides different architectures for the DNA, CpG, and joint
-module. Architectures differ in the number of layers and neurons, and
-are hence more or less complex. More complex modules are usually more
+model. Architectures differ in the number of layers and neurons, and
+are hence more or less complex. More complex models are usually more
 accurate, but more expensive to train. You can select a certain
-architecture using the ``--dna_module``, ``--cpg_model``, and
+architecture using the ``--dna_model``, ``--cpg_model``, and
 ``--joint_model`` argument of ``dcpg_train.py``, for example:
 
 .. code:: bash
 
     dcpg_train.py
-        --dna_module CnnL2h128
-        --cpg_module RnnL1
-        --joint_module JointL2h512
+        --dna_model CnnL2h128
+        --cpg_model RnnL1
+        --joint_model JointL2h512
 
 In the following, the following layer specifications will be used:
 
@@ -47,8 +47,8 @@ In the following, the following layer specifications will be used:
 | resa[x,y,z]     | Residual network with three Atrous residual units of size x, y, z          |
 +-----------------+----------------------------------------------------------------------------+
 
-DNA modules
-===========
+DNA model architectures
+=======================
 
 +-------------+--------------+-----------------------------------------------------------------------------+
 | Name        | Parameters   | Specification                                                               |
@@ -77,16 +77,16 @@ DNA modules
 +-------------+--------------+-----------------------------------------------------------------------------+
 
 Th prefixes ``Cnn``, ``CnnRnn``, ``ResNet``, ``ResConv``, and
-``ResAtrous`` denote the class of the DNA module.
+``ResAtrous`` denote the class of the DNA model.
 
-Modules starting with ``Cnn`` are convolutional neural networks (CNNs).
+Models starting with ``Cnn`` are convolutional neural networks (CNNs).
 DeepCpG CNN architectures consist of a series of convolutional and
 max-pooling layers, which are followed by one fully-connected layer.
-Module ``CnnLxhy`` has ``x`` convolutional-pooling layers, and one
+Model ``CnnLxhy`` has ``x`` convolutional-pooling layers, and one
 fully-connected layer with ``y`` units. For example, ``CnnL2h128`` has
 two convolutional layers, and one fully-connected layer with 128 units.
 ``CnnL3h256`` has three convolutional layers and one fully-connected
-layer with 256 units. ``CnnL1h128`` is the fastest module, but modules
+layer with 256 units. ``CnnL1h128`` is the fastest model, but models
 with more layers and neurons usually perform better. In my experiments,
 ``CnnL2h128`` provided a good trade-off between performance and runtime,
 which I recommend as default.
@@ -98,7 +98,7 @@ bidirectional recurrent neural network (RNN) with one layer and gated
 recurrent units (GRUs). ``CnnRnn01`` is slower than ``Cnn``
 architectures and did not perform better in my experiments.
 
-Modules starting with ``ResNet`` are `residual neural
+Models starting with ``ResNet`` are `residual neural
 networks <https://arxiv.org/abs/1603.05027>`__. ResNets are very deep
 networks with skip connections to improve the gradient flow and to allow
 learning how many layers to use. A residual network consists of multiple
@@ -109,22 +109,22 @@ convolutional layers to speed up computations. ``ResNet01`` and
 units, respectively. ResNets are slower than CNNs, but can perform
 better on large datasets.
 
-Modules starting with ``ResConv`` are ResNets with modified residual
+Models starting with ``ResConv`` are ResNets with modified residual
 units that have two convolutional layers instead of a bottleneck
-architecture. ``ResConv`` modules performed worse than ``ResNet``
-modules in my experiments.
+architecture. ``ResConv`` models performed worse than ``ResNet``
+models in my experiments.
 
-Modules starting with ``ResAtrous`` are ResNets with modified residual
+Models starting with ``ResAtrous`` are ResNets with modified residual
 units that use `Atrous convolutional
 layers <http://arxiv.org/abs/1511.07122>`__ instead of normal
 convolutional layers. Atrous convolutional layers have dilated filters,
 i.e. filters with 'holes', which allow scanning wider regions in the
 inputs sequence and thereby better capturing distant patters in the DNA
-sequence. However, ``ResAtrous`` modules performed worse than ``ResNet``
-modules in my experiments
+sequence. However, ``ResAtrous`` models performed worse than ``ResNet``
+models in my experiments
 
-CpG modules
-===========
+CpG model architectures
+=======================
 
 +---------+--------------+-----------------------------------+
 | Name    | Parameters   | Specification                     |
@@ -136,12 +136,12 @@ CpG modules
 | RnnL2   | 1,100,000    | fc[256]\_bgru[128]\_bgru[256]\_do |
 +---------+--------------+-----------------------------------+
 
-``FcAvg`` is a lightweight module with only 54000 parameters, which
+``FcAvg`` is a lightweight model with only 54000 parameters, which
 first transforms observed neighboring CpG sites of all cells
 independently, and than averages the transformed features across cells.
-``FcAvg`` is very fast, but performs worse than RNN modules.
+``FcAvg`` is very fast, but performs worse than RNN models.
 
-``Rnn`` modules consists of bidirectional recurrent neural networks
+``Rnn`` models consists of bidirectional recurrent neural networks
 (RNNs) with gated recurrent units (GRUs) to summarize the methylation
 neighborhood of cells in a more clever way than averaging. ``RnnL1``
 consists of one fully-connected layer with 256 units to transform the
@@ -151,8 +151,8 @@ methylation neighborhood of cells. ``RnnL2`` has two instead of one GRU
 layer. ``RnnL1`` is faster and performed as good as ``RnnL2`` in my
 experiments.
 
-Joint modules
-=============
+Joint model architectures
+=========================
 
 +---------------+--------------+---------------------------+
 | Name          | Parameters   | Specification             |
@@ -166,8 +166,8 @@ Joint modules
 | JointL3h512   | 1,000,000    | fc[512]\_fc[512]\_fc[512] |
 +---------------+--------------+---------------------------+
 
-Joint modules join the feature from the DNA and CpG module. ``JointL0``
+Joint models join the feature from the DNA and CpG model. ``JointL0``
 simply concatenates the features and has no learnable parameters (ultra
 fast). ``JointLXh512`` has ``X`` fully-connect layers with 512 neurons.
-Modules with more layers usually perform better, at the cost of a higher
+Models with more layers usually perform better, at the cost of a higher
 runtime. I recommend using ``JointL2h512`` or ``JointL3h12``.

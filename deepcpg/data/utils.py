@@ -147,8 +147,24 @@ def sample_from_chromo(frame, nb_sample):
     return frame
 
 
-def read_cpg_profile(filename, chromos=None, nb_sample=None, round=True,
+def is_binary(values):
+    """Check if values are binary, i.e. zero or one."""
+    return ~np.any((values > 0) & (values < 1))
+
+
+def read_cpg_profile(filename, chromos=None, nb_sample=None, round=False,
                      sort=True, nb_sample_chromo=None):
+    """Read CpG profile.
+
+    Reads CpG profile from either tab delimited file with columns
+    `chromo`, `pos`, `value`. `value` or bedGraph file. `value` columns contains
+    methylation states, which can be binary or continuous.
+
+    Returns
+    -------
+    Pandas table with columns `chromo`, `pos`, `value`.
+    """
+
     if is_bedgraph(filename):
         usecols = [0, 1, 3]
         skiprows = 1
@@ -162,6 +178,8 @@ def read_cpg_profile(filename, chromos=None, nb_sample=None, round=True,
     d = pd.read_table(filename, header=None, comment='#', nrows=nrows,
                       usecols=usecols, dtype=dtype, skiprows=skiprows)
     d.columns = ['chromo', 'pos', 'value']
+    if np.any((d['value'] < 0) | (d['value'] > 1)):
+        raise ValueError('Methylation values must be between 0 and 1!')
     d['chromo'] = format_chromo(d['chromo'])
     if chromos is not None:
         if not isinstance(chromos, list):
@@ -175,8 +193,8 @@ def read_cpg_profile(filename, chromos=None, nb_sample=None, round=True,
         d.sort_values(['chromo', 'pos'], inplace=True)
     if round:
         d['value'] = np.round(d.value)
-        if not np.all((d.value == 0) | (d.value == 1)):
-            raise 'Invalid methylation states'
+    if is_binary(d['value']):
+        d['value'] = d['value'].astype(np.int8)
     return d
 
 

@@ -20,5 +20,5 @@ bash setup.sh
 
 * [lib.sh](./scripts/lib.sh): Global variable definitions and functions.
 * [data.sh](./scripts/data.sh): Creates DeepCpG data files.
-* [train.sh](./scripts/train.sh): Trains DeepCpG DNA, CpG, and joint module separately.
+* [train.sh](./scripts/train.sh): Trains DeepCpG DNA, CpG, and Joint model separately.
 * [eval.sh](./scripts/eval.sh): Evaluates prediction performances and imputes methylation profiles.

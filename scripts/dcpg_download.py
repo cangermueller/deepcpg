@@ -1,13 +1,24 @@
 #!/usr/bin/env python
 
-"""Downloads a pre-trained model from DeepCpG model zoo.
+"""Download a pre-trained model from DeepCpG model zoo.
 
 Downloads a pre-trained model from the DeepCpG model zoo by its identifier.
 Model descriptions can be found on online.
 
-Example:
-    dcpg_download.py \
-        Smallwood2014_serum_dna \
+Examples
+--------
+Show available models:
+
+.. code:: bash
+
+    dcpg_download --show
+
+Download DNA model trained on serum cells from Smallwood et al:
+
+.. code:: bash
+
+    dcpg_download.py
+        Smallwood2014_serum_dna
         -o ./model
 """
 

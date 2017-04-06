@@ -357,8 +357,8 @@ class DataReader(object):
         for state, dist in zip(states, dists):
             nan = state == dat.CPG_NAN
             if np.any(nan):
-                tmp = np.sum(state == 1) / state.size
-                state[nan] = np.random.binomial(1, tmp, nan.sum())
+                state[nan] = np.random.binomial(1, state[~nan].mean(),
+                                                nan.sum())
                 dist[nan] = self.cpg_max_dist
             dist = np.minimum(dist, self.cpg_max_dist) / self.cpg_max_dist
             prepro_states.append(np.expand_dims(state, 1))

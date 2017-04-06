@@ -1,19 +1,33 @@
 #!/usr/bin/env python
 
-"""Exports imputed methylation profiles.
+"""Export imputed methylation profiles.
 
 Exports imputed methylation profiles from `dcpg_eval.py` output file to
-different data formats. Creates for each methylation profile one file in
-output directory.
+different data formats. Outputs for each CpG site and cell either the
+experimentally observed or predicted methylation state depending on whether or
+not the methylation state was observed in the input file or not, respectively.
+Creates for each methylation profile one file in the output directory.
 
-Example:
-    Export profile of cell Ca01 and chromosomes 4 5 to `./eval`:
+Examples
+--------
+Export profiles of all cells as HDF5 files to `./eval`:
 
-        dcpg_export.py \
-            ./eval/data.h5 \
-            --out_dir ./eval \
-            --output cpg/Ca01 \
-            --chromo 4 5
+.. code:: bash
+
+    dcpg_eval_export.py
+        ./eval/data.h5
+        --out_dir ./eval
+
+Export the profile of cell Ca01 for chromosomes 4 and 5 to a bedGraph file:
+
+.. code:: bash
+
+    dcpg_eval_export.py
+        ./eval/data.h5
+        --output cpg/Ca01
+        --chromo 4 5
+        --format bedGraph
+        --out_dir ./eval
 """
 
 from __future__ import print_function
