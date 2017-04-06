@@ -27,7 +27,7 @@ DeepCpG [1]_ is a deep neural network for predicting the methylation state of Cp
 **Please help to improve DeepCpG**, by reporting bugs, typos in notebooks and documentation, or any ideas on how to make things better. You can submit an `issue <https://github.com/cangermueller/deepcpg/issues>`_ or send me an `email <mailto:cangermueller@gmail.com>`_.
 
 .. figure:: docs/source/fig1.png
-   :scale: 50 %
+   :scale: 20 %
    :align: left
    :alt: DeepCpG model architecture and applications
 
