@@ -57,10 +57,10 @@ Table of contents
 News
 ====
 
-* **170406**: A short description of all `DeepCpG scripts <http://deepcpg.readthedocs.io/scripts/index.html>`_!
-* **170404**: New guide on creating and analyzing DeepCpG data `released <http://deepcpg.readthedocs.io/data.html>`_!
-* **170404**: Training on continuous data, e.g. from bulk experiments, now `supported <http://deepcpg.readthedocs.io/data.html>`_!
-* **170305**: New documentation of DeepCpG model architectures `released <http://deepcpg.readthedocs.io/models.html>`_!
+* **170406**: A short description of all `DeepCpG scripts <http://deepcpg.readthedocs.io/latest/scripts/index.html>`_!
+* **170404**: New guide on creating and analyzing DeepCpG data `released <http://deepcpg.readthedocs.io/latest/data.html>`_!
+* **170404**: Training on continuous data, e.g. from bulk experiments, now `supported <http://deepcpg.readthedocs.io/latest/data.html>`_!
+* **170305**: New documentation of DeepCpG model architectures `released <http://deepcpg.readthedocs.io/latest/models.html>`_!
 * **170302**: New guide on DeepCpG model training `released <http://deepcpg.readthedocs.io/latest/train.html>`_!
 * **170228**: New example shell scripts for building a DeepCpG pipeline `released <./examples/README.md>`_!
 
