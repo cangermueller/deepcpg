@@ -22,35 +22,22 @@ DeepCpG: Deep neural networks for predicting single-cell DNA methylation
 .. |Tweet| image:: https://img.shields.io/twitter/url/http/shields.io.svg?style=social
   :target: https://twitter.com/intent/tweet?text=Checkout+%23DeepCpG%3A+%23DeepLearning+for+predicting+DNA+methylation%2C+%40cangermueller
 
-DeepCpG is a deep neural network for predicting the methylation state of CpG dinucleotides in multiple cells. It allows to accurately impute incomplete DNA methylation profiles, to discover predictive sequence motifs, and to quantify the effect of sequence mutations. (`Angermueller et al, 2017 <http://biorxiv.org/content/early/2017/02/01/055715>`_).
+DeepCpG [1]_ is a deep neural network for predicting the methylation state of CpG dinucleotides in multiple cells. It allows to accurately impute incomplete DNA methylation profiles, to discover predictive sequence motifs, and to quantify the effect of sequence mutations. (`Angermueller et al, 2017 <http://biorxiv.org/content/early/2017/02/01/055715>`_).
 
 **Please help to improve DeepCpG**, by reporting bugs, typos in notebooks and documentation, or any ideas on how to make things better. You can submit an `issue <https://github.com/cangermueller/deepcpg/issues>`_ or send me an `email <mailto:cangermueller@gmail.com>`_.
 
-.. image:: docs/fig1.png
-   :scale: 50%
+.. figure:: docs/source/fig1.png
+   :width: 640 px
+   :align: left
    :alt: DeepCpG model architecture and applications
-   :align: center
 
-**DeepCpG model training and applications.** (a) Sparse
-single-cell CpG profiles, for example as obtained from scBS-seq or
-scRRBS-seq. Methylated CpG sites are denoted by ones, un-methylated CpG
-sites by zeros, and question marks denote CpG sites with unknown methylation
-state (missing data). (b) Modular architecture of DeepCpG. The DNA module
-consists of two convolutional and pooling layers to identify predictive motifs
-from the local sequence context, and one fully connected layer to model motif
-interactions. The CpG module scans the CpG neighbourhood of multiple cells
-(rows in b), using a bidirectional gated recurrent network (GRU),
-yielding compressed features in a vector of constant size. The fusion module
-learns interactions between higher-level features derived from the DNA- and
-CpG module to predict methylation states in all cells. (c,d) The trained
-DeepCpG model can be used for different downstream analyses, including
-genome-wide imputation of missing CpG sites (c) and the discovery of DNA
-sequence motifs that are associated with DNA methylation levels or
-cell-to-cell variability (d).
+   **DeepCpG model architecture and applications.**
 
-.. code::
+   \(a\) Sparse single-cell CpG profiles as obtained from scBS-seq or scRRBS-seq. Methylated CpG sites are denoted by ones, unmethylated CpG sites by zeros, and question marks denote CpG sites with unknown methylation state (missing data). (b) DeepCpG model architecture. The DNA model consists of two convolutional and pooling layers to identify predictive motifs from the local sequence context, and one fully connected layer to model motif interactions. The CpG model scans the CpG neighborhood of multiple cells (rows in b), using a bidirectional gated recurrent network (GRU), yielding compressed features in a vector of constant size. The Joint model learns interactions between higher-level features derived from the DNA- and CpG model to predict methylation states in all cells. (c, d) The trained DeepCpG model can be used for different downstream analyses, including genome-wide imputation of missing CpG sites (c) and the discovery of DNA sequence motifs that are associated with DNA methylation levels or cell-to-cell variability (d).
 
-  Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. Accurate Prediction of Single-Cell DNA Methylation States Using Deep Learning. http://biorxiv.org/content/early/2017/02/01/055715 bioRxiv, February 1, 2017, 55715. doi:10.1101/055715.
+
+
+.. [1] Angermueller, Christof, Heather Lee, Wolf Reik, and Oliver Stegle. Accurate Prediction of Single-Cell DNA Methylation States Using Deep Learning. http://biorxiv.org/content/early/2017/02/01/055715 bioRxiv, February 1, 2017, 55715. doi:10.1101/055715.
 
 
 
@@ -63,13 +50,17 @@ Table of contents
 * `Model Zoo`_
 * `FAQ`_
 * `Content`_
+* `Changelog`_
 * `Contact`_
 
 
 News
 ====
 
-* **170305**: New documentation about DeepCpG module architectures `released <http://deepcpg.readthedocs.io/latest/modules.html>`_!
+* **170406**: A short description of all `DeepCpG scripts <http://deepcpg.readthedocs.io/latest/scripts/index.html>`_!
+* **170404**: New guide on creating and analyzing DeepCpG data `released <http://deepcpg.readthedocs.io/latest/data.html>`_!
+* **170404**: Training on continuous data, e.g. from bulk experiments, now `supported <http://deepcpg.readthedocs.io/latest/data.html>`_!
+* **170305**: New documentation of DeepCpG model architectures `released <http://deepcpg.readthedocs.io/latest/models.html>`_!
 * **170302**: New guide on DeepCpG model training `released <http://deepcpg.readthedocs.io/latest/train.html>`_!
 * **170228**: New example shell scripts for building a DeepCpG pipeline `released <./examples/README.md>`_!
 
@@ -146,7 +137,7 @@ Example:
     --nb_epoch 30
     --out_dir ./model
 
-This command uses chromosomes 1-3 for training and 10-13 for validation. ``---dna_model``, ``--cpg_model``, and ``--joint_model`` specify the architecture of the CpG, DNA, and joint module, respectively (see manuscript for details). Training will stop after at most 30 epochs and model files will be stored in ``./model``.
+This command uses chromosomes 1-3 for training and 10-13 for validation. ``---dna_model``, ``--cpg_model``, and ``--joint_model`` specify the architecture of the CpG, DNA, and Joint model, respectively (see manuscript for details). Training will stop after at most 30 epochs and model files will be stored in ``./model``.
 
 
 4. Use ``dcpg_eval.py`` to impute methylation profiles and evaluate model performances.
@@ -157,9 +148,9 @@ This command uses chromosomes 1-3 for training and 10-13 for validation. ``---dn
     ./data/*.h5
     --model_files ./model/model.json ./model/model_weights_val.h5
     --out_data ./eval/data.h5
-    --out_report ./eval/report.csv
+    --out_report ./eval/report.tsv
 
-This command predicts missing methylation states on all chromosomes and evaluates prediction performances using known methylation states. Predicted states will be stored in ``./eval/data.h5`` and performance metrics in ``./eval/report.csv``.
+This command predicts missing methylation states on all chromosomes and evaluates prediction performances using known methylation states. Predicted states will be stored in ``./eval/data.h5`` and performance metrics in ``./eval/report.tsv``.
 
 
 5. Export imputed methylation profiles to HDF5 or bedGraph files:
@@ -182,7 +173,7 @@ You can find example notebooks and scripts on how to use DeepCpG `here <examples
 Documentation
 =============
 
-The `DeepCpG documentation <http://deepcpg.readthedocs.io>`_ provides information on training, hyper-parameter selection, and module architectures.
+The `DeepCpG documentation <http://deepcpg.readthedocs.io>`_ provides information on training, hyper-parameter selection, and model architectures.
 
 
 Model Zoo
@@ -195,7 +186,7 @@ FAQ
 ===
 
 **Why am I getting warnings 'No CpG site at position X!' when using `dcpg_data.py`?**
-This means that some sites in ``--cpg_profile`` files are not CpG sites, e.g. there is no CG dinucleotide at the given position in the DNA sequence. Make sure that ``--dna_files`` point to the correct genome and CpG sites are correctly aligned. Since DeepCpG currently does not support allele-specific methylation, data from different alleles must be merged (recommended) or only one allele be used.
+This means that some sites in ``--cpg_profile`` files are not CpG sites, i.e. there is no CG dinucleotide at the given position in the DNA sequence. Make sure that ``--dna_files`` point to the correct genome and CpG sites are correctly aligned. Since DeepCpG currently does not support allele-specific methylation, data from different alleles must be merged (recommended) or only one allele be used.
 
 **How can I train models on one or more GPUs?**
 DeepCpG use the `Keras <https://keras.io>`_ deep learning library, which supports `Theano <http://deeplearning.net/software/theano/>`_ or `Tensorflow <https://www.tensorflow.org/>`_ as backend. If you are using Tensorflow, DeepCpG will automatically run on all available GPUs. If you are using Theano, you have to set the flag `device=GPU` in the `THEANO_FLAGS` environment variable.
@@ -208,7 +199,6 @@ You can find more information about Keras backends `here <https://keras.io/backe
 
 
 
-
 Content
 =======
 * ``/deepcpg/``: Source code
@@ -216,6 +206,19 @@ Content
 * ``/examples/``: Examples on how to use DeepCpG
 * ``/script/``: Executable DeepCpG scripts
 * ``/tests``: Test files
+
+
+Changelog
+=========
+
+1.0.3
+-----
+Extends ``dcpg_data.py``, updates documentation, and fixes minor bugs.
+  + Extends `dcpg_data.py` to support bedGraph and TSV input files.
+  + Enables training on continuous methylation states.
+  + Adds new documentation about creating and analyzing Data.
+  + Updates API documentation.
+
 
 
 Contact
