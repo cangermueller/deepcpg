@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Trains DeepCpG modules separately.
+# Trains DeepCpG models separately.
 
 # Source dependencies.
 source "./lib.sh"
@@ -23,7 +23,7 @@ if [[ $test_mode -eq 1 ]]; then
 fi
 
 
-# Train DNA module.
+# Train DNA model.
 cmd="dcpg_train.py
   $train_files
   --val_files $val_files
@@ -45,7 +45,7 @@ fi
 run $cmd
 
 
-# Train CpG module.
+# Train CpG model.
 cmd="dcpg_train.py
   $train_files
   --val_files $val_files
@@ -67,7 +67,7 @@ fi
 run $cmd
 
 
-# Train joint module.
+# Train Joint model.
 cmd="dcpg_train.py
   $train_files
   --val_files $val_files

@@ -13,7 +13,7 @@ run "rm -rf $eval_dir"
 run "mkdir -p $eval_dir"
 
 # Evaluate model and impute methylation profiles. You can change the input model
-# to `dna` or `cpg` for evaluation the DNA or CpG module, respectively.
+# to `dna` or `cpg` for evaluation the DNA or CpG model, respectively.
 cmd="dcpg_eval.py
   $data_dir/*.h5
   --model $models_dir/joint

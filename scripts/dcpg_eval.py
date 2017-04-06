@@ -1,14 +1,24 @@
 #!/usr/bin/env python
 
-"""Evaluates prediction performance of a DeepCpG model.
+"""Evaluate the prediction performance of a DeepCpG model.
 
-Imputes missing methylation states and evaluates model on observered states.
+Imputes missing methylation states and evaluates model on observed states.
+`--out_report` will write evaluation metrics to a TSV file using. `--out_data`
+will write predicted and observed methylation state to a HDF5 file with
+following structure:
+    chromo: The chromosome of the CpG site.
+    pos: The position of the CpG site on the chromosome.
+    outputs: The input methylation state of each cell and CpG site, which can
+        either observed or missing (-1).
+    preds: The predicted methylation of each cell and CpG site.
 
-Example:
+Examples
+--------
     dcpg_eval.py \
         ./data/*.h5 \
-        --out_file ./eval.h5 \
-        --out_report ./eval.tsv
+        --model_files ./model \
+        --out_data ./eval/data.h5 \
+        --out_report ./eval/report.tsv
 """
 
 from __future__ import print_function

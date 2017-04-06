@@ -1,38 +1,44 @@
 #!/usr/bin/env python
 
-"""Trains DeepCpG model to predict DNA methylation.
+"""Train a DeepCpG model to predict DNA methylation.
 
-Trains model on DNA (DNA model), neighboring methylation states (CpG model),
-or both (Joint model) to predict CpG methylation of multiple cells.
+Trains a DeepCpG model on DNA (DNA model), neighboring methylation states
+(CpG model), or both (Joint model) to predict CpG methylation of multiple cells.
 Allows to fine-tune individual models or to train them from scratch.
 
-Examples:
-    Train DNA model on chromosome 1, 3, and 5,  and use chromosome 13, 14, and
-    15 for validation.
+Examples
+--------
+Train a DNA model on chromosome 1, 3, and 5,  and use chromosome 13, 14, and
+15 for validation:
 
-        dcpg_train.py \
-            ./data/c{1,3,5}_*.h5 \
-            --val_files ./data/c{13,14,15}_*.h5 \
-            --dna_model CnnL2h128 \
-            --out_dir ./models/dna
+    dcpg_train.py \
+        ./data/c{1,3,5}_*.h5 \
+        --val_files ./data/c{13,14,15}_*.h5 \
+        --dna_model CnnL2h128 \
+        --out_dir ./models/dna
 
-    Train CpG model:
+Train a CpG model:
 
-        dcpg_train.py \
-            ./data/c{1,3,5}_*.h5 \
-            --val_files ./data/c{13,14,15}_*.h5 \
-            --cpg_model RnnL1 \
-            --out_dir ./models/cpg
+    dcpg_train.py \
+        ./data/c{1,3,5}_*.h5 \
+        --val_files ./data/c{13,14,15}_*.h5 \
+        --cpg_model RnnL1 \
+        --out_dir ./models/cpg
 
-    Train joint model based on pre-trained DNA and CpG model:
+Train a Joint model using a pre-trained DNA and CpG model:
 
-        dcpg_train.py \
-            ./data/c{1,3,5}_*.h5 \
-            --val_files ./data/c{13,14,15}_*.h5 \
-            --dna_model ./models/dna \
-            --cpg_model ./models/cpg \
-            --out_dir ./models/joint \
-            --fine_tune
+    dcpg_train.py \
+        ./data/c{1,3,5}_*.h5 \
+        --val_files ./data/c{13,14,15}_*.h5 \
+        --dna_model ./models/dna \
+        --cpg_model ./models/cpg \
+        --out_dir ./models/joint \
+        --fine_tune
+
+See Also
+--------
+    `dcpg_eval.py`: For evaluating a trained model and imputing methylation
+        profiles.
 """
 
 from __future__ import print_function
@@ -227,7 +233,7 @@ class App(object):
         models = sorted(list(mod.joint.list_models().keys()))
         g.add_argument(
             '--joint_model',
-            help='Name of joint model.'
+            help='Name of Joint model.'
             ' Available models: %s' % ', '.join(models),
             default='JointL2h512')
         g.add_argument(
@@ -415,8 +421,8 @@ class App(object):
         callbacks.append(kcbk.LearningRateScheduler(learning_rate_schedule))
 
         def save_lc(epoch, epoch_logs, val_epoch_logs):
-            logs = {'lc_train.csv': epoch_logs,
-                    'lc_val.csv': val_epoch_logs}
+            logs = {'lc_train.tsv': epoch_logs,
+                    'lc_val.tsv': val_epoch_logs}
             for name, logs in six.iteritems(logs):
                 if not logs:
                     continue

@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
-"""Computes summary statistics of data files.
+"""Compute summary statistics of data files.
 
 Computes summary statistics of data files such as the number of samples or the
 mean and variance of output variables.
 
-Examples:
+Examples
+--------
     dcpg_data_stats.py \
         ./data/*.h5
 """
@@ -42,9 +43,9 @@ def get_output_stats(output):
 def plot_stats(stats):
     stats = stats.sort_values('frac_obs', ascending=False)
     stats = pd.melt(stats, id_vars=['output'], var_name='metric')
-    stats = stats.loc[stats.metric.isin(['frac_obs', 'frac_one'])]
-    stats.metric = stats.metric.str.replace('frac_obs', 'cov')
-    stats.metric = stats.metric.str.replace('frac_one', 'met')
+    #  stats = stats.loc[stats.metric.isin(['frac_obs', 'frac_one'])]
+    #  stats.metric = stats.metric.str.replace('frac_obs', 'cov')
+    #  stats.metric = stats.metric.str.replace('frac_one', 'met')
     grid = sns.FacetGrid(data=stats, col='metric', sharex=False)
     grid.map(sns.barplot, 'value', 'output')
     for ax in grid.axes.ravel():
@@ -70,8 +71,8 @@ class App(object):
             nargs='+',
             help='Data files')
         p.add_argument(
-            '-o', '--out_csv',
-            help='Write statistics to csv file')
+            '-o', '--out_tsv',
+            help='Write statistics to tsv file')
         p.add_argument(
             '-f', '--out_fig',
             help='Create output figure')
@@ -118,8 +119,8 @@ class App(object):
         stats.reset_index(inplace=True)
 
         print(stats.to_string())
-        if opts.out_csv:
-            stats.to_csv(opts.out_csv, sep='\t', index=False)
+        if opts.out_tsv:
+            stats.to_csv(opts.out_tsv, sep='\t', index=False)
 
         if opts.out_fig:
             plot_stats(stats).savefig(opts.out_fig)

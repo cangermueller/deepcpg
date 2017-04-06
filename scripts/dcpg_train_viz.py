@@ -2,12 +2,13 @@
 
 """Visualizes learning curves of `dcpg_train.py`.
 
-Visualizes training and validation learning curve that `dcpg_train.py` stores in
-training output directory. For advanced visualization use Tensorboard.
+Visualizes training and validation learning from `dcpg_train.py`. Tensorboard is
+recommended for advanced visualization.
 
-Example:
+Examples
+--------
     dcpg_train_viz.py \
-        ./model/lc_train.csv ./model/lc_val.csv \
+        ./model/lc_train.tsv ./model/lc_val.tsv \
         --out_file ./lc.pdf
 """
 
