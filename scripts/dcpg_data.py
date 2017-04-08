@@ -394,7 +394,7 @@ class App(object):
 
         # Read single-cell profiles if provided
         if opts.cpg_profiles:
-            log.info('Reading single-cell profiles ...')
+            log.info('Reading CpG profiles ...')
             outputs['cpg'] = read_cpg_profiles(
                 opts.cpg_profiles,
                 chromos=opts.chromos,
