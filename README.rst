@@ -214,10 +214,10 @@ Changelog
 1.0.3
 -----
 Extends ``dcpg_data.py``, updates documentation, and fixes minor bugs.
-  + Extends `dcpg_data.py` to support bedGraph and TSV input files.
+  + Extends ``dcpg_data.py`` to support bedGraph and TSV input files.
   + Enables training on continuous methylation states.
-  + Adds new documentation about creating and analyzing Data.
-  + Updates API documentation.
+  + Adds `documentation <http://deepcpg.readthedocs.io/en/latest/data.html#data>`_ about creating and analyzing Data.
+  + Updates documentation of `scripts <http://deepcpg.readthedocs.io/en/latest/scripts/index.html#scripts>`_ and `library <http://deepcpg.readthedocs.io/en/latest/lib/index.html#library>`_.
 
 
 
