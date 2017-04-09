@@ -25,10 +25,12 @@ def _ls(item, recursive=False, groups=False, level=0):
 
 
 def ls(filename, group='/', recursive=False, groups=False,
-       regex=None, nb_key=None):
+       regex=None, nb_key=None, must_exist=True):
     if not group.startswith('/'):
         group = '/%s' % group
     h5_file = h5.File(filename, 'r')
+    if not must_exist and not group in h5_file:
+        return None
     keys = _ls(h5_file[group], recursive, groups)
     for i, key in enumerate(keys):
         keys[i] = re.sub('^%s/' % group, '', key)
