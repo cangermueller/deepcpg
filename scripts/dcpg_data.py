@@ -100,8 +100,9 @@ def read_cpg_profiles(filenames, log=None, *args, **kwargs):
 
     Returns
     -------
-    `dict (key, value)`, where `key` is the output name and `value` the CpG
-    table.
+    dict
+        `dict (key, value)`, where `key` is the output name and `value` the CpG
+        table.
     """
 
     cpg_profiles = OrderedDict()
@@ -121,12 +122,21 @@ def extract_seq_windows(seq, pos, wlen, seq_index=1, assert_cpg=False):
 
     Parameters
     ----------
-    seq: DNA sequence string
-    pos: Array with positions at which windows are extracted
-    wlen: Window length
-    seq_index: Minimum positions. Set to 0 if positions in `pos` start at 0
-        instead of 1
-    cpg_sites: Check if positions in `pos` point to CpG sites
+    seq: str
+        DNA sequence.
+    pos: list
+        Positions at which windows are extracted.
+    wlen: int
+        Window length.
+    seq_index: int
+        Offset at which positions start.
+    assert_cpg: bool
+        If `True`, check if positions in `pos` point to CpG sites.
+
+    Returns
+    -------
+    np.array
+        Array with integer-encoded sequence windows.
     """
 
     delta = wlen // 2
@@ -394,7 +404,7 @@ class App(object):
 
         # Read single-cell profiles if provided
         if opts.cpg_profiles:
-            log.info('Reading single-cell profiles ...')
+            log.info('Reading CpG profiles ...')
             outputs['cpg'] = read_cpg_profiles(
                 opts.cpg_profiles,
                 chromos=opts.chromos,

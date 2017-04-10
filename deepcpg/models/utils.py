@@ -25,7 +25,12 @@ from ..utils import to_list
 class ScaledSigmoid(kl.Layer):
     """Scaled sigmoid activation function.
 
-    Allows to change the upper bound of one to any value.
+    Scales the maximum of the sigmoid function from one to the provided value.
+
+    Parameters
+    ----------
+    scaling: float
+        Maximum of sigmoid
     """
 
     def __init__(self, scaling=1.0, **kwargs):
@@ -46,7 +51,20 @@ CUSTOM_OBJECTS = {'ScaledSigmoid': ScaledSigmoid}
 
 
 def get_first_conv_layer(layers, get_act=False):
-    """Given a list of layers, returns the first convolutional layers."""
+    """Return the first convolutional layers in a stack of layer.
+
+    Parameters
+    ----------
+    layers: list
+        List of Keras layers.
+    get_act: bool
+        Return the activation layer after the convolutional weight layer.
+
+    Returns
+    -------
+    Convolutional layer or tuple of convolutional layer and activation layer if
+    `get_act=True`.
+    """
 
     conv_layer = None
     act_layer = None
@@ -69,7 +87,18 @@ def get_first_conv_layer(layers, get_act=False):
 
 
 def get_sample_weights(y, class_weights=None):
-    """Given a vector with labels, returns sample weights for model training."""
+    """Compute sample weights for model training.
+
+    Computes sample weights given  a vector of output labels `y`. Sets weights
+    of samples without label (`CPG_NAN`) to zero.
+
+    Parameters
+    ----------
+    y: :cla:`numpy.ndarray`
+        1d numpy array of output labels.
+    class_weights: dict
+        Weight of output classes, e.g. methylation states.
+    """
 
     y = y[:]
     sample_weights = np.ones(y.shape, dtype=K.floatx())
@@ -81,11 +110,20 @@ def get_sample_weights(y, class_weights=None):
 
 
 def save_model(model, model_file, weights_file=None):
-    """Simplifies saving a Keras model.
+    """Save Keras model to file.
 
     If `model_file` ends with '.h5', saves model description and model weights
     in HDF5 file. Otherwise, saves JSON model description in `model_file`
     and model weights in `weights_file` if provided.
+
+    Parameters
+    ----------
+    model
+        Keras model.
+    model_file: str
+        Output file.
+    weights_file: str
+        Weights file.
     """
 
     if pt.splitext(model_file)[1] == '.h5':
@@ -98,10 +136,17 @@ def save_model(model, model_file, weights_file=None):
 
 
 def search_model_files(dirname):
-    """Searches for model files in given directory.
+    """Search model files in given directory.
 
-    Returns model JSON file and weights if existing, otherwise HDF5 file.
-    Returns None if no model files could be found.
+    Parameters
+    ----------
+    dirname: str
+        Directory name
+
+    Returns
+    -------
+    Model JSON file and weights if existing, otherwise HDF5 file.  None if no
+    model files could be found.
     """
 
     json_file = pt.join(dirname, 'model.json')
@@ -119,7 +164,23 @@ def search_model_files(dirname):
 
 
 def load_model(model_files, custom_objects=CUSTOM_OBJECTS, log=None):
-    """Given a list of model files, loads a model."""
+    """Load Keras model from a list of model files.
+
+    Loads Keras model from list of filenames, e.g. from `search_model_files`.
+    `model_files` can be single HDF5 file, or JSON and weights file.
+
+    Parameters
+    ----------
+    model_file: list
+        Input model file names.
+    custom_object: dict
+        Custom objects for loading models that were trained with custom objects,
+        e.g. `ScaledSigmoid`.
+
+    Returns
+    -------
+    Keras model.
+    """
 
     if not isinstance(model_files, list):
         model_files = [model_files]
@@ -141,7 +202,14 @@ def load_model(model_files, custom_objects=CUSTOM_OBJECTS, log=None):
 
 
 def get_objectives(output_names):
-    """Return training objectives for a given list of output names."""
+    """Return training objectives for a list of output names.
+
+    Returns
+    -------
+    dict
+        dict with `output_names` as keys and the name of the assigned Keras
+        objective as values.
+    """
 
     objectives = dict()
     for output_name in output_names:
@@ -159,7 +227,22 @@ def get_objectives(output_names):
 
 
 def add_output_layers(stem, output_names):
-    """Adds and returns outputs to a given layer."""
+    """Add and return outputs to a given layer.
+
+    Adds output layer for each output in `output_names` to layer `stem`.
+
+    Parameters
+    ----------
+    stem
+        Keras layer.
+    output_names: list
+        List with output names.
+
+    Returns
+    -------
+    list
+        Output layers added to `stem`.
+    """
 
     outputs = []
     for output_name in output_names:
@@ -182,7 +265,23 @@ def add_output_layers(stem, output_names):
 
 
 def predict_generator(model, generator, nb_sample=None):
-    """Predicts model outputs on generator."""
+    """Predict model outputs using generator.
+
+    Calls `model.predict` for at most `nb_sample` samples from `generator`.
+
+    Parameters
+    ----------
+    model:
+        Model to be evaluated.
+    generator:
+        Data generator.
+    nb_sample: int
+        Maximum number of samples.
+
+    Returns
+    -------
+    List with inputs, outputs, and predictions.
+    """
 
     data = None
     nb_seen = 0
@@ -218,7 +317,30 @@ def predict_generator(model, generator, nb_sample=None):
 
 
 def evaluate_generator(model, generator, return_data=False, *args, **kwargs):
-    """Evaluates model on generator."""
+    """Evaluate model on generator.
+
+    Uses `predict_generator` to obtain predictions and `ev.evaluate` to evaluate
+    predictions.
+
+    Parameters
+    ----------
+    model
+        Model to be evaluated.
+    generator
+        Data generator.
+    return_rate: bool
+        Return predictions and labels.
+    *args: list
+        Unnamed arguments passed to `predict_generator`.
+    *kwargs: dict
+        Named arguments passed to `predict_generator`.
+
+    Returns
+    -------
+    If `return_data=False`, pandas data frame with performance metrics. If
+    `return_data=True`, tuple (`perf`, `data`) with performance metrics `perf`
+    and `data`.
+    """
 
     data = predict_generator(model, generator, *args, **kwargs)
     perf = []
@@ -234,7 +356,6 @@ def evaluate_generator(model, generator, return_data=False, *args, **kwargs):
 
 def read_from(reader, nb_sample=None):
     """Read `nb_sample` samples from `reader`."""
-
     data = None
     nb_seen = 0
     for data_batch in reader:
@@ -261,11 +382,22 @@ def read_from(reader, nb_sample=None):
 def copy_weights(src_model, dst_model, must_exist=True):
     """Copy weights from `src_model` to `dst_model`.
 
-    Params:
+    Parameters
+    ----------
+    src_model
+        Keras source model.
+    dst_model
+        Keras destination model.
+    must_exist: bool
+        If `True`, raises `ValueError` if a layer in `dst_model` does not exist
+        in `src_model`.
+
+    Returns
     -------
-        must_exist: raise `ValueError` if a layer from `src_model` does not
-            exist in `dst_model`.
+    list
+        Names of layers that were copied.
     """
+
     copied = []
     for dst_layer in dst_model.layers:
         for src_layer in src_model.layers:
@@ -283,7 +415,21 @@ def copy_weights(src_model, dst_model, must_exist=True):
 
 
 class Model(object):
-    """Abstract model class."""
+    """Abstract model call.
+
+    Abstract class of DNA, CpG, and Joint models.
+
+    Parameters
+    ----------
+    dropout: float
+        Dropout rate.
+    l1_decay: float
+        L1 weight decay.
+    l2_decay: float
+        L2 weight decay.
+    init: str
+        Name of Keras initialization.
+    """
 
     def __init__(self, dropout=0.0, l1_decay=0.0, l2_decay=0.0,
                  init='glorot_uniform'):
@@ -295,10 +441,11 @@ class Model(object):
         self.scope = None
 
     def inputs(self, *args, **kwargs):
-        """Return list of Keras input layers."""
+        """Return model inputs."""
         pass
 
     def _build(self, input, output):
+        """Build final model at the end of `__call__`."""
         model = km.Model(input, output, name=self.name)
         if self.scope:
             for layer in model.layers:
@@ -307,7 +454,13 @@ class Model(object):
         return model
 
     def __call__(self, inputs=None):
-        """Build model given `inputs`."""
+        """Build model.
+
+        Parameters
+        ----------
+        inputs
+            Model inputs
+        """
         pass
 
 

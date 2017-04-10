@@ -58,6 +58,12 @@ dcpg_filter_motifs.py
 .. automodule:: scripts.dcpg_filter_motifs
   :members:
 
+dcpg_snp.py
+===========
+
+.. automodule:: scripts.dcpg_snp
+  :members:
+
 dcpg_train.py
 =============
 

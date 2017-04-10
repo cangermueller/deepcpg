@@ -100,6 +100,7 @@ def get_replicate_names(data_file, *args, **kwargs):
     return hdf.ls(data_file, 'inputs/cpg',
                   recursive=False,
                   groups=True,
+                  must_exist=False,
                   *args, **kwargs)
 
 
