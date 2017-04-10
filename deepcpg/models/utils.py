@@ -62,7 +62,7 @@ def get_first_conv_layer(layers, get_act=False):
 
     Returns
     -------
-    Convolutional layer of tuple of convolutional layer and activation layer if
+    Convolutional layer or tuple of convolutional layer and activation layer if
     `get_act=True`.
     """
 
@@ -94,7 +94,7 @@ def get_sample_weights(y, class_weights=None):
 
     Parameters
     ----------
-    y: np.array
+    y: :cla:`numpy.ndarray`
         1d numpy array of output labels.
     class_weights: dict
         Weight of output classes, e.g. methylation states.
@@ -118,7 +118,7 @@ def save_model(model, model_file, weights_file=None):
 
     Parameters
     ----------
-    model:
+    model
         Keras model.
     model_file: str
         Output file.
@@ -172,7 +172,7 @@ def load_model(model_files, custom_objects=CUSTOM_OBJECTS, log=None):
     Parameters
     ----------
     model_file: list
-        List of filenames.
+        Input model file names.
     custom_object: dict
         Custom objects for loading models that were trained with custom objects,
         e.g. `ScaledSigmoid`.
@@ -204,8 +204,11 @@ def load_model(model_files, custom_objects=CUSTOM_OBJECTS, log=None):
 def get_objectives(output_names):
     """Return training objectives for a list of output names.
 
-    Returns name of Keras objectives (loss functions) for a list of output
-    names.
+    Returns
+    -------
+    dict
+        dict with `output_names` as keys and the name of the assigned Keras
+        objective as values.
     """
 
     objectives = dict()
@@ -230,14 +233,15 @@ def add_output_layers(stem, output_names):
 
     Parameters
     ----------
-    stem:
+    stem
         Keras layer.
     output_names: list
         List with output names.
 
     Returns
     -------
-    List of output layers added to `stem`.
+    list
+        Output layers added to `stem`.
     """
 
     outputs = []
@@ -320,9 +324,9 @@ def evaluate_generator(model, generator, return_data=False, *args, **kwargs):
 
     Parameters
     ----------
-    model:
+    model
         Model to be evaluated.
-    generator:
+    generator
         Data generator.
     return_rate: bool
         Return predictions and labels.
@@ -381,17 +385,18 @@ def copy_weights(src_model, dst_model, must_exist=True):
 
     Parameters
     ----------
-    `src_model`:
+    src_model
         Keras source model.
-    `dst_model`:
+    dst_model
         Keras destination model.
-    `must_exist`: bool
+    must_exist: bool
         If `True`, raises `ValueError` if a layer in `dst_model` does not exist
         in `src_model`.
 
     Returns
     -------
-    List of names of layers that were copied.
+    list
+        Names of layers that were copied.
     """
 
     copied = []
@@ -454,7 +459,7 @@ class Model(object):
 
         Parameters
         ----------
-        inputs:
+        inputs
             Model inputs
         """
         pass
