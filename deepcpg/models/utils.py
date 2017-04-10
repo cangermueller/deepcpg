@@ -261,7 +261,23 @@ def add_output_layers(stem, output_names):
 
 
 def predict_generator(model, generator, nb_sample=None):
-    """Predicts model outputs on generator."""
+    """Predict model outputs using generator.
+
+    Calls `model.predict` for at most `nb_sample` samples from `generator`.
+
+    Parameters
+    ----------
+    model:
+        Model to be evaluated.
+    generator:
+        Data generator.
+    nb_sample: int
+        Maximum number of samples.
+
+    Returns
+    -------
+    List with inputs, outputs, and predictions.
+    """
 
     data = None
     nb_seen = 0
@@ -297,7 +313,30 @@ def predict_generator(model, generator, nb_sample=None):
 
 
 def evaluate_generator(model, generator, return_data=False, *args, **kwargs):
-    """Evaluates model on generator."""
+    """Evaluate model on generator.
+
+    Uses `predict_generator` to obtain predictions and `ev.evaluate` to evaluate
+    predictions.
+
+    Parameters
+    ----------
+    model:
+        Model to be evaluated.
+    generator:
+        Data generator.
+    return_rate: bool
+        Return predictions and labels.
+    *args: list
+        Unnamed arguments passed to `predict_generator`.
+    *kwargs: dict
+        Named arguments passed to `predict_generator`.
+
+    Returns
+    -------
+    If `return_data=False`, pandas data frame with performance metrics. If
+    `return_data=True`, tuple (`perf`, `data`) with performance metrics `perf`
+    and `data`.
+    """
 
     data = predict_generator(model, generator, *args, **kwargs)
     perf = []
@@ -312,6 +351,8 @@ def evaluate_generator(model, generator, return_data=False, *args, **kwargs):
 
 
 def read_from(reader, nb_sample=None):
+    """Read `nb_sample` from reader."""
+
     data = None
     nb_seen = 0
     for data_batch in reader:
@@ -336,6 +377,23 @@ def read_from(reader, nb_sample=None):
 
 
 def copy_weights(src_model, dst_model, must_exist=True):
+    """Copy weights from `src_model` to `dst_model`.
+
+    Parameters
+    ----------
+    `src_model`:
+        Keras source model.
+    `dst_model`:
+        Keras destination model.
+    `must_exist`: bool
+        If `True`, raises `ValueError` if a layer in `dst_model` does not exist
+        in `src_model`.
+
+    Returns
+    -------
+    List of names of layers that were copied.
+    """
+
     copied = []
     for dst_layer in dst_model.layers:
         for src_layer in src_model.layers:
@@ -353,6 +411,21 @@ def copy_weights(src_model, dst_model, must_exist=True):
 
 
 class Model(object):
+    """Abstract model call.
+
+    Abstract class of DNA, CpG, and Joint models.
+
+    Parameters
+    ----------
+    dropout: float
+        Dropout rate.
+    l1_decay: float
+        L1 weight decay.
+    l2_decay: float
+        L2 weight decay.
+    init: str
+        Name of Keras initialization.
+    """
 
     def __init__(self, dropout=0.0, l1_decay=0.0, l2_decay=0.0,
                  init='glorot_uniform'):
@@ -364,9 +437,11 @@ class Model(object):
         self.scope = None
 
     def inputs(self, *args, **kwargs):
+        """Return model inputs."""
         pass
 
     def _build(self, input, output):
+        """Build final model at the end of `__call__`."""
         model = km.Model(input, output, name=self.name)
         if self.scope:
             for layer in model.layers:
@@ -375,6 +450,13 @@ class Model(object):
         return model
 
     def __call__(self, inputs=None):
+        """Build model.
+
+        Parameters
+        ----------
+        inputs:
+            Model inputs
+        """
         pass
 
 
