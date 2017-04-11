@@ -30,9 +30,8 @@ class ScaledSigmoid(kl.Layer):
     Parameters
     ----------
     scaling: float
-        Maximum of sigmoid
+        Maximum of sigmoid function.
     """
-
     def __init__(self, scaling=1.0, **kwargs):
         self.supports_masking = True
         self.scaling = scaling
@@ -62,10 +61,10 @@ def get_first_conv_layer(layers, get_act=False):
 
     Returns
     -------
-    Convolutional layer or tuple of convolutional layer and activation layer if
+    Keras layer
+        Convolutional layer or tuple of convolutional layer and activation layer if
     `get_act=True`.
     """
-
     conv_layer = None
     act_layer = None
     for layer in layers:
@@ -98,8 +97,12 @@ def get_sample_weights(y, class_weights=None):
         1d numpy array of output labels.
     class_weights: dict
         Weight of output classes, e.g. methylation states.
-    """
 
+    Returns
+    -------
+    :cla:`numpy.ndarray`
+        Sample weights of size `y`.
+    """
     y = y[:]
     sample_weights = np.ones(y.shape, dtype=K.floatx())
     sample_weights[y == dat.CPG_NAN] = K.epsilon()
@@ -181,7 +184,6 @@ def load_model(model_files, custom_objects=CUSTOM_OBJECTS, log=None):
     -------
     Keras model.
     """
-
     if not isinstance(model_files, list):
         model_files = [model_files]
     if pt.isdir(model_files[0]):
@@ -210,7 +212,6 @@ def get_objectives(output_names):
         dict with `output_names` as keys and the name of the assigned Keras
         objective as values.
     """
-
     objectives = dict()
     for output_name in output_names:
         _output_name = output_name.split(OUTPUT_SEP)
@@ -233,17 +234,16 @@ def add_output_layers(stem, output_names):
 
     Parameters
     ----------
-    stem
-        Keras layer.
+    stem: Keras layer
+        Keras layer to which output layers are added.
     output_names: list
-        List with output names.
+        List of output names.
 
     Returns
     -------
     list
         Output layers added to `stem`.
     """
-
     outputs = []
     for output_name in output_names:
         _output_name = output_name.split(OUTPUT_SEP)
@@ -271,18 +271,18 @@ def predict_generator(model, generator, nb_sample=None):
 
     Parameters
     ----------
-    model:
+    model: Keras model
         Model to be evaluated.
-    generator:
+    generator: generator
         Data generator.
     nb_sample: int
         Maximum number of samples.
 
     Returns
     -------
-    List with inputs, outputs, and predictions.
+    list
+        list [`inputs`, `outputs`, `predictions`].
     """
-
     data = None
     nb_seen = 0
     for data_batch in generator:
@@ -341,7 +341,6 @@ def evaluate_generator(model, generator, return_data=False, *args, **kwargs):
     `return_data=True`, tuple (`perf`, `data`) with performance metrics `perf`
     and `data`.
     """
-
     data = predict_generator(model, generator, *args, **kwargs)
     perf = []
     for output in model.output_names:
@@ -397,7 +396,6 @@ def copy_weights(src_model, dst_model, must_exist=True):
     list
         Names of layers that were copied.
     """
-
     copied = []
     for dst_layer in dst_model.layers:
         for src_layer in src_model.layers:
@@ -441,7 +439,7 @@ class Model(object):
         self.scope = None
 
     def inputs(self, *args, **kwargs):
-        """Return model inputs."""
+        """Return list of Keras model inputs."""
         pass
 
     def _build(self, input, output):
@@ -458,8 +456,8 @@ class Model(object):
 
         Parameters
         ----------
-        inputs
-            Model inputs
+        inputs: list
+            Keras model inputs
         """
         pass
 
@@ -467,8 +465,9 @@ class Model(object):
 def encode_replicate_names(replicate_names):
     """Encode list of replicate names as single string.
 
-    This function is deprecated but still needed to support legacy models. The
-    function will be removed in the future.
+    .. note:: Deprecated
+        This function is used to support legacy models and will be removed in
+        the future.
     """
     return '--'.join(replicate_names)
 
@@ -476,14 +475,44 @@ def encode_replicate_names(replicate_names):
 def decode_replicate_names(replicate_names):
     """Decode string of replicate names and return names as list.
 
-    This function is deprecated but still needed to support legacy models. The
-    function will be removed in the future.
+    .. note:: Deprecated
+        This function is used to support legacy models and will be removed in
+        the future.
     """
     return replicate_names.split('--')
 
 
 class DataReader(object):
+    """Read data from `dcpg_data.py` output files.
 
+    Generator to read data batches from `dcpg_data.py` output files. Reads data
+    using :fun:`hdf.reader` and pre-processes data.
+
+    Parameters
+    ----------
+    output_names: list
+        Names of outputs to be read.
+    use_dna: bool
+        If `True`, read DNA sequence windows.
+    dna_wlen: int
+        Maximum length of DNA sequence windows.
+    replicate_names: list
+        Name of cells (profiles) whose neighboring CpG sites are read.
+    cpg_wlen: int
+        Maximum number of neighboring CpG sites.
+    cpg_max_dist: int
+        Value to threshold the distance of neighboring CpG sites.
+    encode_replicates: bool
+        If `True`, encode replicated names in key of returned dict. This option
+        is deprecated and will be removed in the future.
+
+    Returns
+    -------
+    tuple
+        `dict` (`inputs`, `outputs`, `weights`), where `inputs`, `outputs`,
+        `weights` is a `dict` of model inputs, outputs, and output weights.
+        `outputs` and `weights` are not returned if `output_names` is undefined.
+    """
     def __init__(self, output_names=None,
                  use_dna=True, dna_wlen=None,
                  replicate_names=None, cpg_wlen=None, cpg_max_dist=25000,
@@ -497,6 +526,7 @@ class DataReader(object):
         self.encode_replicates = encode_replicates
 
     def _prepro_dna(self, dna):
+        """Preprocess DNA sequence windows."""
         if self.dna_wlen:
             cur_wlen = dna.shape[1]
             center = cur_wlen // 2
@@ -505,6 +535,7 @@ class DataReader(object):
         return int_to_onehot(dna)
 
     def _prepro_cpg(self, states, dists):
+        """Preprocess the state and distance of neighboring CpG sites."""
         prepro_states = []
         prepro_dists = []
         for state, dist in zip(states, dists):
@@ -528,6 +559,24 @@ class DataReader(object):
 
     @dat.threadsafe_generator
     def __call__(self, data_files, class_weights=None, *args, **kwargs):
+        """Return generator for reading data from `data_files`.
+
+        Parameters
+        ----------
+        data_files: list
+            List of data files to be read.
+        class_weights: dict
+            dict of dict with class weights of individual outputs.
+        *args: list
+            Unnamed arguments passed to :fun:`hdf.reader`
+        *kwargs: dict
+            Named arguments passed to :fun:`hdf.reader`
+
+        Returns
+        -------
+        generator
+            Python generator for reading data.
+        """
         names = []
         if self.use_dna:
             names.append('inputs/dna')
