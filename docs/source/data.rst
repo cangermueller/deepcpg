@@ -70,7 +70,7 @@ For debugging, testing, or reducing compute costs, ``--chromos`` can be used the
 Predicting statistics
 ---------------------
 
-For predicting statistics across methylation profiles, ``--stats`` and ``--win_stats`` can be used. These arguments specify a list of statistics that are computed across profiles for either a single CpG site or in a window of size ``--win_stats_wlen`` that is centered on a target CpG site. Following statistics are supported:
+For predicting statistics across methylation profiles, ``--cpg_stats`` and ``--win_stats`` can be used. These arguments specify a list of statistics that are computed across profiles for either a single CpG site or in windows of length ``--win_stats_wlen`` that are centered on a CpG site. Following statistics are supported:
 
 * ``mean``: the mean methylation rate.
 * ``mode``: the mode of methylation rates.
@@ -81,7 +81,7 @@ For predicting statistics across methylation profiles, ``--stats`` and ``--win_s
 * ``diff``: if a CpG site is differentially methylated, i.e. methylated in one profile but zero in others.
 * ``cov``: the CpG coverage, i.e. the number of profiles for which the methylation state of the target CpG site is observed.
 
-Statistics are only computed or CpG sites that are covered by at least ``--stats_cov`` (default 1) cells. Increasing ``--stats_cov`` will lead to more robust estimates.
+Per-CpG statistics specified by ``--cpg_stats`` are computed only for CpG sites that are covered by at least ``--cpg_stats_cov`` (default 3) cells. Increasing ``--cpg_stats_cov`` will lead to more robust estimates.
 
 
 Common issues

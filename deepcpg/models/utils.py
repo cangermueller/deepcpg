@@ -573,7 +573,7 @@ class DataReader(object):
                     outputs[name] = data_raw['outputs/%s' % name]
                     cweights = class_weights[name] if class_weights else None
                     weights[name] = get_sample_weights(outputs[name], cweights)
-                    if name == 'stats/cat_var':
+                    if name.endswith('cat_var'):
                         output = outputs[name]
                         outputs[name] = to_categorical(output, 3)
                         outputs[name][output == dat.CPG_NAN] = 0

@@ -308,7 +308,7 @@ class App(object):
 
         g = p.add_argument_group('output statistics')
         g.add_argument(
-            '--stats',
+            '--cpg_stats',
             help='Per CpG statistics derived from single-cell profiles.'
             ' Required, e.g., for predicting mean methylation levels or'
             ' cell-to-cell variance.',
@@ -316,10 +316,10 @@ class App(object):
             choices=['mean', 'mode', 'var', 'cat_var', 'cat2_var', 'entropy',
                      'diff', 'cov'])
         g.add_argument(
-            '--stats_cov',
-            help='Minimum coverage for computing per CpG  statistics',
+            '--cpg_stats_cov',
+            help='Minimum coverage for computing per CpG statistics',
             type=int,
-            default=1)
+            default=3)
         g.add_argument(
             '--win_stats',
             help='Window-based output statistics derived from single-cell'
@@ -394,8 +394,8 @@ class App(object):
         # Parse functions for computing output statistics
         cpg_stats_meta = None
         win_stats_meta = None
-        if opts.stats:
-            cpg_stats_meta = get_stats_meta(opts.stats)
+        if opts.cpg_stats:
+            cpg_stats_meta = get_stats_meta(opts.cpg_stats)
         if opts.win_stats:
             win_stats_meta = get_stats_meta(opts.win_stats)
 
@@ -523,12 +523,12 @@ class App(object):
                         cpg_mat = np.ma.masked_values(chunk_outputs['cpg_mat'],
                                                       dat.CPG_NAN)
                         mask = np.sum(~cpg_mat.mask, axis=1)
-                        mask = mask < opts.stats_cov
+                        mask = mask < opts.cpg_stats_cov
                         for name, fun in six.iteritems(cpg_stats_meta):
                             stat = fun[0](cpg_mat).data.astype(fun[1])
                             stat[mask] = dat.CPG_NAN
                             assert len(stat) == len(chunk_pos)
-                            out_group.create_dataset('stats/%s' % name,
+                            out_group.create_dataset('cpg_stats/%s' % name,
                                                      data=stat,
                                                      dtype=fun[1],
                                                      compression='gzip')

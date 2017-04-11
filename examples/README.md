@@ -15,6 +15,7 @@ bash setup.sh
 * [Fine-tuning](./notebooks/fine_tune/index.ipynb): Fine-tuning a pre-trained model to speed-up training.
 * [Motif analysis](./notebooks/motifs/index.ipynb): Visualizing and analyzing learned motifs.
 * [Mutations effects](./notebooks/snp/index.ipynb): Computing and visualizing mutations effects.
+* [Predicting statistics](./notebooks/stats/index.ipynb): Predicting statistics such as cell-to-cell variance.
 
 ## Shell scripts
 `./scripts` contains shell scrips with recommended default parameters. They may help you to easily build a DeepCpG pipeline for creating data, training models, and evaluating models. Set `test_mode` variable in scripts to `1` for testing, and `0` otherwise.
