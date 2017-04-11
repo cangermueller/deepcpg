@@ -9,3 +9,4 @@ keras
 tensorflow
 matplotlib
 seaborn
+numpydoc
