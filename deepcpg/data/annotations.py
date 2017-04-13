@@ -103,7 +103,7 @@ def join_overlapping(s, e):
 
 
 def join_overlapping_frame(d):
-    d = d.sort(['chromo', 'start', 'end'])
+    d = d.sort_values(['chromo', 'start', 'end'])
     e = []
     for chromo in d.chromo.unique():
         dc = d.loc[d.chromo == chromo]

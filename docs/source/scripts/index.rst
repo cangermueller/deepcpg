@@ -46,6 +46,12 @@ dcpg_eval_export.py
 .. automodule:: scripts.dcpg_eval_export
   :members:
 
+dcpg_eval_perf.py
+===================
+
+.. automodule:: scripts.dcpg_eval_perf
+  :members:
+
 dcpg_filter_act.py
 ==================
 

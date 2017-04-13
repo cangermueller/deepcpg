@@ -93,14 +93,14 @@ def get_sample_weights(y, class_weights=None):
 
     Parameters
     ----------
-    y: :cla:`numpy.ndarray`
+    y: :class:`numpy.ndarray`
         1d numpy array of output labels.
     class_weights: dict
         Weight of output classes, e.g. methylation states.
 
     Returns
     -------
-    :cla:`numpy.ndarray`
+    :class:`numpy.ndarray`
         Sample weights of size `y`.
     """
     y = y[:]
@@ -486,7 +486,7 @@ class DataReader(object):
     """Read data from `dcpg_data.py` output files.
 
     Generator to read data batches from `dcpg_data.py` output files. Reads data
-    using :fun:`hdf.reader` and pre-processes data.
+    using :func:`hdf.reader` and pre-processes data.
 
     Parameters
     ----------
@@ -568,9 +568,9 @@ class DataReader(object):
         class_weights: dict
             dict of dict with class weights of individual outputs.
         *args: list
-            Unnamed arguments passed to :fun:`hdf.reader`
+            Unnamed arguments passed to :func:`hdf.reader`
         *kwargs: dict
-            Named arguments passed to :fun:`hdf.reader`
+            Named arguments passed to :func:`hdf.reader`
 
         Returns
         -------
@@ -631,6 +631,24 @@ class DataReader(object):
 
 
 def data_reader_from_model(model, outputs=True, replicate_names=None):
+    """Return :class:`DataReader` from `model`.
+
+    Builds a :class:`DataReader` for reading data for `model`.
+
+    Parameters
+    ----------
+    model: :class:`Model`.
+        :class:`Model`.
+    outputs: bool
+        If `True`, return output labels.
+    replicate_names: list
+        Name of input cells of `model`.
+
+    Returns
+    -------
+    :class:`DataReader`
+        Instance of :class:`DataReader`.
+    """
     use_dna = False
     dna_wlen = None
     cpg_wlen = None
@@ -640,6 +658,7 @@ def data_reader_from_model(model, outputs=True, replicate_names=None):
     input_shapes = to_list(model.input_shape)
     for input_name, input_shape in zip(model.input_names, input_shapes):
         if input_name == 'dna':
+            # Read DNA sequences.
             use_dna = True
             dna_wlen = input_shape[1]
         elif input_name.startswith('cpg/state/'):
@@ -650,6 +669,7 @@ def data_reader_from_model(model, outputs=True, replicate_names=None):
             cpg_wlen = input_shape[2]
             encode_replicates = True
         elif input_name == 'cpg/state':
+            # Read neighboring CpG sites.
             if not replicate_names:
                 raise ValueError('Replicate names required!')
             if len(replicate_names) != input_shape[1]:
@@ -661,6 +681,7 @@ def data_reader_from_model(model, outputs=True, replicate_names=None):
             cpg_wlen = input_shape[2]
 
     if outputs:
+        # Return output labels.
         output_names = model.output_names
 
     return DataReader(output_names=output_names,

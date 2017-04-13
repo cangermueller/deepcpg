@@ -30,6 +30,26 @@ def slice_dict(data, idx):
         return data[idx]
 
 
+def fold_dict(data, nb_level=10**5):
+    if nb_level <= 0:
+        return data
+
+    groups = dict()
+    levels = set()
+    for key, value in data.items():
+        idx = key.find('/')
+        if idx > 0:
+            level = key[:idx]
+            group_dict = groups.setdefault(level, dict())
+            group_dict[key[(idx + 1):]] = value
+            levels.add(level)
+        else:
+            groups[key] = value
+    for level in levels:
+        groups[level] = fold_dict(groups[level], nb_level - 1)
+    return groups
+
+
 def linear_weights(length, start=0.1):
     weights = np.linspace(start, 1, np.ceil(length / 2))
     tmp = weights
