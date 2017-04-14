@@ -14,6 +14,7 @@ individual outputs:
 
     dcpg_eval_perf.py
         ./eval/data.h5
+        --out_dir ./eval
         --curves pr roc
         --annos_files ./bed/CGI.bed ./bed/TSS.bed ./bed/gene_body.bed
 """
@@ -31,7 +32,7 @@ from deepcpg import data as dat
 from deepcpg import evaluation as ev
 from deepcpg.data import hdf
 from deepcpg.data.annotations import is_in, join_overlapping_frame
-from deepcpg.utils import fold_dict, slice_dict, to_list
+from deepcpg.utils import fold_dict, make_dir, slice_dict, to_list
 
 
 ANNO_GLOBAL = 'global'
@@ -45,9 +46,9 @@ def annotate(chromos, pos, anno):
     Parameters
     ----------
     chromos: :class:`numpy.ndarray`
-        Chromosome of sites.
+        :class:`numpy.ndarray` with chromosome of sites.
     pos: :class:`numpy.ndarray`
-        Position on chromosome of sites.
+        :class:`numpy.ndarray` with position on chromosome of sites.
     anno: :class:`pandas.DataFrame`
         :class:`pandas.DataFrame` with columns `chromo`, `start`, `end` that
         specify annotated regions.
@@ -55,8 +56,8 @@ def annotate(chromos, pos, anno):
     Returns
     -------
     :class:`numpy.ndarray`
-        Binary array of same length as `chromos` indicating if positions are
-        annotated.
+        Binary :class:`numpy.ndarray` of same length as `chromos` indicating if
+        positions are annotated.
     """
     idx = []
     for chromo in np.unique(chromos):
@@ -285,6 +286,7 @@ class App(object):
                             curve['anno'] = anno_name
                             curves.append(curve)
 
+        make_dir(opts.out_dir)
         if reports:
             report = pd.concat(reports)
             report = report[['anno', 'metric', 'output', 'value']]

@@ -33,8 +33,8 @@ options(xtable.type='html')
 # Options
 opts <- list()
 opts$data_dir <- './'
-opts$metrics_file <- file.path(opts$data_dir, 'metrics.tsv.gz')
-opts$curves_file <- file.path(opts$data_dir, 'curves.tsv.gz')
+opts$metrics_file <- Sys.glob(file.path(opts$data_dir, 'metrics.tsv*'))
+opts$curves_file <- Sys.glob(file.path(opts$data_dir, 'curves.tsv*'))
 opts$anno_global <- 'global'
 ```
 
