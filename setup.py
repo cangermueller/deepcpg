@@ -1,3 +1,4 @@
+from glob import glob
 import os
 
 from setuptools import setup, find_packages
@@ -16,12 +17,13 @@ setup(name='deepcpg',
       license="MIT",
       url='https://github.com/cangermueller/deepcpg',
       packages=find_packages(),
+      scripts=glob('./scripts/*.py'),
       install_requires=['h5py',
                         'argparse',
                         'scikit-learn',
                         'scipy',
-                        'numpy',
                         'pandas',
+                        'numpy',
                         'pytest',
                         'keras',
                         'matplotlib',

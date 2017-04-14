@@ -172,6 +172,54 @@ def evaluate_outputs(outputs, preds):
     return perf
 
 
+def is_binary_output(output_name):
+    _output_name = output_name.split(OUTPUT_SEP)
+    if _output_name[0] == 'cpg':
+        return True
+    elif _output_name[-1] in ['diff', 'mode', 'cat2_var']:
+        return True
+    else:
+        return False
+
+
+def evaluate_curve(outputs, preds, fun=skm.roc_curve, mask=CPG_NAN,
+                   nb_point=None):
+    curves = []
+    for output_name in outputs.keys():
+        if not is_binary_output(output_name):
+            continue
+
+        output = outputs[output_name].round().squeeze()
+        pred = preds[output_name].squeeze()
+        idx = output != CPG_NAN
+        output = output[idx]
+        pred = pred[idx]
+
+        x, y, thr = fun(output, pred)
+        length = min(len(x), len(y), len(thr))
+        if nb_point and length > nb_point:
+            idx = np.linspace(0, length - 1, nb_point).astype(np.int32)
+        else:
+            idx = slice(0, length)
+        x = x[idx]
+        y = y[idx]
+        thr = thr[idx]
+
+        curve = OrderedDict()
+        curve['output'] = output_name
+        curve['x'] = x
+        curve['y'] = y
+        curve['thr'] = thr
+        curve = pd.DataFrame(curve)
+        curves.append(curve)
+
+    if not curves:
+        return None
+    else:
+        curves = pd.concat(curves)
+        return curves
+
+
 def unstack_report(report):
     index = list(report.columns[~report.columns.isin(['metric', 'value'])])
     report = pd.pivot_table(report, index=index, columns='metric',
