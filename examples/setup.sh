@@ -47,16 +47,23 @@ function download_zip {
 }
 
 
+# Genome
 download_genome "mm10" "ftp://ftp.ensembl.org/pub/release-85/fasta/mus_musculus/dna/Mus_musculus.GRCm38.dna.chromosome.*.fa.gz"
 
+# CpG profiles
 if [[ ! -e "$data_dir/cpg" ]]; then
   download_zip "b3afd7f831dec739d20843a3ef2dbeff" "$data_dir/cpg"
   run "gunzip $data_dir/cpg/*gz"
 fi
 
+# Motif database
 motif_file="motif_databases.12.15.tgz"
 if [[ ! -e $data_dir/motif_databases ]]; then
   run "wget http://meme-suite.org/meme-software/Databases/motifs/$motif_file -O $data_dir/$motif_file"
   run "tar xf $data_dir/$motif_file -C $data_dir"
   run "rm $data_dir/$motif_file"
 fi
+
+
+# Annotations
+download_zip 8c336f759e7010fa7a8287576281110e $data_dir/anno
