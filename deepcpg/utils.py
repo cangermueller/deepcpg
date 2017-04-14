@@ -13,6 +13,18 @@ EPS = 10e-8
 
 
 def make_dir(dirname):
+    """Create directory `dirname` if non-existing.
+
+    Parameters
+    ----------
+    dirname: str
+        Path of directory to be created.
+
+    Returns
+    -------
+    bool
+        `True`, if directory did not exist and was created.
+    """
     if os.path.exists(dirname):
         return False
     else:
@@ -21,6 +33,23 @@ def make_dir(dirname):
 
 
 def slice_dict(data, idx):
+    """Slice elements in dict `data` by `idx`.
+
+    Slices array-like objects in `data` by index `idx`. `data` can be
+    tree-like with sub-dicts, where the leafs must be sliceable by `idx`.
+
+    Parameters
+    ----------
+    data: dict
+        dict to be sliced.
+    idx: slice
+        Slice index.
+
+    Returns
+    -------
+    dict
+        dict with same elements as in `data` with sliced by `idx`.
+    """
     if isinstance(data, dict):
         data_sliced = dict()
         for key, value in six.iteritems(data):
@@ -31,6 +60,23 @@ def slice_dict(data, idx):
 
 
 def fold_dict(data, nb_level=10**5):
+    """Fold dict `data`.
+
+    Turns dictionary keys, e.g. 'level1/level2/level3', into sub-dicts, e.g.
+    data['level1']['level2']['level3'].
+
+    Parameters
+    ----------
+    data: dict
+        dict to be folded.
+    nb_level: int
+        Maximum recursion depth.
+
+    Returns
+    -------
+    dict
+        Folded dict.
+    """
     if nb_level <= 0:
         return data
 
@@ -51,6 +97,24 @@ def fold_dict(data, nb_level=10**5):
 
 
 def linear_weights(length, start=0.1):
+    """Create linear-triangle weights.
+
+    Create array `x` of length `length` with linear weights, where the weight is
+    highest (one) for the center x[length//2] and lowest (`start` ) at the ends
+    x[0] and x[-1].
+
+    Parameters
+    ----------
+    length: int
+        Length of the weight array.
+    start: float
+        Minimum weights.
+
+    Returns
+    -------
+    :class:`np.ndarray`
+        Array of length `length` with weight.
+    """
     weights = np.linspace(start, 1, np.ceil(length / 2))
     tmp = weights
     if length % 2:
