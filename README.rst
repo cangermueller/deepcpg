@@ -57,6 +57,8 @@ Table of contents
 News
 ====
 
+* **170414**: Added `dcpg_eval_perf.py <./scripts/dcpg_eval_perf.py>`_ and `dcpg_eval_perf.Rmd <./R/dcpg_eval_perf.Rmd>`_ for evaluating and visualizing prediction performances!
+* **170412**: New `notebook <./examples/notebooks/stats/index.ipynb>`_ on predicting inter-cell statistics!
 * **170406**: A short description of all `DeepCpG scripts <http://deepcpg.readthedocs.io/latest/scripts/index.html>`_!
 * **170404**: New guide on creating and analyzing DeepCpG data `released <http://deepcpg.readthedocs.io/latest/data.html>`_!
 * **170404**: Training on continuous data, e.g. from bulk experiments, now `supported <http://deepcpg.readthedocs.io/latest/data.html>`_!
