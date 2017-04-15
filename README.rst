@@ -168,7 +168,7 @@ This command predicts missing methylation states on all chromosomes and evaluate
 Examples
 ========
 
-You can find example notebooks and scripts on how to use DeepCpG `here <examples/README.md>`_.
+You can find example notebooks and scripts on how to use DeepCpG in `/examples <examples/README.md>`_. R scripts and Rmarkdown files for downstream analyses are stored in `/R <R/README.md>`_.
 
 
 Documentation
@@ -205,6 +205,7 @@ Content
 * ``/deepcpg/``: Source code
 * ``/docs``: Documentation
 * ``/examples/``: Examples on how to use DeepCpG
+* ``/R``: R scripts and Rmarkdown files for downstream analyses
 * ``/script/``: Executable DeepCpG scripts
 * ``/tests``: Test files
 

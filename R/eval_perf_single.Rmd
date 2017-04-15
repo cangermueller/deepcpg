@@ -6,6 +6,15 @@ output:
     toc: yes
 ---
 
+```{r echo=F}
+# You can use this Rmarkdown file to visualize the performance data from
+# `dcpg_eval_perf.py` of a single model. Use `eval_perf_mult.Rmd` to visualize
+# performances of multiple models.
+
+# Copy the file to the output directory of `dcpg_eval_perf.py` and adapt the
+# options in the section below.
+```
+
 ```{r, include=F}
 library(knitr)
 opts_chunk$set(echo=F, fig.width=12, warning=F, message=F)
@@ -32,10 +41,23 @@ options(xtable.type='html')
 ```{r}
 # Options
 opts <- list()
-opts$data_dir <- './'
+
+# ==============================================================================
+# Define here the output directory of the `dcpg_eval_perf.py` for the
+# model you want to visualize.
+opts$data_dir <- '../eval2'
+# ==============================================================================
+
+# You probably do not have to change the following options.
+
+# Name of the file with performance metrics.
 opts$metrics_file <- Sys.glob(file.path(opts$data_dir, 'metrics.tsv*'))
+# Name of the file with performance curves.
 opts$curves_file <- Sys.glob(file.path(opts$data_dir, 'curves.tsv*'))
+# Name of the annotation that corresponds to the genome-wide performance.
 opts$anno_global <- 'global'
+# Performance metrics that are shown.
+opts$metrics <- c('AUC', 'ACC', 'F1', 'MCC', 'TPR', 'TNR')
 ```
 
 ```{r}
@@ -83,7 +105,7 @@ read_curves <- function(filename) {
   return (d)
 }
 
-# Read Data
+# Read Data.
 dat <- list()
 dat$metrics <- read_metrics(opts$metrics_file)
 dat$curves <- read_curves(opts$curves_file)
@@ -91,6 +113,36 @@ dat$curves <- read_curves(opts$curves_file)
 
 
 ## Genome-wide performances
+
+```{r fig.width=10, fig.height=10}
+plot_metrics <- function(d, metrics=opts$metrics, legend='top') {
+  # Plot genome-wide performance metrics of multiple cells as barplots.
+  tmp <- d %>% filter(metric == 'AUC') %>% arrange(desc(value)) %>%
+    select(output) %>% unlist %>% as.vector
+  d <- d %>% mutate(output=factor(output, levels=tmp))
+  if (is.null(metrics)) {
+    metrics <- unique(d$metric)
+  }
+  d <- d %>% filter(metric %in% metrics) %>%
+    mutate(metric=factor(metric, levels=metrics, labels=toupper(metrics))) %>%
+    droplevels
+  p <- ggplot(d, aes(x=output, y=value)) +
+    geom_bar(aes(fill=metric), stat='identity') +
+    scale_fill_brewer(palette='Set1') +
+    facet_wrap(~metric, scale='free', ncol=2) +
+    guides(fill=F) +
+    my_theme() +
+    theme(axis.text.x=element_text(size=rel(0.9), angle=30, hjust=1),
+          axis.title.x=element_blank(),
+          axis.title.y=element_blank(),
+          legend.position='top')
+  return (p)
+}
+
+d <- dat$metrics %>% filter(anno == opts$anno_global)
+p <- plot_metrics(d)
+print(p)
+```
 
 ```{r results='asis'}
 # Performance table
@@ -101,54 +153,31 @@ d <- dat$metrics %>% filter(anno == opts$anno_global) %>%
 xtable(d, digits=4)
 ```
 
-```{r fig.width=10, fig.height=10}
-# Bar plots
-d <- dat$metrics %>% filter(anno == opts$anno_global, metric != 'N')
-tmp <- d %>% filter(metric == 'AUC') %>% arrange(desc(value)) %>%
-  select(output) %>% unlist %>% as.vector
-d <- d %>% mutate(output=factor(output, levels=tmp))
-# d <- d %>% filter(metric == 'auc')
-p <- ggplot(d, aes(x=output, y=value)) +
-  geom_bar(aes(fill=metric), stat='identity') +
-  scale_fill_brewer(palette='Set1') +
-  facet_wrap(~metric, scale='free', ncol=2) +
-  my_theme() +
-  theme(axis.text.x=element_text(size=rel(0.9), angle=30, hjust=1),
-        axis.title.x=element_blank(),
-        axis.title.y=element_blank(),
-        legend.position='top')
-print(p)
-```
+```{r fig.width=10, fig.height=5}
+plot_curves <- function(d) {
+  # Plot performance curves (ROC, PR) of multiple cells.
+  d <- d %>% filter(anno == opts$anno_global,
+                    (curve == 'ROC') | (x > 0.5))
+  p <- ggplot(d, aes(x=x, y=y, color=output)) +
+    geom_line() +
+    my_theme() +
+    guides(color=guide_legend(title='Output', ncol=5)) +
+    theme(legend.position='top') +
+    facet_wrap(~curve, ncol=2, scale='free') +
+    xlab('') + ylab('')
+  return (p)
+}
 
-```{r fig.width=10, fig.height=6}
-# Performance curves
-d <- dat$curves %>%
-  filter(anno == opts$anno_global, (curve == 'ROC') | (x > 0.5))
-p <- ggplot(d, aes(x=x, y=y, color=output)) +
-  geom_line() +
-  my_theme() +
-  theme(legend.position='top') +
-  facet_wrap(~curve, ncol=2, scale='free') +
-  xlab('') + ylab('')
+d <- dat$curves %>% filter(anno == opts$anno_global)
+p <- plot_curves(d)
 print(p)
 ```
 
 ## Context-specific performances
 
-```{r results='asis'}
-# Performance table
-d <- dat$metrics %>%
-  group_by(anno, metric) %>%
-  summarise(value=mean(value)) %>%
-  ungroup %>%
-  spread(metric, value) %>%
-  arrange(desc(AUC))
-xtable(d, digits=4)
-```
-
 ```{r fig.width=10, fig.height=25}
-# Boxplots annotations
 plot_annos <- function(d, metrics=NULL, points=T) {
+  # Plot performances in different annotations as boxplots over cells.
   annos <- d %>% filter(metric == 'AUC') %>% group_by(anno) %>%
     summarise(value=mean(value)) %>%
     arrange(desc(value)) %>% select(anno) %>% unlist
@@ -160,11 +189,13 @@ plot_annos <- function(d, metrics=NULL, points=T) {
     geom_boxplot(aes(fill=metric), outlier.shape=NA) +
     scale_fill_brewer(palette='Set1') +
     my_theme() +
+    guides(fill=F) +
     theme(
       panel.grid.major=element_line(colour="grey60", size=0.1, linetype='solid'),
       panel.grid.minor=element_line(colour="grey60", size=0.1, linetype='dotted'),
       axis.text.x=element_text(angle=30, hjust=1),
       axis.title.x=element_blank(),
+      axis.title.y=element_blank(),
       legend.position='top') +
     facet_wrap(~metric, ncol=1, scale='free')
 
@@ -176,4 +207,15 @@ plot_annos <- function(d, metrics=NULL, points=T) {
 }
 
 plot_annos(dat$metrics %>% filter(metric != 'N'))
+```
+
+```{r results='asis'}
+# Performance table.
+d <- dat$metrics %>%
+  group_by(anno, metric) %>%
+  summarise(value=mean(value)) %>%
+  ungroup %>%
+  spread(metric, value) %>%
+  arrange(desc(AUC))
+xtable(d, digits=4)
 ```

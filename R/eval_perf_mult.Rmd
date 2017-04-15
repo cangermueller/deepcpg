@@ -1,0 +1,264 @@
+---
+title: "Prediction performance evaluation"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    toc: yes
+---
+
+```{r echo=F}
+# You can use this Rmarkdown file to visualize the performance data from
+# `dcpg_eval_perf.py` of multiple models. Use `eval_perf_single.Rmd` to
+# visualize performances of a single model.
+
+# Copy the file to the output directory of `dcpg_eval_perf.py` and adapt the
+# options in the section below.
+```
+
+```{r, include=F}
+library(knitr)
+opts_chunk$set(echo=F, fig.width=12, warning=F, message=F)
+```
+
+```{r, include=F}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(xtable)
+library(grid)
+```
+
+<style>
+img {
+    max-width: none;
+}
+</style>
+
+```{r}
+options(xtable.type='html')
+```
+
+```{r}
+# Options
+opts <- list()
+
+# ==============================================================================
+# Define here the name and output directory of the `dcpg_eval_perf.py` for the
+# models you want to compare.
+opts$data_dirs <- c('DNA model'='../eval2',
+                    'CpG model'='../eval2',
+                    'Joint model'='../eval2')
+# ==============================================================================
+
+# You probably do not have to change the following options.
+
+# Name of the file with performance metrics.
+opts$metrics_name <- 'metrics.tsv*'
+# Name of the file with performance curves.
+opts$curves_names <- 'curves.tsv*'
+# Name of the annotation that corresponds to the genome-wide performance.
+opts$anno_global <- 'global'
+# Performance metrics that are shown.
+opts$metrics <- c('AUC', 'ACC', 'F1', 'MCC', 'TPR', 'TNR')
+
+expand_filenames <- function(dirnames, filename) {
+  # Append `filename` to each named directory in `dirname`.
+  filenames <- c()
+  for (name in names(dirnames)) {
+    filenames[name] <- Sys.glob(file.path(dirnames[name], filename))
+  }
+  return (filenames)
+}
+
+# Expand path of metrics and curves files.
+opts$metrics_files <- expand_filenames(opts$data_dirs, opts$metrics_name)
+opts$curves_files <- expand_filenames(opts$data_dirs, opts$curves_name)
+```
+
+```{r}
+# ggplot theme
+my_theme <- function() {
+  p <- theme(
+    axis.text=element_text(size=rel(1.2), color='black'),
+    axis.title.y=element_text(size=rel(1.8), margin=margin(0, 10, 0, 0)),
+    axis.title.x=element_text(size=rel(1.8), margin=margin(10, 0, 0, 0)),
+    axis.line = element_line(colour="black", size=1),
+    axis.ticks.length = unit(.3, 'cm'),
+    axis.ticks.margin = unit(.3, 'cm'),
+    legend.position='right',
+    legend.text=element_text(size=rel(1.3)),
+    legend.title=element_text(size=rel(1.3), face='bold'),
+    legend.key=element_rect(fill='transparent'),
+    strip.text=element_text(size=rel(1.3)),
+    panel.border=element_blank(),
+    panel.grid.major=element_line(colour="grey60", size=0.1, linetype='solid'),
+    panel.grid.minor=element_line(colour="grey60", size=0.1, linetype='dotted'),
+    panel.background=element_rect(fill="transparent", colour = NA),
+    plot.background=element_rect(fill="transparent", colour = NA)
+    )
+  return (p)
+}
+```
+
+```{r}
+format_output <- function(d) {
+  d <- factor(sub('cpg/', '', d))
+  return (d)
+}
+
+read_metrics <- function(filename) {
+  d <- read.table(gzfile(filename), sep='\t', head=T) %>% tbl_df %>%
+    select(anno, metric, output, value) %>%
+    mutate(metric=toupper(metric), output=format_output(output))
+  return (d)
+}
+
+read_curves <- function(filename) {
+  d <- read.table(filename, sep='\t', head=T) %>% tbl_df %>%
+    select(anno, curve, output, x, y, thr) %>%
+    mutate(curve=toupper(curve), output=format_output(output))
+  return (d)
+}
+
+read_files <- function(filenames, fun, ...) {
+  d <- list()
+  for (name in names(filenames)) {
+    d[[name]] <- fun(filenames[name], ...) %>% mutate(model=name)
+  }
+  d <- do.call(rbind.data.frame, d)
+  return (d)
+}
+
+# Read the data.
+dat <- list()
+dat$metrics <- read_files(opts$metrics_files, read_metrics)
+dat$curves <- read_files(opts$curves_files, read_curves)
+```
+
+```{r}
+# Define order of models.
+model_order <- dat$metrics %>%
+  filter(anno == opts$anno_global, metric=='AUC') %>%
+  select(-c(anno, metric)) %>%
+  group_by(model) %>% summarise(value=mean(value)) %>% ungroup %>%
+  arrange(desc(value)) %>%
+  select(model) %>% unlist
+dat$metrics <- dat$metrics %>% mutate(model=factor(model, levels=model_order))
+dat$curves <- dat$curves %>% mutate(model=factor(model, levels=model_order))
+```
+
+
+## Genome-wide performances
+
+```{r fig.width=10, fig.height=8}
+plot_metrics <- function(d, metrics=opts$metrics, legend='top') {
+  # Plot genome-wide performance metrics of multiple models as boxplots over
+  # cells.
+  if (is.null(metrics)) {
+    metrics <- unique(d$metric)
+  }
+  d <- d %>% filter(metric %in% metrics) %>%
+    mutate(metric=factor(metric, levels=metrics, labels=toupper(metrics))) %>%
+    droplevels
+  p <- ggplot(d, aes(x=model, y=value)) +
+    geom_boxplot(aes(fill=model), alpha=1.0, outlier.shape=NA) +
+    scale_fill_brewer(palette='Set1') +
+    geom_jitter(position=position_jitter(width=0.1, height=0), size=1.2) +
+    xlab('') + ylab('') +
+    my_theme() +
+    guides(fill=guide_legend(title='Model')) +
+    theme(legend.position=legend) +
+    theme(axis.text.x=element_text(angle=30, hjust=1))
+  if (length(unique(d$metric)) > 1) {
+    p <- p + facet_wrap(~metric, ncol=3, scales='free')
+  } else {
+    p <- p + ylab(toupper(metrics[1]))
+  }
+  return (p)
+}
+
+d <- dat$metrics %>% filter(anno == opts$anno_global)
+p <- plot_metrics(d)
+print(p)
+```
+
+```{r results='asis'}
+# Performance table.
+d <- dat$metrics %>%
+  filter(anno == opts$anno_global) %>% select(-anno) %>%
+  group_by(model, metric) %>% summarise(value=mean(value)) %>% ungroup %>%
+  spread(metric, value) %>%
+  arrange(desc(AUC))
+xtable(d, digits=4)
+```
+
+```{r fig.width=10, fig.height=5}
+plot_curves <- function(d) {
+  # Plot performance curves (ROC, PR) of multiple models smoothed over cells.
+  d <- d %>% filter(anno == opts$anno_global, (curve == 'ROC') | (x > 0.5))
+  p <- ggplot(d, aes(x=x, y=y, color=model)) +
+    geom_smooth() +
+    scale_color_brewer(palette='Set1') +
+    my_theme() +
+    theme(legend.position='top') +
+    guides(color=guide_legend(title='Model')) +
+    facet_wrap(~curve, ncol=2, scale='free') +
+    xlab('') + ylab('')
+  return (p)
+}
+
+d <- dat$curves %>% filter(anno == opts$anno_global)
+p <- plot_curves(d)
+print(p)
+```
+
+## Context-specific performances
+
+```{r fig.width=10, fig.height=25}
+plot_annos <- function(d, metrics=opts$metrics, points=T) {
+  # Plot performances of multiple models in different annotations as boxplots
+  # over cells.
+  annos <- d %>% filter(metric == 'AUC') %>% group_by(anno) %>%
+    summarise(value=mean(value)) %>%
+    arrange(desc(value)) %>% select(anno) %>% unlist
+  d <- d %>% mutate(anno=factor(anno, levels=annos))
+  if (is.null(metrics)) {
+    metrics <- unique(d$metric)
+  }
+  d <- d %>% filter(metric %in% metrics) %>%
+    mutate(metric=factor(metric, levels=metrics, labels=toupper(metrics))) %>%
+    droplevels
+  p <- ggplot(d, aes(x=anno, y=value)) +
+    geom_boxplot(aes(fill=model), outlier.shape=NA) +
+    scale_fill_brewer(palette='Set1') +
+    my_theme() +
+    theme(
+      panel.grid.major=element_line(colour="grey60", size=0.1, linetype='solid'),
+      panel.grid.minor=element_line(colour="grey60", size=0.1, linetype='dotted'),
+      axis.text.x=element_text(angle=30, hjust=1),
+      axis.title.x=element_blank(),
+      axis.title.y=element_blank(),
+      legend.position='top') +
+    facet_wrap(~metric, ncol=1, scale='free')
+  if (points) {
+    p <- p + geom_point(aes(fill=model), size=0.2,
+      position=position_jitterdodge(jitter.width=0.1, jitter.height=0,
+                                    dodge.width=0.8))
+  }
+  return (p)
+}
+
+p <- plot_annos(dat$metrics)
+print(p)
+```
+
+```{r results='asis'}
+# Performance table.
+d <- dat$metrics %>%
+  group_by(anno, model, metric) %>%
+  summarise(value=mean(value)) %>%
+  ungroup %>%
+  spread(metric, value) %>%
+  arrange(desc(AUC))
+xtable(d, digits=4)
+```
