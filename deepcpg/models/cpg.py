@@ -38,8 +38,10 @@ class CpgModel(Model):
 class FcAvg(CpgModel):
     """Fully-connected layer followed by global average layer.
 
-    Parameters: 54,000
-    Specification: fc[512]_gap
+    .. code::
+
+        Parameters: 54,000
+        Specification: fc[512]_gap
     """
 
     def _replicate_model(self, input):
@@ -64,8 +66,10 @@ class FcAvg(CpgModel):
 class RnnL1(CpgModel):
     """Bidirectional GRU with one layer.
 
-    Parameters: 810,000
-    Specification: fc[256]_bgru[256]_do
+    .. code::
+
+        Parameters: 810,000
+        Specification: fc[256]_bgru[256]_do
     """
 
     def __init__(self, act_replicate='relu', *args, **kwargs):
@@ -96,8 +100,10 @@ class RnnL1(CpgModel):
 class RnnL2(RnnL1):
     """Bidirectional GRU with two layers.
 
-    Parameters: 1,100,000
-    Specification: fc[256]_bgru[128]_bgru[256]_do
+    .. code::
+
+        Parameters: 1,100,000
+        Specification: fc[256]_bgru[128]_bgru[256]_do
     """
 
     def __call__(self, inputs):
@@ -131,4 +137,5 @@ def list_models():
 
 
 def get(name):
+    """Return object from module by its name."""
     return get_from_module(name, globals())

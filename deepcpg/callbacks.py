@@ -17,10 +17,26 @@ class PerformanceLogger(Callback):
     """Logs performance metrics during training.
 
     Stores and prints performance metrics for each batch, epoch, and output.
+
+    Parameters
+    ----------
+    metrics: list
+        Name of metrics to be logged.
+    log_freq: float
+        Logging frequency as the percentage of training samples per epoch.
+    precision: int
+        Floating point precision.
+    callbacks: list
+        List of functions with parameters `epoch`, `epoch_logs`, and
+        `val_epoch_logs` that are called at the end of an epoch.
+    verbose: bool
+        If `True`, log performance metrics of individual outputs.
+    logger: function
+        Logging function.
     """
 
     def __init__(self, metrics=['loss', 'acc'], log_freq=0.1,
-                 precision=4, callbacks=[], verbose=1, logger=print):
+                 precision=4, callbacks=[], verbose=bool, logger=print):
         self.metrics = metrics
         self.log_freq = log_freq
         self.precision = precision
@@ -40,14 +56,12 @@ class PerformanceLogger(Callback):
         """Extracts metric names from `logs` and initializes table to store
         epoch or batch logs.
 
-        Returns:
-            Tuple (`metrics`, `logs_dict`):
-                `metrics`: Mapping of metrics, e.g.
-                    metrics['acc'] = ['acc', 'output_acc1']
-                `logs_dict`: Table of arrays to store logs, e.g.
-                    logs_dict['acc'] = []
-                    logs_dict['output_acc1'] = []
-                    ...
+        Returns
+        -------
+        tuple
+            Tuple (`metrics`, `logs_dict`). `metrics` maps metrics, e.g.
+            `metrics['acc'] = ['acc', 'output_acc1']`. `logs_dict` is a dict of
+            lists to store logs, e.g.  `logs_dict['acc'] = []`.
         """
 
         logs = list(logs)
@@ -256,7 +270,17 @@ class PerformanceLogger(Callback):
 
 
 class TrainingStopper(Callback):
-    """Stops training after certain time or when file is detected."""
+    """Stop training after certain time or when file is detected.
+
+    Parameters
+    ----------
+    max_time: int
+        Maximum training time in seconds.
+    stop_file: str
+        Name of stop file that triggers the end of training when existing.
+    verbose: bool
+        If `True`, log message when training is stopped.
+    """
 
     def __init__(self, max_time=None, stop_file=None,
                  verbose=1, logger=print):
