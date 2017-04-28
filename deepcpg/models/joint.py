@@ -48,7 +48,9 @@ class JointModel(Model):
 class JointL0(JointModel):
     """Concatenates inputs without trainable layers.
 
-    Parameters: 0
+    .. code::
+
+        Parameters: 0
     """
 
     def __call__(self, models):
@@ -58,8 +60,10 @@ class JointL0(JointModel):
 class JointL1h512(JointModel):
     """One fully-connected layer with 512 units.
 
-    Parameters: 524,000
-    Specification: fc[512]
+    .. code::
+
+        Parameters: 524,000
+        Specification: fc[512]
     """
 
     def __init__(self, nb_layer=1, nb_hidden=512, *args, **kwargs):
@@ -82,8 +86,10 @@ class JointL1h512(JointModel):
 class JointL2h512(JointL1h512):
     """Two fully-connected layers with 512 units.
 
-    Parameters: 786,000
-    Specification: fc[512]_fc[512]
+    .. code::
+
+        Parameters: 786,000
+        Specification: fc[512]_fc[512]
     """
 
     def __init__(self, *args, **kwargs):
@@ -94,8 +100,10 @@ class JointL2h512(JointL1h512):
 class JointL3h512(JointL1h512):
     """Three fully-connected layers with 512 units.
 
-    Parameters: 1,000,000
-    Specification: fc[512]_fc[512]_fc[512]
+    .. code::
+
+        Parameters: 1,000,000
+        Specification: fc[512]_fc[512]_fc[512]
     """
 
     def __init__(self, *args, **kwargs):
@@ -105,7 +113,6 @@ class JointL3h512(JointL1h512):
 
 def list_models():
     """Return the name of models in the module."""
-
     models = dict()
     for name, value in globals().items():
         if inspect.isclass(value) and name.lower().find('model') == -1:
@@ -114,4 +121,5 @@ def list_models():
 
 
 def get(name):
+    """Return object from module by its name."""
     return get_from_module(name, globals())

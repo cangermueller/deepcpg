@@ -140,6 +140,8 @@ def sample_from_chromo(frame, nb_sample):
     """Randomly sample `nb_sample` samples from each chromosome."""
 
     def sample_frame(frame):
+        if len(frame) <= nb_sample:
+            return frame
         idx = np.random.choice(len(frame), nb_sample, replace=False)
         return frame.iloc[idx]
 
@@ -186,6 +188,8 @@ def read_cpg_profile(filename, chromos=None, nb_sample=None, round=False,
         if not isinstance(chromos, list):
             chromos = [str(chromos)]
         d = d.loc[d.chromo.isin(chromos)]
+        if len(d) == 0:
+            raise ValueError('No data available for selected chromosomes!')
     if nb_sample_chromo is not None:
         d = sample_from_chromo(d, nb_sample_chromo)
     if nb_sample is not None:

@@ -1,7 +1,5 @@
-#/usr/bin/env bash
+#!/usr/bin/env bash
 
-
-out_dir="./data"
 function run {
   cmd=$@
   echo
@@ -15,7 +13,10 @@ function run {
   fi
 }
 
-dna_db="./dna_db"
+data_dir="./data"
+run "mkdir -p $data_dir"
+
+dna_db="$data_dir/dna_db"
 if [[ ! -e $dna_db ]]; then
   run "mkdir -p $dna_db"
   cmd="wget
@@ -25,18 +26,19 @@ if [[ ! -e $dna_db ]]; then
   run $cmd
 fi
 
-cmd="rm -rf $out_dir && mkdir -p $out_dir"
-cmd="$cmd && dcpg_data.py
-  --dna_files ./dna_db
-  --cpg_profiles $(ls ./cpg_files/BS27_4_SER.bed.gz ./cpg_files/BS28_2_SER.bed.gz)
-  --bulk_profiles $(ls ./cpg_files/BS9N_2I.bed.gz ./cpg_files/BS9N_SER.bed.gz)
-  --anno_files $(ls ./annos/*)
+
+out_dir="$data_dir/data"
+run "rm -rf $out_dir"
+cmd="dcpg_data.py
+  --dna_files $dna_db
+  --cpg_profiles $(ls $data_dir/cpg_profiles/*)
+  --anno_files $(ls $data_dir/annos/*)
   --cpg_cov 1
-  --stats mean mode var cat_var cat2_var diff
-  --stats_cov 1
+  --cpg_stats mean mode var cat_var cat2_var diff
+  --cpg_stats_cov 1
   --dna_wlen 501
   --cpg_wlen 50
-  --chunk_size 5000
   --chromos 18 19
-  --out_dir $out_dir"
+  --chunk_size 5000
+  --out_dir $data_dir/data"
 run $cmd
