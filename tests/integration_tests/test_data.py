@@ -15,9 +15,9 @@ class TestData(object):
 
     def setup_class(self):
         self.in_dir = pt.join(PATH, 'data')
-        self.cpg_dir = pt.join(self.in_dir, 'cpg_files')
-        self.cpg_files = [pt.join(self.cpg_dir, 'BS27_4_SER.bed.gz'),
-                          pt.join(self.cpg_dir, 'BS28_2_SER.bed.gz')]
+        self.cpg_dir = pt.join(self.in_dir, 'cpg_profiles')
+        self.cpg_profiles = [pt.join(self.cpg_dir, 'BS27_4_SER.bed.gz'),
+                             pt.join(self.cpg_dir, 'BS28_2_SER.bed.gz')]
         self.dna_dir = pt.join(self.in_dir, 'dna_db')
 
     def get_tmp_dir(self):
@@ -28,7 +28,7 @@ class TestData(object):
         cmd = ['dcpg_data',
                '--out_dir', out_dir,
                '--nb_sample', 1000,
-               '--cpg_profiles'] + self.cpg_files + args
+               '--cpg_profiles'] + self.cpg_profiles + args
         cmd = [str(arg) for arg in cmd]
         app = dcpg_data.App()
         assert app.run(cmd) == 0

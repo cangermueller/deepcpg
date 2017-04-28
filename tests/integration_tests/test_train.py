@@ -16,9 +16,9 @@ class TestTrain(object):
 
     def setup_class(self):
         self.in_dir = pt.join(PATH, 'data')
-        self.cpg_dir = pt.join(self.in_dir, 'cpg_files')
-        self.cpg_files = [pt.join(self.cpg_dir, 'BS27_4_SER.bed.gz'),
-                          pt.join(self.cpg_dir, 'BS28_2_SER.bed.gz')]
+        self.cpg_dir = pt.join(self.in_dir, 'cpg_profiles')
+        self.cpg_profiles = [pt.join(self.cpg_dir, 'BS27_4_SER.bed.gz'),
+                             pt.join(self.cpg_dir, 'BS28_2_SER.bed.gz')]
         self.dna_dir = pt.join(self.in_dir, 'dna_db')
 
         self.data_dir = self.get_tmp_dir(self)
@@ -35,7 +35,7 @@ class TestTrain(object):
                '--out_dir', out_dir,
                '--chromos', 18, 19,
                '--nb_sample_chromo', 500,
-               '--cpg_profiles'] + self.cpg_files
+               '--cpg_profiles'] + self.cpg_profiles
         if cpg_wlen:
             cmd += ['--cpg_wlen', cpg_wlen]
         if dna_wlen:

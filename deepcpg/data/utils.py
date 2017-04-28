@@ -140,6 +140,8 @@ def sample_from_chromo(frame, nb_sample):
     """Randomly sample `nb_sample` samples from each chromosome."""
 
     def sample_frame(frame):
+        if len(frame) <= nb_sample:
+            return frame
         idx = np.random.choice(len(frame), nb_sample, replace=False)
         return frame.iloc[idx]
 

@@ -1,6 +1,7 @@
 from __future__ import division
 from __future__ import print_function
 
+from glob import glob
 import os
 
 import numpy as np
@@ -17,12 +18,7 @@ class TestMake(object):
         self.data_path = os.path.join(
             os.path.dirname(os.path.realpath(__file__)),
             'data')
-        self.data_files = [
-            os.path.join(self.data_path, 'c18_000000-005000.h5'),
-            os.path.join(self.data_path, 'c18_005000-008712.h5'),
-            os.path.join(self.data_path, 'c19_000000-005000.h5'),
-            os.path.join(self.data_path, 'c19_005000-008311.h5')
-        ]
+        self.data_files = glob(os.path.join(self.data_path, 'c*.h5'))
 
         names = ['chromo', 'pos',
                  '/inputs/dna',
@@ -34,14 +30,12 @@ class TestMake(object):
                  '/inputs/annos/CGI',
                  '/outputs/cpg/BS27_4_SER',
                  '/outputs/cpg/BS28_2_SER',
-                 '/outputs/stats/mean',
-                 '/outputs/stats/var',
-                 '/outputs/stats/cat_var',
-                 '/outputs/stats/cat2_var',
-                 '/outputs/stats/diff',
-                 '/outputs/stats/mode',
-                 '/outputs/bulk/BS9N_2I',
-                 '/outputs/bulk/BS9N_SER'
+                 '/outputs/cpg_stats/mean',
+                 '/outputs/cpg_stats/var',
+                 '/outputs/cpg_stats/cat_var',
+                 '/outputs/cpg_stats/cat2_var',
+                 '/outputs/cpg_stats/diff',
+                 '/outputs/cpg_stats/mode',
                  ]
         self.data = hdf.read(self.data_files, names)
         self.chromo = self.data['chromo']
@@ -187,7 +181,7 @@ class TestMake(object):
 
     def _test_stats(self, chromo, pos, stat, value):
         idx = (self.chromo == chromo.encode()) & (self.pos == pos)
-        stat = self.data['/outputs/stats/%s' % stat][idx]
+        stat = self.data['/outputs/cpg_stats/%s' % stat][idx]
         assert stat == value
 
     def test_stats(self):
@@ -220,33 +214,16 @@ class TestMake(object):
         self._test_stats('19', 4190700, 'diff', 0)
         self._test_stats('19', 4190700, 'mode', 0)
 
-        v = self.data['/outputs/stats/var']
+        v = self.data['/outputs/cpg_stats/var']
         assert np.all((v >= 0) & (v <= 0.25))
 
-        cv = self.data['/outputs/stats/cat_var']
+        cv = self.data['/outputs/cpg_stats/cat_var']
         assert np.all((cv == CPG_NAN) | (cv == 0) | (cv == 1) | (cv == 2))
         assert np.all(cv[v == CPG_NAN] == CPG_NAN)
 
-        cv = self.data['/outputs/stats/cat2_var']
+        cv = self.data['/outputs/cpg_stats/cat2_var']
         assert np.all((cv == CPG_NAN) | (cv == 0) | (cv == 1))
         assert np.all(cv[v == CPG_NAN] == CPG_NAN)
-
-    def _test_bulk(self, chromo, pos, name, expected):
-        idx = (self.chromo == chromo.encode()) & (self.pos == pos)
-        actual = float(self.data['/outputs/bulk/%s' % name][idx])
-        npt.assert_almost_equal(actual, expected, 2)
-
-    def test_bulk(self):
-        self._test_bulk('18', 3000023, 'BS9N_2I', 0.0)
-        self._test_bulk('18', 3000023, 'BS9N_SER', 0.75)
-        self._test_bulk('18', 3000086, 'BS9N_2I', 0.0)
-        self._test_bulk('18', 3000086, 'BS9N_SER', 0.666)
-        self._test_bulk('18', 3004868, 'BS9N_2I', 0.042)
-        self._test_bulk('18', 3004868, 'BS9N_SER', 0.1636)
-        self._test_bulk('18', 3013979, 'BS9N_2I', -1)
-        self._test_bulk('18', 3013979, 'BS9N_SER', 1.0)
-        self._test_bulk('19', 4438754, 'BS9N_2I', -1)
-        self._test_bulk('19', 4438754, 'BS9N_SER', 0.333)
 
     def _test_annos(self, chromo, pos, name, expected):
         idx = (self.chromo == chromo.encode()) & (self.pos == pos)
