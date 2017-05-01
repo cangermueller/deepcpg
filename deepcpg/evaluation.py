@@ -14,11 +14,12 @@ from .utils import get_from_module
 
 
 def cor(y, z):
-    """Compute Pearson correlation coefficient."""
+    """Compute Pearson's correlation coefficient."""
     return np.corrcoef(y, z)[0, 1]
 
 
 def kendall(y, z, nb_sample=100000):
+    """Compute Kendall's correlation coefficient."""
     if len(y) > nb_sample:
         idx = np.arange(len(y))
         np.random.shuffle(idx)
@@ -29,22 +30,22 @@ def kendall(y, z, nb_sample=100000):
 
 
 def mad(y, z):
+    """Compute mean absolute deviation."""
     return np.mean(np.abs(y - z))
 
 
 def mse(y, z):
+    """Compute mean squared error."""
     return np.mean((y - z)**2)
 
 
 def rmse(y, z):
+    """Compute root mean squared error."""
     return np.sqrt(mse(y, z))
 
 
-def rrmse(y, z):
-    return 1 - rmse(y, z)
-
-
 def auc(y, z, round=True):
+    """Compute area under the ROC curve."""
     if round:
         y = y.round()
     if len(y) == 0 or len(np.unique(y)) < 2:
@@ -53,6 +54,8 @@ def auc(y, z, round=True):
 
 
 def acc(y, z, round=True):
+    """Compute accuracy."""
+    if round:
     if round:
         y = np.round(y)
         z = np.round(z)
@@ -60,6 +63,7 @@ def acc(y, z, round=True):
 
 
 def tpr(y, z, round=True):
+    """Compute true positive rate."""
     if round:
         y = np.round(y)
         z = np.round(z)
@@ -67,6 +71,7 @@ def tpr(y, z, round=True):
 
 
 def tnr(y, z, round=True):
+    """Compute true negative rate."""
     if round:
         y = np.round(y)
         z = np.round(z)
@@ -75,6 +80,7 @@ def tnr(y, z, round=True):
 
 
 def mcc(y, z, round=True):
+    """Compute Matthew's correlation coefficient."""
     if round:
         y = np.round(y)
         z = np.round(z)
@@ -82,6 +88,7 @@ def mcc(y, z, round=True):
 
 
 def f1(y, z, round=True):
+    """Compute F1 score."""
     if round:
         y = np.round(y)
         z = np.round(z)
@@ -89,18 +96,42 @@ def f1(y, z, round=True):
 
 
 def cat_acc(y, z):
+    """Compute categorical accuracy given one-hot matrices."""
     return np.mean(y.argmax(axis=1) == z.argmax(axis=1))
 
 
+# Classification metrics.
 CLA_METRICS = [auc, acc, tpr, tnr, f1, mcc]
 
+# Regression metrics.
 REG_METRICS = [mse, mad, cor]
 
+# Categorical metrics.
 CAT_METRICS = [cat_acc]
 
 
 def evaluate(y, z, mask=CPG_NAN, metrics=CLA_METRICS):
-    y = y.ravel()
+    """Compute multiple performance metrics.
+
+    Computes evaluation metrics using functions in `metrics`.
+
+    Parameters
+    ----------
+    y: :class:`numpy.ndarray`
+        :class:`numpy.ndarray` vector with labels.
+    z: :class:`numpy.ndarray`
+        :class:`numpy.ndarray` vector with predictions.
+    mask: scalar
+        Value to mask unobserved labels in `y`.
+    metrics: list
+        List of evaluation functions to be used.
+
+    Returns
+    -------
+    Ordered dict
+        Ordered dict with name of evaluation functions as keys and evaluation
+        metrics as values.
+    """
     z = z.ravel()
     if mask is not None:
         t = y != mask
@@ -118,6 +149,31 @@ def evaluate(y, z, mask=CPG_NAN, metrics=CLA_METRICS):
 
 def evaluate_cat(y, z, metrics=CAT_METRICS,
                  binary_metrics=None):
+    """Compute multiple performance metrics for categorical outputs.
+
+    Computes evaluation metrics for categorical (one-hot encoded labels) using
+    functions in `metrics`.
+
+    Parameters
+    ----------
+    y: :class:`numpy.ndarray`
+        :class:`numpy.ndarray` matrix with one-hot encoded labels.
+    z: :class:`numpy.ndarray`
+        :class:`numpy.ndarray` matrix with class probabilities in rows.
+    metrics: list
+        List of evaluation functions to be used.
+    binary_metrics: list
+        List of binary evaluation metrics to be computed for each category, e.g.
+        class, separately. Will be encoded as `name_i` in the output dictionary,
+        where `name` is the name of the evaluation metrics and `i` the index of
+        the category.
+
+    Returns
+    -------
+    Ordered dict
+        Ordered dict with name of evaluation functions as keys and evaluation
+        metrics as values.
+    """
     idx = y.sum(axis=1) > 0
     y = y[idx]
     z = z[idx]
@@ -133,6 +189,7 @@ def evaluate_cat(y, z, metrics=CAT_METRICS,
 
 
 def get_output_metrics(output_name):
+    """Return list of evaluation metrics for model output name."""
     _output_name = output_name.split(OUTPUT_SEP)
     if _output_name[0] == 'cpg':
         metrics = CLA_METRICS
