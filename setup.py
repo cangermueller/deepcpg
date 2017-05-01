@@ -9,7 +9,7 @@ def read(fname):
 
 
 setup(name='deepcpg',
-      version='1.0.3',
+      version='1.0.4',
       description='Deep learning for predicting CpG methylation',
       long_description=read('README.rst'),
       author='Christof Angermueller',
