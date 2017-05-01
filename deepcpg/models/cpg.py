@@ -12,6 +12,7 @@ import inspect
 from keras import layers as kl
 from keras import regularizers as kr
 from keras import models as km
+from keras.layers.merge import concatenate
 
 from .utils import Model
 from ..utils import get_from_module
@@ -32,7 +33,7 @@ class CpgModel(Model):
         return inputs
 
     def _merge_inputs(self, inputs):
-        return kl.merge(inputs, mode='concat', concat_axis=2)
+        return concatenate(inputs, axis=2)
 
 
 class FcAvg(CpgModel):
@@ -45,8 +46,9 @@ class FcAvg(CpgModel):
     """
 
     def _replicate_model(self, input):
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Dense(512, init=self.init, W_regularizer=w_reg)(input)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Dense(512, kernel_initializer=self.init,
+                     kernel_regularizer=kernel_regularizer)(input)
         x = kl.Activation('relu')(x)
 
         return km.Model(input, x)
@@ -77,8 +79,9 @@ class RnnL1(CpgModel):
         self.act_replicate = act_replicate
 
     def _replicate_model(self, input):
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Dense(256, init=self.init, W_regularizer=w_reg)(input)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Dense(256, kernel_initializer=self.init,
+                     kernel_regularizer=kernel_regularizer)(input)
         x = kl.Activation(self.act_replicate)(x)
 
         return km.Model(input, x)
@@ -90,8 +93,9 @@ class RnnL1(CpgModel):
         replicate_model = self._replicate_model(kl.Input(shape=shape[2:]))
         x = kl.TimeDistributed(replicate_model)(x)
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Bidirectional(kl.GRU(256, W_regularizer=w_reg))(x)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        gru = kl.GRU(256, kernel_regularizer=kernel_regularizer)
+        x = kl.Bidirectional(gru)(x)
         x = kl.Dropout(self.dropout)(x)
 
         return self._build(inputs, x)
@@ -113,13 +117,14 @@ class RnnL2(RnnL1):
         replicate_model = self._replicate_model(kl.Input(shape=shape[2:]))
         x = kl.TimeDistributed(replicate_model)(x)
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Bidirectional(kl.GRU(128, W_regularizer=w_reg,
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Bidirectional(kl.GRU(128, kernel_regularizer=kernel_regularizer,
                                     return_sequences=True),
                              merge_mode='concat')(x)
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Bidirectional(kl.GRU(256, W_regularizer=w_reg))(x)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        gru = kl.GRU(256, kernel_regularizer=kernel_regularizer)
+        x = kl.Bidirectional(gru)(x)
         x = kl.Dropout(self.dropout)(x)
 
         return self._build(inputs, x)
@@ -127,7 +132,6 @@ class RnnL2(RnnL1):
 
 def list_models():
     """Return the name of models in the module."""
-
 
     models = dict()
     for name, value in globals().items():

@@ -38,12 +38,14 @@ Train a Joint model using a pre-trained DNA and CpG model:
         --val_files ./data/c{13,14,15}_*.h5
         --dna_model ./models/dna
         --cpg_model ./models/cpg
+        --joint_model JointL2h512
+        --train_models joint
         --out_dir ./models/joint
-        --fine_tune
 
 See Also
 --------
-* ``dcpg_eval.py``: For evaluating a trained model and imputing methylation profiles.
+* ``dcpg_eval.py``: For evaluating a trained model and imputing methylation
+    profiles.
 """
 
 from __future__ import print_function
@@ -588,8 +590,8 @@ class App(object):
             log.info('Removing existing output layers ...')
             remove_outputs(stem)
 
-        outputs = mod.add_output_layers(stem.outputs, output_names)
-        model = Model(input=stem.inputs, output=outputs, name=stem.name)
+        outputs = mod.add_output_layers(stem.outputs[0], output_names)
+        model = Model(stem.inputs, outputs, stem.name)
         return model
 
     def set_trainability(self, model):
@@ -789,12 +791,14 @@ class App(object):
         if nb_val_sample:
             print('Validation samples: %d' % nb_val_sample)
         model.fit_generator(
-            train_data, nb_train_sample, opts.nb_epoch,
+            train_data,
+            steps_per_epoch=nb_train_sample // opts.batch_size,
+            epochs=opts.nb_epoch,
             callbacks=callbacks,
             validation_data=val_data,
-            nb_val_samples=nb_val_sample,
+            validation_steps=nb_val_sample // opts.batch_size,
             max_q_size=opts.data_q_size,
-            nb_worker=opts.data_nb_worker,
+            workers=opts.data_nb_worker,
             verbose=0)
 
         print('\nTraining set performance:')

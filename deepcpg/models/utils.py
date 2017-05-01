@@ -62,8 +62,8 @@ def get_first_conv_layer(layers, get_act=False):
     Returns
     -------
     Keras layer
-        Convolutional layer or tuple of convolutional layer and activation layer if
-    `get_act=True`.
+        Convolutional layer or tuple of convolutional layer and activation layer
+        if `get_act=True`.
     """
     conv_layer = None
     act_layer = None
@@ -227,7 +227,7 @@ def get_objectives(output_names):
     return objectives
 
 
-def add_output_layers(stem, output_names):
+def add_output_layers(stem, output_names, init='glorot_uniform'):
     """Add and return outputs to a given layer.
 
     Adds output layer for each output in `output_names` to layer `stem`.
@@ -248,16 +248,16 @@ def add_output_layers(stem, output_names):
     for output_name in output_names:
         _output_name = output_name.split(OUTPUT_SEP)
         if _output_name[-1] in ['entropy']:
-            x = kl.Dense(1, init='glorot_uniform', activation='relu')(stem)
+            x = kl.Dense(1, kernel_initializer=init, activation='relu')(stem)
         elif _output_name[-1] in ['var']:
-            x = kl.Dense(1, init='glorot_uniform')(stem)
+            x = kl.Dense(1, kernel_initializer=init)(stem)
             x = ScaledSigmoid(0.251, name=output_name)(x)
         elif _output_name[-1] in ['cat_var']:
-            x = kl.Dense(3, init='glorot_uniform',
+            x = kl.Dense(3, kernel_initializer=init,
                          activation='softmax',
                          name=output_name)(stem)
         else:
-            x = kl.Dense(1, init='glorot_uniform',
+            x = kl.Dense(1, kernel_initializer=init,
                          activation='sigmoid',
                          name=output_name)(stem)
         outputs.append(x)

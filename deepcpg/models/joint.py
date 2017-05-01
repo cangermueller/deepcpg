@@ -10,6 +10,7 @@ import inspect
 from keras import layers as kl
 from keras import models as km
 from keras import regularizers as kr
+from keras.layers.merge import concatenate
 
 from .utils import Model
 
@@ -37,7 +38,7 @@ class JointModel(Model):
             layer.name = '%s/%s' % (self.scope, layer.name)
 
         inputs, outputs = self._get_inputs_outputs(models)
-        x = kl.merge(outputs, mode=self.mode)
+        x = concatenate(outputs)
         for layer in layers:
             x = layer(x)
 
@@ -74,9 +75,10 @@ class JointL1h512(JointModel):
     def __call__(self, models):
         layers = []
         for layer in range(self.nb_layer):
-            w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-            layers.append(kl.Dense(self.nb_hidden, init=self.init,
-                                   W_regularizer=w_reg))
+            kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+            layers.append(kl.Dense(self.nb_hidden,
+                                   kernel_initializer=self.init,
+                                   kernel_regularizer=kernel_regularizer))
             layers.append(kl.Activation('relu'))
             layers.append(kl.Dropout(self.dropout))
 
