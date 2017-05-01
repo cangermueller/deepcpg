@@ -61,9 +61,6 @@ News
 * **170406**: A short description of all `DeepCpG scripts <http://deepcpg.readthedocs.io/latest/scripts/index.html>`_!
 * **170404**: New guide on creating and analyzing DeepCpG data `released <http://deepcpg.readthedocs.io/latest/data.html>`_!
 * **170404**: Training on continuous data, e.g. from bulk experiments, now `supported <http://deepcpg.readthedocs.io/latest/data.html>`_!
-* **170305**: New documentation of DeepCpG model architectures `released <http://deepcpg.readthedocs.io/latest/models.html>`_!
-* **170302**: New guide on DeepCpG model training `released <http://deepcpg.readthedocs.io/latest/train.html>`_!
-* **170228**: New example shell scripts for building a DeepCpG pipeline `released <./examples/README.md>`_!
 
 
 Installation
@@ -212,6 +209,16 @@ Content
 
 Changelog
 =========
+
+1.0.4
+-----
+Adds evaluation scripts and notebooks, improves documentation, and fixes minor bugs.
+  + Adds ``dcpg_eval_perf.py`` and R markdown files for computing and visualizing performance metrics genome-wide and in annotated contexts.
+  + Adds ``dcpg_snp.py`` for computing mutation effects.
+  + Adds notebooks on computing mutation effects and predicting inter-cell statistics.
+  + Adds documentation of `DeepCpG scripts <http://deepcpg.readthedocs.io/latest/scripts/index.html>`_.
+  + Adds integration tests.
+  + Includes minor bug-fixes.
 
 1.0.3
 -----
