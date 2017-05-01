@@ -213,8 +213,8 @@ Changelog
 1.0.4
 -----
 Adds evaluation scripts and notebooks, improves documentation, and fixes minor bugs.
-  + Adds ``dcpg_eval_perf.py`` and R markdown files for computing and visualizing performance metrics genome-wide and in annotated contexts.
-  + Adds ``dcpg_snp.py`` for computing mutation effects.
+  + Adds `dcpg_eval_perf.py <http://deepcpg.readthedocs.io/en/latest/scripts/index.html#module-scripts.dcpg_eval_perf>`_ and R markdown files for computing and visualizing performance metrics genome-wide and in annotated contexts.
+  + Adds `dcpg_snp.py <http://deepcpg.readthedocs.io/en/latest/scripts/index.html#module-scripts.dcpg_snp>`_ for computing mutation effects.
   + Adds notebooks on computing mutation effects and predicting inter-cell statistics.
   + Adds documentation of `DeepCpG scripts <http://deepcpg.readthedocs.io/latest/scripts/index.html>`_.
   + Adds integration tests.
