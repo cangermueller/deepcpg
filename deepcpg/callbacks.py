@@ -1,3 +1,5 @@
+"""Keras callback classes used by `dcpg_train.py`."""
+
 from __future__ import division
 from __future__ import print_function
 

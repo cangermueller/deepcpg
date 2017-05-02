@@ -1,3 +1,5 @@
+"""Functions to evaluate predictions performances."""
+
 from __future__ import division
 from __future__ import print_function
 
@@ -207,6 +209,25 @@ def get_output_metrics(output_name):
 
 
 def evaluate_outputs(outputs, preds):
+    """Evaluate performance metrics of multiple outputs.
+
+    Given the labels and predictions of multiple outputs, chooses and computes
+    performance metrics of each output depending on its name.
+
+    Parameters
+    ----------
+    outputs: dict
+        `dict` with the name of outputs as keys and a :class:`numpy.ndarray`
+        vector with labels as value.
+    preds: dict
+        `dict` with the name of outputs as keys and a :class:`numpy.ndarray`
+        vector with predictions as value.
+
+    Returns
+    -------
+    :class:`pandas.DataFrame`
+        :class:`pandas.DataFrame` with columns `metric`, `output`, `value`.
+    """
     perf = []
     for output_name in outputs:
         _output_name = output_name.split(OUTPUT_SEP)
@@ -230,6 +251,7 @@ def evaluate_outputs(outputs, preds):
 
 
 def is_binary_output(output_name):
+    """Return `True` if `output_name` is binary."""
     _output_name = output_name.split(OUTPUT_SEP)
     if _output_name[0] == 'cpg':
         return True
@@ -241,6 +263,31 @@ def is_binary_output(output_name):
 
 def evaluate_curve(outputs, preds, fun=skm.roc_curve, mask=CPG_NAN,
                    nb_point=None):
+    """Evaluate performance curves of multiple outputs.
+
+    Given the labels and predictions of multiple outputs, computes a performance
+    a curve, e.g. ROC or PR curve, for each output.
+
+    Parameters
+    ----------
+    outputs: dict
+        `dict` with the name of outputs as keys and a :class:`numpy.ndarray`
+        vector with labels as value.
+    preds: dict
+        `dict` with the name of outputs as keys and a :class:`numpy.ndarray`
+        vector with predictions as value.
+    fun: function
+        Function to compute the performance curves.
+    mask: scalar
+        Value to mask unobserved labels in `y`.
+    nb_point: int
+        Maximum number of points to curve to reduce memory.
+
+    Returns
+    -------
+    :class:`pandas.DataFrame`
+        :class:`pandas.DataFrame` with columns `output`, `x`, `y`, `thr`.
+    """
     curves = []
     for output_name in outputs.keys():
         if not is_binary_output(output_name):
@@ -278,6 +325,21 @@ def evaluate_curve(outputs, preds, fun=skm.roc_curve, mask=CPG_NAN,
 
 
 def unstack_report(report):
+    """Unstack performance report.
+
+    Reshapes a :class:`pandas.DataFrame` of :func:`evaluate_outputs` such that
+    performance metrics are listed as columns.
+
+    Parameters
+    ----------
+    report: :class:`pandas.DataFrame`
+        :class:`pandas.DataFrame` from :func:`evaluate_outputs`.
+
+    Returns
+    -------
+    :class:`pandas.DataFrame`
+        :class:`pandas.DataFrame` with performance metrics as columns.
+    """
     index = list(report.columns[~report.columns.isin(['metric', 'value'])])
     report = pd.pivot_table(report, index=index, columns='metric',
                             values='value')
@@ -308,4 +370,5 @@ def unstack_report(report):
 
 
 def get(name):
+    """Return object from module by its name."""
     return get_from_module(name, globals())

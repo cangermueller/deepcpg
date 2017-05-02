@@ -1,3 +1,8 @@
+"""Functions to compute performance metrics during training using Keras.
+
+Similar to :module:`evaluation`, but uses Keras tensors instead of numpy arrays
+as input.
+"""
 from __future__ import division
 from __future__ import print_function
 
@@ -8,6 +13,7 @@ from .data import CPG_NAN
 
 
 def contingency_table(y, z):
+    """Compute contingency table."""
     y = K.round(y)
     z = K.round(z)
 
@@ -31,48 +37,57 @@ def contingency_table(y, z):
 
 
 def prec(y, z):
+    """Compute precision."""
     tp, tn, fp, fn = contingency_table(y, z)
     return tp / (tp + fp)
 
 
 def tpr(y, z):
+    """Compute true positive rate."""
     tp, tn, fp, fn = contingency_table(y, z)
     return tp / (tp + fn)
 
 
 def tnr(y, z):
+    """Compute true negative rate."""
     tp, tn, fp, fn = contingency_table(y, z)
     return tn / (tn + fp)
 
 
 def fpr(y, z):
+    """Compute false positive rate."""
     tp, tn, fp, fn = contingency_table(y, z)
     return fp / (fp + tn)
 
 
 def fnr(y, z):
+    """Compute false negative rate."""
     tp, tn, fp, fn = contingency_table(y, z)
     return fn / (fn + tp)
 
 
 def f1(y, z):
+    """Compute F1 score."""
     _tpr = tpr(y, z)
     _prec = prec(y, z)
     return 2 * (_prec * _tpr) / (_prec + _tpr)
 
 
 def mcc(y, z):
+    """Compute Matthew's correlation coefficient."""
     tp, tn, fp, fn = contingency_table(y, z)
     return (tp * tn - fp * fn) /\
         K.sqrt((tp + fp) * (tp + fn) * (tn + fp) * (tn + fn))
 
 
 def acc(y, z):
+    """Compute accuracy."""
     tp, tn, fp, fn = contingency_table(y, z)
     return (tp + tn) / (tp + tn + fp + fn)
 
 
 def _sample_weights(y, mask=None):
+    """Compute sample weights."""
     if mask is None:
         weights = K.ones_like(y)
     else:
@@ -85,6 +100,7 @@ def _cat_sample_weights(y, mask=None):
 
 
 def cat_acc(y, z):
+    """Compute categorical accuracy given one-hot matrices."""
     weights = _cat_sample_weights(y)
     _acc = K.cast(K.equal(K.argmax(y, axis=-1),
                           K.argmax(z, axis=-1)),
@@ -94,16 +110,19 @@ def cat_acc(y, z):
 
 
 def mse(y, z, mask=CPG_NAN):
+    """Compute mean squared error."""
     weights = _sample_weights(y, mask)
     _mse = K.sum(K.square(y - z) * weights) / K.sum(weights)
     return _mse
 
 
 def mae(y, z, mask=CPG_NAN):
+    """Compute mean absolute deviation."""
     weights = _sample_weights(y, mask)
     _mae = K.sum(K.abs(y - z) * weights) / K.sum(weights)
     return _mae
 
 
 def get(name):
+    """Return object from module by its name."""
     return get_from_module(name, globals())
