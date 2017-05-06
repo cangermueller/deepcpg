@@ -62,8 +62,8 @@ def get_first_conv_layer(layers, get_act=False):
     Returns
     -------
     Keras layer
-        Convolutional layer or tuple of convolutional layer and activation layer if
-    `get_act=True`.
+        Convolutional layer or tuple of convolutional layer and activation layer
+        if `get_act=True`.
     """
     conv_layer = None
     act_layer = None
@@ -535,14 +535,29 @@ class DataReader(object):
         return int_to_onehot(dna)
 
     def _prepro_cpg(self, states, dists):
-        """Preprocess the state and distance of neighboring CpG sites."""
+        """Preprocess the state and distance of neighboring CpG sites.
+
+        Parameters
+        ----------
+        states: list
+            List of CpG states of all replicates.
+        dists: list
+            List of CpG distances of all replicates.
+
+        Returns
+        -------
+        prepro_states: list
+            List of preprocessed CpG states of all replicates.
+        prepro_dists: list
+            List of preprocessed CpG distances of all replicates.
+        """
         prepro_states = []
         prepro_dists = []
         for state, dist in zip(states, dists):
             nan = state == dat.CPG_NAN
             if np.any(nan):
-                state[nan] = np.random.binomial(1, state[~nan].mean(),
-                                                nan.sum())
+                # Set CpG neighbors at the flanks of a chromosome to 0.5
+                state[nan] = 0.5
                 dist[nan] = self.cpg_max_dist
             dist = np.minimum(dist, self.cpg_max_dist) / self.cpg_max_dist
             prepro_states.append(np.expand_dims(state, 1))
