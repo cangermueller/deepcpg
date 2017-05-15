@@ -1,3 +1,5 @@
+"""Functionality for reading and matching annotations."""
+
 from __future__ import division
 from __future__ import print_function
 
@@ -17,20 +19,26 @@ def read_bed(filename, sort=False, usecols=[0, 1, 2], *args, **kwargs):
 
 
 def in_which(x, ys, ye):
-    """Returns for positions x[i] index j, s.t. ys[j] <= x[i] <= ye[j] or -1.
-       Intervals must be non-overlapping!
+    """Return index of positions in intervals.
+
+    Returns for positions `x[i]` index `j`, s.t. `ys[j] <= x[i] <= ye[j]`, or
+    -1 if `x[i]` is not overlapped by any interval.
+    Intervals must be non-overlapping!
 
     Parameters
     ----------
-    x : list of positions
-    ys: list with start of interval sorted in ascending order
-    ye: list with end of interval
+    x : list
+        list of positions.
+    ys: list
+        list with start of interval sorted in ascending order.
+    ye: list
+        list with end of interval.
 
     Returns
     -------
-    numpy array of same length than x with index or -1
+    :class:`numpy.ndarray`
+        n:class:`numpy.ndarray` with indices of overlapping intervals or -1.
     """
-
     n = len(ys)
     m = len(x)
     rv = np.empty(m, dtype=np.int)
@@ -47,10 +55,27 @@ def in_which(x, ys, ye):
 
 
 def is_in(pos, start, end):
+    """Test if position is overlapped by at least one interval."""
     return in_which(pos, start, end) >= 0
 
 
 def distance(pos, start, end):
+    """Return shortest distance between a position and a list of intervals.
+
+    Parameters
+    ----------
+    pos: list
+        List of integer positions.
+    start: list
+        Start position of intervals.
+    end: list
+        End position of intervals.
+
+    Returns
+    :class:`numpy.ndarray`
+        :class:`numpy.ndarray` of same length as `pos` with shortest distance
+        between each `pos[i]` and any interval.
+    """
     m = len(start)
     n = len(pos)
     i = 0
@@ -70,17 +95,22 @@ def distance(pos, start, end):
 
 
 def join_overlapping(s, e):
-    """Transforms a list of possible overlapping intervals into
-    non-overlapping intervals.
+    """Join overlapping intervals.
+
+    Transforms a list of possible overlapping intervals into non-overlapping
+    intervals.
 
     Parameters
     ----------
-    s : list with start of interval sorted in ascending order
-    e : list with end of interval
+    s : list
+        List with start of interval sorted in ascending order
+    e : list
+        List with end of interval.
 
     Returns
     -------
-    Tuple (s, e) of non-overlapping intervals
+    tuple
+        `tuple` (s, e) of non-overlapping intervals.
     """
     rs = []
     re = []
@@ -103,6 +133,12 @@ def join_overlapping(s, e):
 
 
 def join_overlapping_frame(d):
+    """Join overlapping intervals of Pandas DataFrame.
+
+    Uses `join_overlapping` to join overlapping intervals of
+    :class:`pandas.DataFrame` `d`.
+    """
+    Parameters
     d = d.sort_values(['chromo', 'start', 'end'])
     e = []
     for chromo in d.chromo.unique():
@@ -116,17 +152,22 @@ def join_overlapping_frame(d):
 
 
 def group_overlapping(s, e):
-    """Assigns group index to intervals. Overlapping intervals will be assigned
-       to the same group.
+    """Assign group index of indices.
+
+    Assigns group index to intervals. Overlapping intervals will be assigned
+    to the same group.
 
     Parameters
     ----------
-    s : list with start of interval sorted in ascending order
-    e : list with end of interval
+    s : list
+        list with start of interval sorted in ascending order.
+    e : list
+        list with end of interval.
 
     Returns
     -------
-    int array of length len(s) with group indices
+    :class:`numpy.ndarray`
+        :class:`numpy.ndarray` with group indices.
     """
     n = len(s)
     group = np.zeros(n, dtype='int32')
@@ -145,6 +186,27 @@ def group_overlapping(s, e):
 
 
 def extend_len(start, end, min_len, min_pos=1):
+    """Extend intervals to minimum length.
+
+    Extends intervals `start`-`end` with length smaller than `min_len` to length
+    `min_len` by equally decreasing `start` and increasing `end`.
+
+    Parameters
+    ----------
+    start: list
+        List of start position of intervals.
+    end: list
+        List of end position of intervals.
+    min_len: int
+        Minimum interval length.
+    min_pos: int
+        Minimum position.
+
+    Returns
+    -------
+    tuple
+        `tuple` with start end end position of extended intervals.
+    """
     delta = np.maximum(0, min_len - (end - start + 1))
     ext = np.floor(0.5 * delta).astype(np.int)
     start_ext = np.maximum(min_pos, start - ext)
@@ -154,6 +216,7 @@ def extend_len(start, end, min_len, min_pos=1):
 
 
 def extend_len_frame(d, min_len):
+    """Extend length of intervals in Pandas DataFrame using `extend_len`."""
     start, end = extend_len(d.start.values, d.end.values, min_len)
     e = d.copy()
     e['start'] = start

@@ -1,3 +1,5 @@
+"""Provides functionality to access HDF5 files."""
+
 from __future__ import division
 from __future__ import print_function
 
@@ -26,10 +28,34 @@ def _ls(item, recursive=False, groups=False, level=0):
 
 def ls(filename, group='/', recursive=False, groups=False,
        regex=None, nb_key=None, must_exist=True):
+    """List name of records HDF5 file.
+
+    Parameters
+    ----------
+    filename:
+        Path of HDF5 file.
+    group:
+        HDF5 group to be explored.
+    recursive: bool
+        If `True`, list records recursively.
+    groups: bool
+        If `True`, only list group names but not name of datasets.
+    regex: str
+        Regex to filter listed records.
+    nb_key: int
+        Maximum number of records to be listed.
+    must_exist: bool
+        If `False`, return `None` if file or group does not exist.
+
+    Returns
+    -------
+    list
+        `list` with name of records in `filename`.
+    """
     if not group.startswith('/'):
         group = '/%s' % group
     h5_file = h5.File(filename, 'r')
-    if not must_exist and not group in h5_file:
+    if not must_exist and group not in h5_file:
         return None
     keys = _ls(h5_file[group], recursive, groups)
     for i, key in enumerate(keys):
@@ -43,6 +69,7 @@ def ls(filename, group='/', recursive=False, groups=False,
 
 
 def write_data(data, filename):
+    """Write data in dict `data` to HDF5 file."""
     is_root = isinstance(filename, str)
     group = h5.File(filename, 'w') if is_root else filename
     for key, value in six.iteritems(data):
@@ -56,6 +83,11 @@ def write_data(data, filename):
 
 
 def hnames_to_names(hnames):
+    """Flattens `dict` `hnames` of hierarchical names.
+
+    Converts hierarchical `dict`, e.g. hnames={'a': ['a1', 'a2'], 'b'}, to flat
+    list of keys for accessing HDF5 file, e.g. ['a/a1', 'a/a2', 'b']
+    """
     names = []
     for key, value in six.iteritems(hnames):
         if isinstance(value, dict):

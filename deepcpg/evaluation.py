@@ -58,7 +58,6 @@ def auc(y, z, round=True):
 def acc(y, z, round=True):
     """Compute accuracy."""
     if round:
-    if round:
         y = np.round(y)
         z = np.round(z)
     return skm.accuracy_score(y, z)

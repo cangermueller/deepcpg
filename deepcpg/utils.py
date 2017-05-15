@@ -1,3 +1,5 @@
+"""Provides general-purpose functionality."""
+
 from __future__ import division
 from __future__ import print_function
 
@@ -124,12 +126,14 @@ def linear_weights(length, start=0.1):
 
 
 def to_list(value):
+    """Convert `value` to a list."""
     if not isinstance(value, list) and value is not None:
         value = [value]
     return value
 
 
 def move_columns_front(frame, columns):
+    """Move `columns` of Pandas DataFrame to the front."""
     if not isinstance(columns, list):
         columns = [columns]
     columns = [column for column in columns if column in frame.columns]
@@ -137,6 +141,24 @@ def move_columns_front(frame, columns):
 
 
 def get_from_module(identifier, module_params, ignore_case=True):
+    """Return object from module.
+
+    Return object with name `identifier` from module with items `module_params`.
+
+    Parameters
+    ----------
+    identifier: str
+        Name of object, e.g. a function, in module.
+    module_params: dict
+        `dict` of items in module, e.g. `globals()`
+    ignore_case: bool
+        If `True`, ignore case of `identifier`.
+
+    Returns
+    -------
+    object
+        Object with name `identifier` in module, e.g. a function or class.
+    """
     if ignore_case:
         _module_params = dict()
         for key, value in six.iteritems(module_params):
@@ -151,7 +173,8 @@ def get_from_module(identifier, module_params, ignore_case=True):
     return item
 
 
-def format_row(values, widths=None, sep=' | '):
+def format_table_row(values, widths=None, sep=' | '):
+    """Format a row with `values` of a table."""
     if widths:
         _values = []
         for value, width in zip(values, widths):
@@ -162,8 +185,31 @@ def format_row(values, widths=None, sep=' | '):
 
 
 def format_table(table, colwidth=None, precision=2, header=True, sep=' | '):
-    if not colwidth:
-        colwidth = 0
+    """Format a table of values as string.
+
+    Formats a table represented as a `dict` with keys as column headers and
+    values as a lists of values in each column.
+
+    Parameters
+    ----------
+    table: `dict` or `OrderedDict`
+        `dict` or `OrderedDict` with keys as column headers and values as lists
+        of values in each column.
+    precision: int or list of ints
+        Precision of floating point values in each column. If `int`, uses same
+        precision for all columns, otherwise formats columns with different
+        precisions.
+    header: bool
+        If `True`, print column names.
+    sep: str
+        Column separator.
+
+    Returns
+    -------
+    str
+        String of formatted table values.
+    """
+
     col_names = list(table.keys())
     if not isinstance(precision, list):
         precision = [precision] * len(col_names)
@@ -193,7 +239,7 @@ def format_table(table, colwidth=None, precision=2, header=True, sep=' | '):
     tot_width += len(sep) * (len(col_widths) - 1)
     rows = []
     if header:
-        rows.append(format_row(col_names, col_widths, sep=sep))
+        rows.append(format_table_row(col_names, col_widths, sep=sep))
         rows.append('-' * tot_width)
     for row in range(nb_row):
         values = []
@@ -202,24 +248,57 @@ def format_table(table, colwidth=None, precision=2, header=True, sep=' | '):
                 values.append(col_values[row])
             else:
                 values.append(None)
-        rows.append(format_row(values, col_widths, sep=sep))
+        rows.append(format_table_row(values, col_widths, sep=sep))
     return '\n'.join(rows)
 
 
-def filter_regex(x, regexs):
-    if not isinstance(x, list):
-        x = [x]
+def filter_regex(values, regexs):
+    """Filters list of `values` by list of `regexs`.
+
+    Paramters
+    ---------
+    values: list
+        list of `str` values.
+    regexs: list
+        list of `str` regexs.
+
+    Returns
+    -------
+    list
+        Sorted `list` of values in `values` that match any regex in `regexs`.
+    """
+    if not isinstance(values, list):
+        values = [values]
     if not isinstance(regexs, list):
         regexs = [regexs]
-    xf = set()
-    for xi in x:
+    filtered = set()
+    for value in values:
         for regex in regexs:
-            if re.search(regex, xi):
-                xf.add(xi)
-    return sorted(list(xf))
+            if re.search(regex, value):
+                filtered.add(value)
+    return sorted(list(filtered))
 
 
 class ProgressBar(object):
+    """Vertical progress bar.
+
+    Unlike the progressbar2 package, logs progress as multiple lines instead of
+    single line, which enables printing to a file. Used, for example, in
+
+    Parameters
+    ----------
+    nb_tot: int
+        Maximum value
+    logger: function
+        Function that takes a `str` and prints it.
+    interval: float
+        Logging frequency as fraction of one. For example, 0.1 logs every tenth
+        value.
+
+    See also
+    --------
+    dcpg_eval.py and dcpg_filter_act.py.
+    """
 
     def __init__(self, nb_tot, logger=print, interval=0.1):
         if nb_tot <= 0:

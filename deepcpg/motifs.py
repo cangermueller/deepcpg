@@ -1,3 +1,5 @@
+"""Functionality for analyzing motifs."""
+
 from __future__ import division
 from __future__ import print_function
 
@@ -8,6 +10,7 @@ import pandas as pd
 
 
 def read_tomtom(path):
+    """Read Tomtom output file."""
     d = pd.read_table(path)
     d.rename(columns={'#Query ID': 'Query ID'}, inplace=True)
     d.columns = [x.lower() for x in d.columns]
@@ -16,6 +19,18 @@ def read_tomtom(path):
 
 
 def read_meme_db(meme_db_file):
+    """Read MEME database as Pandas DataFrame.
+
+    Parameters
+    ----------
+    meme_db_file: str
+        File name of MEME database.
+
+    Returns
+    -------
+    :class:`pandas.DataFrame`
+        :class:`pandas.DataFrame` with columns 'id', 'protein', 'url'.
+    """
     motifs = []
     motif = None
     for line in open(meme_db_file):
@@ -42,6 +57,24 @@ def read_meme_db(meme_db_file):
 
 
 def get_report(filter_stats_file, tomtom_file, meme_motifs):
+    """Read and join `filter_stats_file` and `tomtom_file`.
+
+    Used by `dcpg_filter_motifs.py` to read and join output files.
+
+    Paramters
+    ---------
+    filter_stats_file: str
+        Path of stats file created with `dcpg_filter_motifs.py`.
+    tomtom_file: str
+        Path of Tomtom output file.
+    meme_motifs: :class:`pandas.DataFrame`
+        :class:`pandas.DataFrame` from `read_meme_db`.
+
+    Returns
+    -------
+    :class:`pandas.DataFrame`
+        :class:`pandas.DataFrame` with columns from Tomtom and statistic file.
+    """
     filter_stats = pd.read_table(filter_stats_file)
     tomtom = read_tomtom(tomtom_file)
     tomtom = tomtom.sort_values(['idx', 'q-value', 'e-value'])

@@ -526,7 +526,23 @@ class DataReader(object):
         self.encode_replicates = encode_replicates
 
     def _prepro_dna(self, dna):
-        """Preprocess DNA sequence windows."""
+        """Preprocess DNA sequence windows.
+
+        Slices DNA sequence window if `self.dna_wlen` is defined and one-hot
+        encodes sequences.
+
+        Parameters
+        ----------
+        dna: :class:`numpy.ndarray`
+            :class:`numpy.ndarray` of size [nb_window, window_len] with integer
+            sequences windows.
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+            :class:`numpy.ndarray` of size [nb_window, window_len, 4] with
+            one-hot encoded sequences.
+        """
         if self.dna_wlen:
             cur_wlen = dna.shape[1]
             center = cur_wlen // 2
