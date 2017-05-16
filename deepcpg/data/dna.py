@@ -1,4 +1,4 @@
-"""Provides functions for representing DNA sequences."""
+"""Functions for representing DNA sequences."""
 
 from __future__ import division
 from __future__ import print_function

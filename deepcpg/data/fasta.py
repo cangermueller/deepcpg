@@ -1,3 +1,5 @@
+"""Functions reading FASTA files."""
+
 from __future__ import division
 from __future__ import print_function
 
@@ -11,6 +13,7 @@ from ..utils import to_list
 
 
 class FastaSeq(object):
+    """FASTA sequence."""
 
     def __init__(self, head, seq):
         self.head = head
@@ -18,6 +21,18 @@ class FastaSeq(object):
 
 
 def parse_lines(lines):
+    """Parse FASTA sequences from list of strings.
+
+    Parameters
+    ----------
+    lines: list
+        List of lines from FASTA file.
+
+    Returns
+    -------
+    list
+        List of :class:`FastaSeq` objects.
+    """
     seqs = []
     seq = None
     start = None
@@ -38,6 +53,21 @@ def parse_lines(lines):
 
 
 def read_file(filename, gzip=None):
+    """Read FASTA file and return sequences.
+
+    Parameters
+    ----------
+    filename: str
+        File name.
+    gzip: bool
+        If `True`, file is gzip compressed. If `None`, suffix is used to
+        determine if file is compressed.
+
+    Returns
+    -------
+        List of :class:`FastaSeq` objects.
+    """
+    list
     if gzip is None:
         gzip = filename.endswith('.gz')
     if gzip:
@@ -49,6 +79,20 @@ def read_file(filename, gzip=None):
 
 
 def select_file_by_chromo(filenames, chromo):
+    """Select file of chromosome `chromo`.
+
+    Parameters
+    ----------
+    filenames: list
+        List of file names or directory with FASTA files.
+    chromo: str
+        Chromosome that is selected.
+
+    Returns
+    -------
+    str
+        Filename in `filenames` that contains chromosome `chromo`.
+    """
     filenames = to_list(filenames)
     if len(filenames) == 1 and os.path.isdir(filenames[0]):
         filenames = glob(os.path.join(filenames[0],
@@ -60,6 +104,20 @@ def select_file_by_chromo(filenames, chromo):
 
 
 def read_chromo(filenames, chromo):
+    """Read DNA sequence of chromosome `chromo`.
+
+    Parameters
+    ----------
+    filenames: list
+        List of FASTA files.
+    chromo: str
+        Chromosome that is read.
+
+    Returns
+    -------
+    str
+        DNA sequence of chromosome `chromo`.
+    """
     filename = select_file_by_chromo(filenames, chromo)
     if not filename:
         raise ValueError('DNA file for chromosome "%s" not found!' % chromo)

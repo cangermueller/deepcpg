@@ -1,6 +1,4 @@
-"""Model utilities.
-
-Provides functionality for building, training, and loading models.
+"""Functions for building, training, and loading models.
 """
 
 from __future__ import division

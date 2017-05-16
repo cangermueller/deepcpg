@@ -1,6 +1,6 @@
 """Joint models.
 
-Provides models two join features of DNA and CpG model.
+Provides models for joining features from DNA and CpG model.
 """
 from __future__ import division
 from __future__ import print_function

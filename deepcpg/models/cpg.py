@@ -1,7 +1,7 @@
 """CpG models.
 
-Provides models trained with observed neighboring methylation states of multiple
-cells.
+Provides models trained with observed neighboring methylation states of
+multiple cells.
 """
 
 from __future__ import division

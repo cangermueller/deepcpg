@@ -1,4 +1,4 @@
-"""Functions to compute performance metrics during training using Keras.
+"""Functions for computing performance metrics during training using Keras.
 
 Similar to :module:`evaluation`, but uses Keras tensors instead of numpy arrays
 as input.

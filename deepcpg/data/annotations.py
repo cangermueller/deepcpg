@@ -1,4 +1,4 @@
-"""Functionality for reading and matching annotations."""
+"""Functions for reading and matching annotations."""
 
 from __future__ import division
 from __future__ import print_function

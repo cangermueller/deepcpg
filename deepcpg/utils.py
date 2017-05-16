@@ -1,4 +1,4 @@
-"""Provides general-purpose functionality."""
+"""General-purpose functions."""
 
 from __future__ import division
 from __future__ import print_function

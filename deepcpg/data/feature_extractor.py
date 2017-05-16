@@ -1,3 +1,5 @@
+"""Feature extraction."""
+
 from __future__ import division
 from __future__ import print_function
 
@@ -6,7 +8,7 @@ from six.moves import range
 
 
 class KnnCpgFeatureExtractor(object):
-    """Extracts k CpG sites next to target sites. Excludes CpG sites at the
+    """Extract k CpG sites next to target sites. Exclude CpG sites at the
     same position.
     """
 
@@ -14,18 +16,24 @@ class KnnCpgFeatureExtractor(object):
         self.k = k
 
     def extract(self, x, y, ys):
-        """Extracts state and distance of k CpG sites next to target sites.
+        """Extract state and distance of k CpG sites next to target sites.
         Target site is excluded.
 
         Parameters
         ----------
-        x: numpy array with target positions sorted in ascending order
-        y: numpy array with source positions sorted in ascending order
-        ys: numpy array with source CpG states
+        x: :class:`numpy.ndarray`
+            :class:`numpy.ndarray` with target positions sorted in ascending
+            order.
+        y: :class:`numpy.ndarray`
+            :class:`numpy.ndarray` with source positions sorted in ascending
+            order.
+        ys: :class:`numpy.ndarray`
+            :class:`numpy.ndarray` with source CpG states.
 
         Returns
         -------
-        Tuple (cpg, dist) with numpy arrays of dimension (len(x), 2k):
+        tuple
+            Tuple (cpg, dist) with numpy arrays of dimension (len(x), 2k):
             cpg: CpG states to the left (0:k) and right (k:2k)
             dist: Distances to the left (0:k) and right (k:2k)
         """
@@ -78,12 +86,14 @@ class KnnCpgFeatureExtractor(object):
         return (knn_cpg, knn_dist)
 
     def __larger_equal(self, x, y):
-        """Returns for each x[i] index j, s.t. y[j] >= x[i].
+        """Return for each x[i] index j, s.t. y[j] >= x[i].
 
         Parameters
         ----------
-        x : numpy array of with positions sorted in ascending order
-        y : numpy array of with positions sorted in ascending order
+        x: :class:`numpy.ndarray`
+            :class:`numpy.ndarray` of with positions sorted in ascending order.
+        y: :class:`numpy.ndarray`
+            :class:`numpy.ndarray` of with positions sorted in ascending order.
         """
 
         n = len(x)
@@ -103,21 +113,24 @@ class KnnCpgFeatureExtractor(object):
 
 
 class IntervalFeatureExtractor(object):
-    """Checks if positions are in a list of intervals (start, end)."""
+    """Check if positions are in a list of intervals (start, end)."""
 
     @staticmethod
     def join_intervals(s, e):
-        """Transforms a list of possible overlapping intervals into
+        """Transform a list of possible overlapping intervals into
         non-overlapping intervals.
 
         Parameters
         ----------
-        s : list with start of interval sorted in ascending order
-        e : list with end of interval
+        s: list
+            List with start of interval sorted in ascending order.
+        e: list
+            List with end of interval.
 
         Returns
         -------
-        Tuple (s, e) of non-overlapping intervals
+        tuple
+            Tuple (s, e) of non-overlapping intervals.
         """
 
         rs = []
@@ -141,18 +154,22 @@ class IntervalFeatureExtractor(object):
 
     @staticmethod
     def index_intervals(x, ys, ye):
-        """Returns for positions x[i] index j, s.t. ys[j] <= x[i] <= ye[j] or -1.
+        """Return for positions x[i] index j, s.t. ys[j] <= x[i] <= ye[j] or -1.
            Intervals must be non-overlapping!
 
         Parameters
         ----------
-        x : list of positions
-        ys: list with start of interval sorted in ascending order
-        ye: list with end of interval
+        x : list
+            List of positions.
+        ys: list
+            List with start of interval sorted in ascending order.
+        ye: list
+            List with end of interval.
 
         Returns
         -------
-        numpy array of same length than x with index or -1
+        :class:`numpy.ndarray`
+            :class:`numpy.ndarray` of same length than x with index or -1.
         """
 
         n = len(ys)
@@ -176,22 +193,32 @@ class IntervalFeatureExtractor(object):
 class KmersFeatureExtractor(object):
 
     def __init__(self, kmer_len, nb_char=4):
+        """Extract kmer frequencies from integer sequences.
+
+        Parameters
+        ----------
+        kmer_len: int
+            Kmer length.
+        nb_char: int
+            Number of characters in alphabet.
+        """
         self.kmer_len = kmer_len
         self.nb_char = nb_char
         self.nb_kmer = self.nb_char**self.kmer_len
 
     def __call__(self, seqs):
-        """Extracts kmer frequencies from integer sequences.
+        """Extract kmer frequencies from integer sequences.
 
         Parameters
         ----------
-        s: numpy array of size M x N of M integer sequences of length N.
+        seqs: :class:`numpy.ndarray`
+            :class:`numpy.ndarray` of size MxN, with M sequences of length N.
 
         Returns
         -------
-        freq: numpy array of size M x C of kmer frequencies.
+        :class:`numpy.ndarray`
+           :class:`numpy.ndarray` of size MxC with kmer frequencies.
         """
-
         nb_seq, seq_len = seqs.shape
         kmer_freq = np.zeros((nb_seq, self.nb_kmer), dtype=np.int32)
         vec = np.array([self.nb_char**i for i in range(self.kmer_len)],

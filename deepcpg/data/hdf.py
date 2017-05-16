@@ -1,4 +1,4 @@
-"""Provides functionality to access HDF5 files."""
+"""Functions for accessing HDF5 files."""
 
 from __future__ import division
 from __future__ import print_function

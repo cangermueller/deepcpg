@@ -1,4 +1,4 @@
-"""Computes statistic for binary CpG matrix.
+"""Functions for computing statistic about binary CpG matrix.
 
 CpG matrix x assumed to have shape
     * [sites, cells] for per CpG statistics
