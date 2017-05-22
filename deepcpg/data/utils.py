@@ -299,6 +299,12 @@ class GzipFile(object):
         else:
             self.fh = open(filename, mode, *args, **kwargs)
 
+    def __iter__(self):
+        return self.fh.__iter__()
+
+    def __next__(self):
+        return self.fh.__next__()
+
     def read(self, *args, **kwargs):
         return self.fh.read(*args, **kwargs)
 
