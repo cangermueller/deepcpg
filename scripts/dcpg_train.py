@@ -324,6 +324,10 @@ class App(object):
             help='L2 weight decay',
             type=float,
             default=0.0001)
+        g.add_argument(
+            '--no_tensorboard',
+            help='Do not store Tensorboard summaries',
+            action='store_true')
 
         g = p.add_argument_group('arguments to select outputs and weights')
         g.add_argument(
@@ -449,7 +453,7 @@ class App(object):
         )
         callbacks.append(self.perf_logger)
 
-        if K._BACKEND == 'tensorflow':
+        if K._BACKEND == 'tensorflow' and not opts.no_tensorboard:
             callbacks.append(kcbk.TensorBoard(
                 log_dir=opts.out_dir,
                 histogram_freq=1,
