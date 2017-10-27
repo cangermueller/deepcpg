@@ -109,7 +109,7 @@ def reader(data_files, names, batch_size=128, nb_sample=None, shuffle=False,
         names = hnames_to_names(names)
     else:
         names = to_list(names)
-    # Copy, since list will be changes if shuffle=True
+    # Copy, since list will be changed if shuffle=True
     data_files = list(to_list(data_files))
 
     # Check if names exist

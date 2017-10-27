@@ -113,6 +113,10 @@ class App(object):
             help='Number of samples',
             type=int)
         g.add_argument(
+            '--shuffle',
+            help='Randomly sample inputs',
+            action='store_true')
+        g.add_argument(
             '--batch_size',
             help='Batch size',
             type=int,
@@ -180,7 +184,7 @@ class App(object):
                                   nb_sample=nb_sample,
                                   batch_size=opts.batch_size,
                                   loop=False,
-                                  shuffle=False)
+                                  shuffle=opts.shuffle)
 
         meta_reader = hdf.reader(opts.data_files, ['chromo', 'pos'],
                                  nb_sample=nb_sample,
