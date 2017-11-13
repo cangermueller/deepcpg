@@ -138,7 +138,6 @@ def join_overlapping_frame(d):
     Uses `join_overlapping` to join overlapping intervals of
     :class:`pandas.DataFrame` `d`.
     """
-    Parameters
     d = d.sort_values(['chromo', 'start', 'end'])
     e = []
     for chromo in d.chromo.unique():
