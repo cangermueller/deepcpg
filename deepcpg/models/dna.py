@@ -42,15 +42,19 @@ class CnnL1h128(DnaModel):
     def __call__(self, inputs):
         x = inputs[0]
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(128, 11, W_regularizer=w_reg)(x)
+        kernel_regularizer = kr.L1L2(self.l1_decay, self.l2_decay)
+        x = kl.Conv1D(128, 11,
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
         x = kl.Activation('relu')(x)
         x = kl.MaxPooling1D(4)(x)
 
         x = kl.Flatten()(x)
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Dense(self.nb_hidden, init=self.init, W_regularizer=w_reg)(x)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Dense(self.nb_hidden,
+                     kernel_initializer=self.init,
+                     kernel_regularizer=kernel_regularizer)(x)
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
 
@@ -87,20 +91,26 @@ class CnnL2h128(DnaModel):
     def __call__(self, inputs):
         x = inputs[0]
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(128, 11, init=self.init, W_regularizer=w_reg)(x)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(128, 11,
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
         x = kl.Activation('relu')(x)
         x = kl.MaxPooling1D(4)(x)
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(256, 3, init=self.init, W_regularizer=w_reg)(x)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(256, 3,
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
         x = kl.Activation('relu')(x)
         x = kl.MaxPooling1D(2)(x)
 
         x = kl.Flatten()(x)
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Dense(self.nb_hidden, init=self.init, W_regularizer=w_reg)(x)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Dense(self.nb_hidden,
+                     kernel_initializer=self.init,
+                     kernel_regularizer=kernel_regularizer)(x)
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
 
@@ -138,25 +148,33 @@ class CnnL3h128(DnaModel):
     def __call__(self, inputs):
         x = inputs[0]
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(128, 11, init=self.init, W_regularizer=w_reg)(x)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(128, 11,
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
         x = kl.Activation('relu')(x)
         x = kl.MaxPooling1D(4)(x)
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(256, 3, init=self.init, W_regularizer=w_reg)(x)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(256, 3,
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
         x = kl.Activation('relu')(x)
         x = kl.MaxPooling1D(2)(x)
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(512, 3, init=self.init, W_regularizer=w_reg)(x)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(512, 3,
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
         x = kl.Activation('relu')(x)
         x = kl.MaxPooling1D(2)(x)
 
         x = kl.Flatten()(x)
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Dense(self.nb_hidden, init=self.init, W_regularizer=w_reg)(x)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Dense(self.nb_hidden,
+                     kernel_initializer=self.init,
+                     kernel_regularizer=kernel_regularizer)(x)
         x = kl.Activation('relu')(x)
         x = kl.Dropout(self.dropout)(x)
 
@@ -193,18 +211,23 @@ class CnnRnn01(DnaModel):
     def __call__(self, inputs):
         x = inputs[0]
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(128, 11, init=self.init, W_regularizer=w_reg)(x)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(128, 11,
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
         x = kl.Activation('relu')(x)
         x = kl.MaxPooling1D(4)(x)
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Conv1D(256, 7, init=self.init, W_regularizer=w_reg)(x)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        x = kl.Conv1D(256, 7,
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
         x = kl.Activation('relu')(x)
         x = kl.MaxPooling1D(4)(x)
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
-        x = kl.Bidirectional(kl.recurrent.GRU(256, W_regularizer=w_reg))(x)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
+        gru = kl.recurrent.GRU(256, kernel_regularizer=kernel_regularizer)
+        x = kl.Bidirectional(gru)(x)
         x = kl.Dropout(self.dropout)(x)
 
         return self._build(inputs, x)
@@ -232,40 +255,40 @@ class ResNet01(DnaModel):
         # 1x1 down-sample conv
         x = kl.BatchNormalization(name=res_name + 'bn1')(inputs)
         x = kl.Activation('relu', name=res_name + 'act1')(x)
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(nb_filter[0], 1,
                       name=res_name + 'conv1',
                       subsample_length=stride,
-                      init=self.init,
-                      W_regularizer=w_reg)(x)
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
 
         # LxL conv
         x = kl.BatchNormalization(name=res_name + 'bn2')(x)
         x = kl.Activation('relu', name=res_name + 'act2')(x)
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(nb_filter[1], size,
                       name=res_name + 'conv2',
                       border_mode='same',
-                      init=self.init,
-                      W_regularizer=w_reg)(x)
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
 
         # 1x1 up-sample conv
         x = kl.BatchNormalization(name=res_name + 'bn3')(x)
         x = kl.Activation('relu', name=res_name + 'act3')(x)
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(nb_filter[2], 1,
                       name=res_name + 'conv3',
-                      init=self.init,
-                      W_regularizer=w_reg)(x)
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
 
         # Identity branch
         if nb_filter[-1] != inputs._keras_shape[-1] or stride > 1:
-            w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+            kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
             identity = kl.Conv1D(nb_filter[2], 1,
                                  name=id_name + 'conv1',
                                  subsample_length=stride,
-                                 init=self.init,
-                                 W_regularizer=w_reg)(inputs)
+                                 kernel_initializer=self.init,
+                                 kernel_regularizer=kernel_regularizer)(inputs)
         else:
             identity = inputs
 
@@ -276,11 +299,11 @@ class ResNet01(DnaModel):
     def __call__(self, inputs):
         x = inputs[0]
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(128, 11,
                       name='conv1',
-                      init=self.init,
-                      W_regularizer=w_reg)(x)
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
         x = kl.BatchNormalization(name='bn1')(x)
         x = kl.Activation('relu', name='act1')(x)
         x = kl.MaxPooling1D(2, name='pool1')(x)
@@ -320,11 +343,11 @@ class ResNet02(ResNet01):
     def __call__(self, inputs):
         x = inputs[0]
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(128, 11,
                       name='conv1',
-                      init=self.init,
-                      W_regularizer=w_reg)(x)
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
         x = kl.BatchNormalization(name='bn1')(x)
         x = kl.Activation('relu', name='act1')(x)
         x = kl.MaxPooling1D(2, name='pool1')(x)
@@ -373,32 +396,32 @@ class ResConv01(ResNet01):
         # Residual branch
         x = kl.BatchNormalization(name=res_name + 'bn1')(inputs)
         x = kl.Activation('relu', name=res_name + 'act1')(x)
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(nb_filter, size,
                       name=res_name + 'conv1',
                       border_mode='same',
                       subsample_length=stride,
-                      init=self.init,
-                      W_regularizer=w_reg)(x)
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
 
         x = kl.BatchNormalization(name=res_name + 'bn2')(x)
         x = kl.Activation('relu', name=res_name + 'act2')(x)
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(nb_filter, size,
                       name=res_name + 'conv2',
                       border_mode='same',
-                      init=self.init,
-                      W_regularizer=w_reg)(x)
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
 
         # Identity branch
         if nb_filter != inputs._keras_shape[-1] or stride > 1:
-            w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+            kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
             identity = kl.Conv1D(nb_filter, size,
                                  name=id_name + 'conv1',
                                  border_mode='same',
                                  subsample_length=stride,
-                                 init=self.init,
-                                 W_regularizer=w_reg)(inputs)
+                                 kernel_initializer=self.init,
+                                 kernel_regularizer=kernel_regularizer)(inputs)
         else:
             identity = inputs
 
@@ -409,11 +432,11 @@ class ResConv01(ResNet01):
     def __call__(self, inputs):
         x = inputs[0]
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(128, 11,
                       name='conv1',
-                      init=self.init,
-                      W_regularizer=w_reg)(x)
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
         x = kl.BatchNormalization(name='bn1')(x)
         x = kl.Activation('relu', name='act1')(x)
         x = kl.MaxPooling1D(2, name='pool1')(x)
@@ -465,41 +488,41 @@ class ResAtrous01(DnaModel):
         # 1x1 down-sample conv
         x = kl.BatchNormalization(name=res_name + 'bn1')(inputs)
         x = kl.Activation('relu', name=res_name + 'act1')(x)
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(nb_filter[0], 1,
                       name=res_name + 'conv1',
                       subsample_length=stride,
-                      init=self.init,
-                      W_regularizer=w_reg)(x)
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
 
         # LxL conv
         x = kl.BatchNormalization(name=res_name + 'bn2')(x)
         x = kl.Activation('relu', name=res_name + 'act2')(x)
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.AtrousConv1D(nb_filter[1], size,
                             atrous_rate=atrous,
                             name=res_name + 'conv2',
                             border_mode='same',
-                            init=self.init,
-                            W_regularizer=w_reg)(x)
+                            kernel_initializer=self.init,
+                            kernel_regularizer=kernel_regularizer)(x)
 
         # 1x1 up-sample conv
         x = kl.BatchNormalization(name=res_name + 'bn3')(x)
         x = kl.Activation('relu', name=res_name + 'act3')(x)
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(nb_filter[2], 1,
                       name=res_name + 'conv3',
-                      init=self.init,
-                      W_regularizer=w_reg)(x)
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
 
         # Identity branch
         if nb_filter[-1] != inputs._keras_shape[-1] or stride > 1:
-            w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+            kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
             identity = kl.Conv1D(nb_filter[2], 1,
                                  name=id_name + 'conv1',
                                  subsample_length=stride,
-                                 init=self.init,
-                                 W_regularizer=w_reg)(inputs)
+                                 kernel_initializer=self.init,
+                                 kernel_regularizer=kernel_regularizer)(inputs)
         else:
             identity = inputs
 
@@ -510,11 +533,11 @@ class ResAtrous01(DnaModel):
     def __call__(self, inputs):
         x = inputs[0]
 
-        w_reg = kr.WeightRegularizer(l1=self.l1_decay, l2=self.l2_decay)
+        kernel_regularizer = kr.L1L2(l1=self.l1_decay, l2=self.l2_decay)
         x = kl.Conv1D(128, 11,
                       name='conv1',
-                      init=self.init,
-                      W_regularizer=w_reg)(x)
+                      kernel_initializer=self.init,
+                      kernel_regularizer=kernel_regularizer)(x)
         x = kl.Activation('relu', name='act1')(x)
         x = kl.MaxPooling1D(2, name='pool1')(x)
 

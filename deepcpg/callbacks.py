@@ -12,7 +12,7 @@ from keras.callbacks import Callback
 import numpy as np
 import six
 
-from .utils import format_table, EPS
+from .utils import format_table
 
 
 class PerformanceLogger(Callback):
@@ -30,7 +30,7 @@ class PerformanceLogger(Callback):
         Floating point precision.
     callbacks: list
         List of functions with parameters `epoch`, `epoch_logs`, and
-        `val_epoch_logs` that are called at the end of an epoch.
+        `val_epoch_logs` that are called at the end of each epoch.
     verbose: bool
         If `True`, log performance metrics of individual outputs.
     logger: function
@@ -124,7 +124,7 @@ class PerformanceLogger(Callback):
     def on_train_begin(self, logs={}):
         self._time_start = time()
         s = []
-        s.append('Epochs: %d' % (self.params['nb_epoch']))
+        s.append('Epochs: %d' % (self.params['epochs']))
         s = '\n'.join(s)
         self._log(s)
 
@@ -133,13 +133,12 @@ class PerformanceLogger(Callback):
 
     def on_epoch_begin(self, epoch, logs={}):
         self._log(self._line)
-        s = 'Epoch %d/%d' % (epoch + 1, self.params['nb_epoch'])
+        s = 'Epoch %d/%d' % (epoch + 1, self.params['epochs'])
         self._log(s)
         self._log(self._line)
-        self._nb_seen = 0
-        self._nb_seen_freq = 0
-        self._batch = 0
-        self._nb_batch = None
+        self._step = 0
+        self._steps = self.params['steps']
+        self._log_freq = int(np.ceil(self.log_freq * self._steps))
         self._batch_logs = None
         self._totals = None
 
@@ -198,12 +197,8 @@ class PerformanceLogger(Callback):
             callback(epoch, self.epoch_logs, self.val_epoch_logs)
 
     def on_batch_end(self, batch, logs={}):
-        self._batch += 1
+        self._step += 1
         batch_size = logs.get('size', 0)
-        self._nb_seen += batch_size
-        if self._nb_batch is None:
-            self._nb_batch = int(np.ceil(self.params['nb_sample'] /
-                                         (batch_size + EPS)))
 
         if not self._batch_logs:
             # Initialize batch metrics and logs table
@@ -239,15 +234,13 @@ class PerformanceLogger(Callback):
 
         # Show logs table at a certain frequency
         do_log = False
-        self._nb_seen_freq += batch_size
-        if self._nb_seen_freq > int(self.params['nb_sample'] * self.log_freq):
-            self.nb_seen_freq = 0
+        if self._step % self._log_freq == 0:
             do_log = True
-        do_log |= self._batch == 1 or self._nb_seen == self.params['nb_sample']
+        do_log |= self._step == 1 or self._step == self._steps
 
         if do_log:
             table = OrderedDict()
-            prog = self._nb_seen / (self.params['nb_sample'] + EPS)
+            prog = self._step / self._steps
             prog *= 100
             precision = []
             table['done (%)'] = [prog]
@@ -267,8 +260,7 @@ class PerformanceLogger(Callback):
                     precision.append(self.precision)
 
             self._log(format_table(table, precision=precision,
-                                   header=self._batch == 1))
-            self._nb_seen_freq = 0
+                                   header=self._step == 1))
 
 
 class TrainingStopper(Callback):

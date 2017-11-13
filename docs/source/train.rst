@@ -155,6 +155,7 @@ the name of the Joint model with ``--joint_model``:
         --dna_model $models_dir/dna
         --cpg_model $models_dir/cpg
         --joint_model JointL2h512
+        --train_models joint
         --out_dir $models_dir/joint
         --nb_epoch 10
 
@@ -183,11 +184,11 @@ to using ``--dna_model ./dna/model.json ./dna/model_weights_val.h5``,
 i.e. the validation weights will be used. The training weights can be
 used by ``--dna_model ./dna/model.json ./dna/model_weights_train.h5``
 
-In the command above, we used ``--joint_only`` to only train the
+In the command above, we used ``--train_models joint`` to only train the
 parameters of the Joint model without training the pre-trained DNA and
-CpG model. Although the ``--joint_only`` arguments reduces training
-time, you might obtain better results by also fine-tuning the parameters
-of the DNA and CpG model without using ``--joint_only``:
+CpG model. Although this reduces training time, you might obtain better results
+by also fine-tuning the parameters of the DNA and CpG model without using
+``--train_models``.
 
 .. _train_monitor:
 

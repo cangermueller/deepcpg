@@ -333,3 +333,9 @@ class GzipFile(object):
 
     def close(self):
         self.fh.close()
+
+    def __iter__(self):
+        self.fh.__iter__()
+
+    def iter(self):
+        self.fh.iter()
