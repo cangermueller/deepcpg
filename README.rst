@@ -55,7 +55,7 @@ Table of contents
 News
 ====
 
-* **171112**: Switch from Keras 2 to Keras 1.
+* **171112**: Keras 2 is now the main Keras version (release 1.0.5).
 * **170412**: New `notebook <./examples/notebooks/stats/index.ipynb>`_ on predicting inter-cell statistics!
 * **170414**: Added `dcpg_eval_perf.py <./scripts/dcpg_eval_perf.py>`_ and `dcpg_eval_perf.Rmd <./R/dcpg_eval_perf.Rmd>`_ for evaluating and visualizing prediction performances! Find an example in `this notebook <./examples/notebooks/basics/index.ipynb#Evaluating-prediction-performances>`_!
 * **170412**: New `notebook <./examples/notebooks/stats/index.ipynb>`_ on predicting inter-cell statistics!
@@ -211,6 +211,10 @@ Content
 
 Changelog
 =========
+
+1.0.5
+-----
+Uses Keras 2 as main Keras version.
 
 1.0.4
 -----
