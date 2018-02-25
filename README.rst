@@ -55,6 +55,7 @@ Table of contents
 News
 ====
 
+* **180224**: DeepCpG 1.0.6 released!
 * **171112**: Keras 2 is now the main Keras version (release 1.0.5).
 * **170412**: New `notebook <./examples/notebooks/stats/index.ipynb>`_ on predicting inter-cell statistics!
 * **170414**: Added `dcpg_eval_perf.py <./scripts/dcpg_eval_perf.py>`_ and `dcpg_eval_perf.Rmd <./R/dcpg_eval_perf.Rmd>`_ for evaluating and visualizing prediction performances! Find an example in `this notebook <./examples/notebooks/basics/index.ipynb#Evaluating-prediction-performances>`_!
@@ -211,6 +212,11 @@ Content
 
 Changelog
 =========
+
+1.0.6
+-----
+* Add support for Keras 2.1.4 and Tensorflow 1.5.0
+* Minor bug-fixes.
 
 1.0.5
 -----
