@@ -458,7 +458,7 @@ class App(object):
         if K._BACKEND == 'tensorflow' and not opts.no_tensorboard:
             callbacks.append(kcbk.TensorBoard(
                 log_dir=opts.out_dir,
-                histogram_freq=1,
+                histogram_freq=0,
                 write_graph=True,
                 write_images=True
             ))
@@ -801,7 +801,7 @@ class App(object):
             callbacks=callbacks,
             validation_data=val_data,
             validation_steps=nb_val_sample // opts.batch_size,
-            max_q_size=opts.data_q_size,
+            max_queue_size=opts.data_q_size,
             workers=opts.data_nb_worker,
             verbose=0)
 

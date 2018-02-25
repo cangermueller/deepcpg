@@ -455,14 +455,20 @@ class App(object):
             assert seqs.shape[1] == filters_act.shape[1]
 
         filters_weights = in_file['weights/weights']
-        assert filters_weights.shape[1] == 1
-        filters_weights = filters_weights[:, 0, :]
+        if filters_weights.ndim == 4:
+            # For backward compatibility, support filter weights of shape
+            # [filter_len, 1, nb_input_features, nb_output_features]
+            assert filters_weights.shape[1] == 1
+            filters_weights = filters_weights[:, 0, :]
+        # The number of input features must match the number of nucleotides.
+        assert filters_weights.shape[1] == 4
         filter_len = len(filters_weights)
 
         print('Filters: %d' % nb_filter)
         print('Filter len: %d' % filter_len)
         print('Samples: %d' % nb_sample)
 
+        # Create output directories
         make_dir(opts.out_dir)
         sub_dirs = dict()
         names = ['logos', 'fa']
@@ -470,6 +476,8 @@ class App(object):
             names.append('dens')
         if opts.plot_heat:
             names.append('heat')
+        if opts.motif_dbs:
+            names.append('tomtom')
         for name in names:
             dirname = pt.join(opts.out_dir, name)
             sub_dirs[name] = dirname
