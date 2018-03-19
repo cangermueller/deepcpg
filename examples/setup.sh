@@ -10,7 +10,7 @@ function run {
   echo "#################################"
   echo $cmd
   echo "#################################"
-  eval $cmd
+  # eval $cmd
   if [ $check -ne 0 -a $? -ne 0 ]; then
     1>&2 echo "Command failed!"
     exit 1
@@ -66,4 +66,8 @@ fi
 
 
 # Annotations
-download_zip 8c336f759e7010fa7a8287576281110e $data_dir/anno
+if [[ ! -e "$data_dir/anno" ]]; then
+  echo "If the following command fails, download 'anno.zip' manually from the following link and extract to './data/anno':"
+  echo "https://drive.google.com/open?id=1rjQLshQZi1KdGSs-HUIB8vyPHOIYprkL"
+  download_zip 8c336f759e7010fa7a8287576281110e "$data_dir/anno"
+fi
