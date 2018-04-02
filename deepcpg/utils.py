@@ -30,7 +30,7 @@ def make_dir(dirname):
     if os.path.exists(dirname):
         return False
     else:
-        os.makedirs(dirname, exist_ok=True)
+        os.makedirs(dirname)
         return True
 
 
