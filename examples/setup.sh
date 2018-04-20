@@ -10,7 +10,7 @@ function run {
   echo "#################################"
   echo $cmd
   echo "#################################"
-  # eval $cmd
+  eval $cmd
   if [ $check -ne 0 -a $? -ne 0 ]; then
     1>&2 echo "Command failed!"
     exit 1
