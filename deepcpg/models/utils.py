@@ -6,6 +6,7 @@ from __future__ import print_function
 
 from os import path as pt
 
+import keras
 from keras import backend as K
 from keras import models as km
 from keras import layers as kl
@@ -410,6 +411,16 @@ def copy_weights(src_model, dst_model, must_exist=True):
     return copied
 
 
+def is_input_layer(layer):
+    """Test if `layer` is an input layer."""
+    return isinstance(layer, keras.engine.input_layer.InputLayer)
+
+
+def is_output_layer(layer, model):
+    """Test if `layer` is an output layer."""
+    return layer.name in model.output_names
+
+
 class Model(object):
     """Abstract model call.
 
@@ -445,7 +456,7 @@ class Model(object):
         model = km.Model(input, output, name=self.name)
         if self.scope:
             for layer in model.layers:
-                if layer not in model.input_layers:
+                if not is_input_layer(layer):
                     layer.name = '%s/%s' % (self.scope, layer.name)
         return model
 

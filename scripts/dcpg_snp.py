@@ -144,9 +144,9 @@ class App(object):
 
         # Get DNA layer.
         dna_layer = None
-        for i, name in enumerate(model.input_names):
-            if name == 'dna':
-                dna_layer = model.input_layers[i]
+        for layer in model.layers:
+            if layer.name == 'dna':
+                dna_layer = layer
                 break
         if not dna_layer:
             raise ValueError('The provided model is not a DNA model!')

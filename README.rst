@@ -55,6 +55,7 @@ Table of contents
 News
 ====
 
+* **181201**: DeepCpG 1.0.7 released!
 * **180224**: DeepCpG 1.0.6 released!
 * **171112**: Keras 2 is now the main Keras version (release 1.0.5).
 * **170412**: New `notebook <./examples/notebooks/stats/index.ipynb>`_ on predicting inter-cell statistics!
@@ -212,6 +213,10 @@ Content
 
 Changelog
 =========
+
+1.0.7
+-----
+* Add support for Keras >=2.2.0.
 
 1.0.6
 -----

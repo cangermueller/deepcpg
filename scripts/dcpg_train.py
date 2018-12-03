@@ -74,6 +74,7 @@ from deepcpg import callbacks as cbk
 from deepcpg import data as dat
 from deepcpg import metrics as met
 from deepcpg import models as mod
+from deepcpg.models.utils import is_input_layer, is_output_layer
 from deepcpg.data import hdf, OUTPUT_SEP
 from deepcpg.utils import format_table, make_dir, EPS
 
@@ -86,7 +87,7 @@ REG_METRICS = [met.mse, met.mae]
 
 
 def remove_outputs(model):
-    while model.layers[-1] in model.output_layers:
+    while is_output_layer(model.layers[-1], model):
         model.layers.pop()
     model.outputs = [model.layers[-1].output]
     model.layers[-1].outbound_nodes = []
@@ -97,7 +98,7 @@ def rename_layers(model, scope=None):
     if not scope:
         scope = model.scope
     for layer in model.layers:
-        if layer in model.input_layers or layer.name.startswith(scope):
+        if is_input_layer(layer) or layer.name.startswith(scope):
             continue
         layer.name = '%s/%s' % (scope, layer.name)
 
@@ -595,7 +596,7 @@ class App(object):
             remove_outputs(stem)
 
         outputs = mod.add_output_layers(stem.outputs[0], output_names)
-        model = Model(stem.inputs, outputs, stem.name)
+        model = Model(inputs=stem.inputs, outputs=outputs, name=stem.name)
         return model
 
     def set_trainability(self, model):
@@ -622,17 +623,18 @@ class App(object):
         table['layer'] = []
         table['trainable'] = []
         for layer in model.layers:
-            if layer not in model.input_layers + model.output_layers:
-                if not hasattr(layer, 'trainable'):
-                    continue
-                for regex in not_trainable:
-                    if re.match(regex, layer.name):
-                        layer.trainable = False
-                for regex in trainable:
-                    if re.match(regex, layer.name):
-                        layer.trainable = True
-                table['layer'].append(layer.name)
-                table['trainable'].append(layer.trainable)
+            if is_input_layer(layer) or is_output_layer(layer, model):
+                continue
+            if not hasattr(layer, 'trainable'):
+                continue
+            for regex in not_trainable:
+                if re.match(regex, layer.name):
+                    layer.trainable = False
+            for regex in trainable:
+                if re.match(regex, layer.name):
+                    layer.trainable = True
+            table['layer'].append(layer.name)
+            table['trainable'].append(layer.trainable)
         print('Layer trainability:')
         print(format_table(table))
         print()
@@ -713,9 +715,7 @@ class App(object):
         mod.save_model(model, os.path.join(opts.out_dir, 'model.json'))
 
         log.info('Computing output statistics ...')
-        output_names = []
-        for output_layer in model.output_layers:
-            output_names.append(output_layer.name)
+        output_names = model.output_names
 
         output_stats = OrderedDict()
 
