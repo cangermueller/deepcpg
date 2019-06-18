@@ -459,7 +459,6 @@ class App(object):
 
             if 'cpg_mat' in chromo_outputs and opts.cpg_cov:
                 cov = np.sum(chromo_outputs['cpg_mat'] != dat.CPG_NAN, axis=1)
-                assert np.all(cov >= 1)
                 idx = cov >= opts.cpg_cov
                 tmp = '%s sites matched minimum coverage filter'
                 tmp %= format_out_of(idx.sum(), len(idx))
