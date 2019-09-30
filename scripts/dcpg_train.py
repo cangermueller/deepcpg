@@ -65,7 +65,6 @@ import pandas as pd
 import six
 from six.moves import range
 
-from keras import backend as K
 from keras import callbacks as kcbk
 from keras.models import Model
 from keras.optimizers import Adam
