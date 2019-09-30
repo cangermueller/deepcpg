@@ -456,7 +456,7 @@ class App(object):
         )
         callbacks.append(self.perf_logger)
 
-        if K._BACKEND == 'tensorflow' and not opts.no_tensorboard:
+        if not opts.no_tensorboard:
             callbacks.append(kcbk.TensorBoard(
                 log_dir=opts.out_dir,
                 histogram_freq=0,
